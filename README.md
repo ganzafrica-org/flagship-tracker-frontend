@@ -1,87 +1,157 @@
-# Welcome to React Router!
+# Flagship Tracker — Frontend
 
-A modern, production-ready template for building full-stack React applications using React Router.
-
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
-
-## Features
-
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
-
-## Getting Started
-
-### Installation
-
-Install the dependencies:
-
-```bash
-npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
-npm run dev
-```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-## Deployment
-
-### Docker Deployment
-
-To build and run using Docker:
-
-```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
-```
-
-The containerized application can be deployed to any platform that supports Docker, including:
-
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
-```
-
-## Styling
-
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
+React frontend for the Flagship Tracker application. Built with React Router v7 (SSR), TanStack Query, HeroUI v3, Tailwind CSS v4, Recharts, and Framer Motion.
 
 ---
 
-Built with ❤️ using React Router.
+## Tech Stack
+
+| Tool | Purpose |
+|------|---------|
+| [React Router v7](https://reactrouter.com) | SSR framework, file-based routing, loaders |
+| [TanStack Query v5](https://tanstack.com/query) | Server state, caching, background refetching |
+| [HeroUI v3](https://heroui.com) | Component library (Tailwind v4 + React Aria) |
+| [Tailwind CSS v4](https://tailwindcss.com) | Utility-first styling |
+| [Recharts](https://recharts.org) | Charts on dashboards |
+| [Framer Motion](https://www.framer.com/motion) | Page transition animations |
+
+---
+
+## Prerequisites
+
+- Node.js 20+
+- pnpm 9+
+- Java Spring Boot backend running (see backend repo)
+
+---
+
+## Getting Started
+
+```bash
+# Install dependencies
+pnpm install
+
+# Copy environment file and set your API URL
+cp .env.example .env
+
+# Start development server
+pnpm dev
+```
+
+The app runs at `http://localhost:5173` by default.
+
+---
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `VITE_API_BASE_URL` | Base URL of the Spring Boot backend | `http://localhost:8080` |
+
+---
+
+## Project Structure
+
+```
+app/
+├── components/
+│   ├── PageTransition.tsx     # Framer Motion page fade/slide wrapper (used in layouts)
+│   └── TopProgressBar.tsx     # React Router navigation state
+├── lib/
+│   ├── api.ts                 # Reusable fetch wrapper for all HTTP methods
+│   ├── queryClient.ts         # TanStack Query client with retry/stale config
+│   └── queries/               # Query options factories (one file per resource)
+│       ├── flagships.ts
+│       ├── dashboard.ts
+│       ├── reports.ts
+│       └── users.ts
+├── routes/
+│   ├── index.tsx              # / → redirects to /login
+│   ├── login/index.tsx
+│   ├── admin/
+│   │   ├── layout.tsx         # Admin layout + nav tabs + prefetch
+│   │   ├── dashboard/index.tsx
+│   │   ├── flagships/
+│   │   │   ├── index.tsx
+│   │   │   └── $id/index.tsx
+│   │   ├── reports/index.tsx
+│   │   └── users/index.tsx
+│   ├── me/                    # M&E user group
+│   │   ├── layout.tsx
+│   │   └── flagships/
+│   │       ├── index.tsx
+│   │       └── $id/index.tsx
+│   └── senior/                # Senior Officials user group
+│       ├── layout.tsx
+│       ├── dashboard/index.tsx
+│       ├── flagships/
+│       │   ├── index.tsx
+│       │   └── $id/index.tsx
+│       └── reports/index.tsx
+├── routes.ts                  # Routes config
+├── root.tsx                   # App shell: QueryClientProvider, Toast.Provider, TopProgressBar
+└── app.css                    # Tailwind + HeroUI styles + custom theme variables
+```
+
+---
+
+## Data Fetching Pattern
+
+The app combines React Router loaders with TanStack Query in two ways:
+
+### Prefetch on layout load (list / dashboard pages)
+Layout loaders call `queryClient.prefetchQuery()` — non-blocking, returns immediately. Child pages show **skeleton loaders** while fetches complete in the background.
+
+```ts
+// admin/layout.tsx
+export async function loader() {
+  queryClient.prefetchQuery(flagshipsQueryOptions); // fire and forget
+  return null;
+}
+
+// admin/flagships/index.tsx
+const { data, isLoading } = useQuery(flagshipsQueryOptions);
+// isLoading = true while prefetch is in flight → show skeletons
+```
+
+### Block on detail load (single resource pages)
+Detail page loaders call `queryClient.ensureQueryData()` — blocks render until data is in cache. The component always receives data immediately. The **top progress bar** handles the visible wait.
+
+```ts
+// admin/flagships/$id/index.tsx
+export async function loader({ params }) {
+  await queryClient.ensureQueryData(flagshipQueryOptions(Number(params.id)));
+  return null;
+}
+
+const { data } = useQuery(flagshipQueryOptions(id));
+// data is always defined — loader guaranteed it
+```
+
+### Adding a new API resource
+
+1. Create `app/lib/queries/my-resource.ts` with a `queryOptions()` factory
+2. Add `queryClient.prefetchQuery(myResourceQueryOptions)` to the relevant layout loader
+3. Call `useQuery(myResourceQueryOptions)` in the page component
+4. Replace the dummy `queryFn` with `api.get(...)` once the backend endpoint is ready
+
+---
+
+## User Groups and Routes
+
+| Group | Routes | Prefetched on layout load |
+|-------|--------|--------------------------|
+| Admin | `/admin/dashboard`, `/admin/flagships`, `/admin/flagships/:id`, `/admin/reports`, `/admin/users` | dashboard, flagships, reports, users |
+| M&E | `/me/flagships`, `/me/flagships/:id` | flagships |
+| Senior Officials | `/senior/dashboard`, `/senior/flagships`, `/senior/flagships/:id`, `/senior/reports` | dashboard, flagships, reports |
+
+---
+
+## Available Scripts
+
+```bash
+pnpm dev          # Development server with HMR
+pnpm build        # Production build
+pnpm start        # Serve production build
+pnpm typecheck    # Type generation + TypeScript check
+```
