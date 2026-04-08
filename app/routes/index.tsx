@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Button, Card } from "@heroui/react";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
+import { IconFlag, IconAlertTriangle } from "@tabler/icons-react";
 
 import { healthQueryOptions } from "~/lib/queries/health";
+import { StatCard } from "~/components/stat-card";
 
 export default function Index() {
   const { isSuccess, isError, isPending } = useQuery(healthQueryOptions);
@@ -14,6 +16,24 @@ export default function Index() {
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Flagship Tracker</h1>
           <p className="text-(--muted)">Developer landing page</p>
+        </div>
+
+        {/* Stat card examples */}
+        <div className="space-y-3">
+          <StatCard
+            color="#3b82f6"
+            icon={<IconFlag size={20} />}
+            stat={24}
+            label="Total Flagships"
+            statDescription="across all departments"
+          />
+          <StatCard
+            color="#f97316"
+            icon={<IconAlertTriangle size={20} />}
+            stat={4}
+            label="At Risk"
+            statDescription="require attention"
+          />
         </div>
 
         {/* Health status */}

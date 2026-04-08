@@ -2,8 +2,8 @@ import { Outlet, useLocation } from "react-router";
 import { Tabs } from "@heroui/react";
 
 import type { Route } from "./+types/layout";
-import { queryClient } from "~/lib/queryClient";
-import { PageTransition } from "~/components/PageTransition";
+import { queryClient } from "~/lib/query-client";
+import { PageTransition } from "~/components/page-transition";
 import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";

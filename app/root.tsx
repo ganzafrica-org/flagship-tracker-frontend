@@ -10,8 +10,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toast } from "@heroui/react";
 
 import type { Route } from "./+types/root";
-import { queryClient } from "./lib/queryClient";
-import { TopProgressBar } from "./components/TopProgressBar";
+import { queryClient } from "./lib/query-client";
+import { TopProgressBar } from "./components/top-progress-bar";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [

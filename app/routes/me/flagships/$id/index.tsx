@@ -3,7 +3,7 @@ import { Card } from "@heroui/react";
 import { RadialBarChart, RadialBar, ResponsiveContainer, Tooltip } from "recharts";
 
 import type { Route } from "./+types/index";
-import { queryClient } from "~/lib/queryClient";
+import { queryClient } from "~/lib/query-client";
 import { flagshipQueryOptions } from "~/lib/queries/flagships";
 
 export async function loader({ params }: Route.LoaderArgs) {

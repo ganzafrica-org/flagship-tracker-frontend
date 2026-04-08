@@ -14,6 +14,7 @@ React frontend for the Flagship Tracker application. Built with React Router v7 
 | [Tailwind CSS v4](https://tailwindcss.com) | Utility-first styling |
 | [Recharts](https://recharts.org) | Charts on dashboards |
 | [Framer Motion](https://www.framer.com/motion) | Page transition animations |
+| [@tabler/icons-react](https://tabler.io/icons) | Icon library used across all components |
 
 ---
 
@@ -55,11 +56,14 @@ The app runs at `http://localhost:5173` by default.
 ```
 app/
 ├── components/
-│   ├── PageTransition.tsx     # Framer Motion page fade/slide wrapper (used in layouts)
-│   └── TopProgressBar.tsx     # React Router navigation state
+│   ├── page-transition.tsx    # Framer Motion page fade/slide wrapper (used in layouts)
+│   └── top-progress-bar.tsx   # React Router navigation state
+├── data/                      # Dummy data for development and UI prototyping only
+│   ├── dummy-data.ts          # General shared dummy data
+│   └── dummy-flagships.ts     # Example: resource-specific dummy data files go here
 ├── lib/
 │   ├── api.ts                 # Reusable fetch wrapper for all HTTP methods
-│   ├── queryClient.ts         # TanStack Query client with retry/stale config
+│   ├── query-client.ts        # TanStack Query client with retry/stale config
 │   └── queries/               # Query options factories (one file per resource)
 │       ├── flagships.ts
 │       ├── dashboard.ts
@@ -154,4 +158,46 @@ pnpm dev          # Development server with HMR
 pnpm build        # Production build
 pnpm start        # Serve production build
 pnpm typecheck    # Type generation + TypeScript check
+pnpm lint         # Run ESLint across the app
+```
+
+---
+
+## Code Conventions
+
+Enforced via ESLint (`eslint.config.js`). Run `pnpm lint` to check.
+
+### Filenames
+All `.ts` and `.tsx` files must use **kebab-case**.
+
+```
+stat-card.tsx        ✅
+query-client.ts      ✅
+StatCard.tsx         ❌
+queryClient.ts       ❌
+```
+
+### Naming
+| Target | Convention | Example |
+|--------|-----------|---------|
+| Variables | `camelCase` or `UPPER_CASE` | `flagshipList`, `MAX_RETRIES` |
+| Functions | `camelCase` (utilities/hooks) or `PascalCase` (components) | `fetchData()`, `StatCard()` |
+| Parameters | `camelCase` (leading `_` allowed for unused) | `params`, `_event` |
+| Types / Interfaces / Enums | `PascalCase` | `FlagshipStatus`, `StatCardProps` |
+
+### Quotes
+Always use **double quotes** for strings.
+
+```ts
+const name = "Flagship Tracker";   ✅
+const name = 'Flagship Tracker';   ❌
+```
+
+### Dummy Data
+All mock/dummy data lives in `app/data/`. Create one file per resource, named `dummy-<resource>.ts`.
+
+```
+app/data/dummy-flagships.ts    ✅
+app/data/dummy-reports.ts      ✅
+app/data/dummyData.ts          ❌
 ```
