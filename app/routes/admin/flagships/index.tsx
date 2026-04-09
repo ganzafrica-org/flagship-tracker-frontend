@@ -1,16 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { Table, Skeleton, Virtualizer, Pagination } from "@heroui/react";
 import { TableLayout } from "@heroui/react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 
 import type { Route } from "./+types/index";
+import ActionDropdown from "~/components/action-dropdown";
 import { flagshipsQueryOptions, type Flagship } from "~/lib/queries/flagships";
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Flagships | Admin" }];
 }
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 7;
 
 const STATUS_CLASSES: Record<Flagship["status"], string> = {
   active:   "bg-success/10 text-success",
@@ -58,7 +59,7 @@ export default function AdminFlagships() {
                 <Table.Column>Lead</Table.Column>
                 <Table.Column>Progress</Table.Column>
                 <Table.Column>Status</Table.Column>
-                <Table.Column> </Table.Column>
+                <Table.Column>Action</Table.Column>
               </Table.Header>
               <Table.Body>
                 {paged.map((f) => (
@@ -79,9 +80,13 @@ export default function AdminFlagships() {
                       </span>
                     </Table.Cell>
                     <Table.Cell>
-                      <Link to={`/admin/flagships/${f.id}`} className="text-xs text-(--accent) hover:underline">
-                        View
-                      </Link>
+                      <ActionDropdown
+                        actions={[
+                          { label: "View Details", onClick: () => undefined },
+                          { label: "Update", onClick: () => undefined },
+                          { label: "Delete", onClick: () => undefined, color: "danger" },
+                        ]}
+                      />
                     </Table.Cell>
                   </Table.Row>
                 ))}

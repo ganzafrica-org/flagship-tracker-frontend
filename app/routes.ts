@@ -20,6 +20,7 @@ export default [
   layout("routes/me/layout.tsx", [
     route("me/flagships",             "routes/me/flagships/index.tsx"),
     route("me/flagships/:id",         "routes/me/flagships/$id/index.tsx"),
+    route("me/reports",         "routes/me/reports/index.tsx"),
   ]),
 
   // Senior Officials

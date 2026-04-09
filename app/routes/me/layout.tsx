@@ -13,6 +13,7 @@ export async function loader(_: Route.LoaderArgs) {
 
 const NAV_TABS = [
   { id: "flagships", label: "Flagships", href: "/me/flagships" },
+  { id: "reports", label: "Reports", href: "/me/reports" },
 ];
 
 export default function MeLayout() {
