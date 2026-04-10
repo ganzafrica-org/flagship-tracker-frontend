@@ -76,8 +76,14 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconFlag size={20} />,
     },
     {
+      id: "data-management",
+      label: "Data Management",
+      href: "/me/data-management",
+      icon: <IconUsers size={20} />,
+    },
+    {
       id: "reports",
-      label: "Reports",
+      label: "Report",
       href: "/me/reports",
       icon: <IconChartBar size={20} />,
     },
