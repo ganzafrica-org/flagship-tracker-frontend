@@ -34,7 +34,7 @@ export function StatCard({ color, icon, iconBackground, stat, label, statDescrip
       />
 
       {/* Card body */}
-      <div className="flex flex-row items-center gap-4 px-5 py-4 w-full">
+      <div className="flex flex-row items-center gap-4 px-5 py-6 w-full">
         {/* Icon circle */}
         <div
           className="flex items-center justify-center rounded-full w-11 h-11 shrink-0"
@@ -52,10 +52,10 @@ export function StatCard({ color, icon, iconBackground, stat, label, statDescrip
               {stat}
             </span>
             {statDescription && (
-              <span className="text-xs text-(--muted)">{statDescription}</span>
+              <span className="text-xs text-(--foreground)">{statDescription}</span>
             )}
           </div>
-          <span className="text-sm text-(--muted)">{label}</span>
+          {label && <span className="text-sm text-(--foreground)">{label}</span>}
         </div>
       </div>
     </Card>

@@ -219,16 +219,16 @@ export function SingleFlagshipDetails({
         {/* Left: 2×2 KPI block — height follows the gender cards on lg */}
         <div className="lg:col-span-2 grid grid-cols-2 gap-3 lg:min-h-0 auto-rows-fr">
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("invest")} className="h-full min-h-0 shadow-sm" />
+            <KpiStatCard k={findKpi("invest")} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("acreage")} className="h-full min-h-0 shadow-sm" />
+            <KpiStatCard k={findKpi("acreage")} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("revenue")} className="h-full min-h-0 shadow-sm" />
+            <KpiStatCard k={findKpi("revenue")} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("income")} className="h-full min-h-0 shadow-sm" />
+            <KpiStatCard k={findKpi("income")} className="h-full min-h-0" />
           </div>
         </div>
         <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
@@ -252,7 +252,7 @@ export function SingleFlagshipDetails({
       </motion.div>
 
       <motion.div {...motionFade} transition={{ duration: 0.25, delay: 0.05 }}>
-        <Card className="w-full min-w-0 rounded-xl border border-(--separator) bg-(--surface) shadow-md">
+        <Card className="w-full min-w-0">
           <Card.Content className="flex w-full min-w-0 flex-col gap-6 p-6">
             <div className="w-full min-w-0 space-y-3">
               <h3 className="w-full text-base font-bold text-(--foreground)">
@@ -353,7 +353,7 @@ export function SingleFlagshipDetails({
               <div className="mt-3 flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-sm text-(--foreground)">
                 <span className="flex items-center gap-2">
                   <span
-                    className="size-3 shrink-0 rounded-sm border border-black/5"
+                    className="size-2 shrink-0 rounded-full"
                     style={{ backgroundColor: flagshipDetailJobsGauge.trackFill }}
                     aria-hidden
                   />
@@ -361,7 +361,7 @@ export function SingleFlagshipDetails({
                 </span>
                 <span className="flex items-center gap-2">
                   <span
-                    className="size-3 shrink-0 rounded-sm border border-black/5"
+                    className="size-2 shrink-0 rounded-full"
                     style={{ backgroundColor: flagshipDetailJobsGauge.actualFill }}
                     aria-hidden
                   />
@@ -394,7 +394,7 @@ export function SingleFlagshipDetails({
                     ))}
                   </Pie>
                   <Tooltip />
-                  <Legend />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center pt-6">
@@ -426,7 +426,7 @@ export function SingleFlagshipDetails({
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Legend />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="target" name="Target" stroke={CHART.grid} strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="tomato" name="Tomato" stroke={CHART.accent} strokeWidth={2} />
                 <Line type="monotone" dataKey="cucumber" name="Cucumber" stroke={CHART.warning} strokeWidth={2} />
@@ -465,7 +465,7 @@ export function SingleFlagshipDetails({
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </Card.Content>
@@ -488,7 +488,7 @@ export function SingleFlagshipDetails({
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Legend />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Line type="monotone" dataKey="tomato" name="Tomato" stroke={CHART.accent} strokeWidth={2} />
                 <Line type="monotone" dataKey="cucumber" name="Cucumber" stroke={CHART.warning} strokeWidth={2} />
                 <Line type="monotone" dataKey="chili" name="Chili" stroke={CHART.success} strokeWidth={2} />
@@ -514,7 +514,7 @@ export function SingleFlagshipDetails({
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Legend />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="tomato" name="Tomato" fill={CHART.accent} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="cucumber" name="Cucumber" fill={CHART.warning} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="chili" name="Chili" fill={CHART.success} radius={[4, 4, 0, 0]} />
@@ -670,7 +670,7 @@ function GenderBigCard({
   const outerRadius = "68%";
 
   return (
-    <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl p-0 shadow-md ring-1 ring-black/5 dark:ring-white/10">
+    <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl p-0">
       <div className="shrink-0 px-4 pt-3 pb-1">
         <div className="flex flex-row items-center gap-2.5">
           <div

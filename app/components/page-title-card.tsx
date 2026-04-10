@@ -30,8 +30,8 @@ export function PageTitleCard({
           {actionSlot ?? (
             <Button
               variant="primary"
-              className="!rounded-xl font-medium shrink-0"
-              style={{ borderRadius: "12px" }}
+              className="!rounded-3xl font-medium shrink-0"
+              style={{ borderRadius: "1.5rem" }}
               onPress={onActionPress}
             >
               {actionLabel}
