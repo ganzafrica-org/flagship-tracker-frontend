@@ -105,7 +105,7 @@ export default function Navbar({ onMenuToggle, userName }: NavbarProps) {
                 <Label>Profile</Label>
               </Dropdown.Item>
               <Dropdown.Item id="logout" textValue="Logout" variant="danger">
-                <IconLogout size={16} />
+                <IconLogout size={16} className="text-(--danger)" />
                 <Label>Logout</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
