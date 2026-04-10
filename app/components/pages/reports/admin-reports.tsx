@@ -1,9 +1,20 @@
 "use client";
 
 import { dummyReportsList } from "~/data/dummy-data";
-import TableComponent from "~/components/pages/table-component";
+import TableComponent from "~/components/table-component";
+import { flagshipDummyData } from "~/data/dummy-flagship-detail";
+import { useState } from "react";
+import { PageTitleCard } from "~/components/page-title-card";
+import { ContentTab } from "~/components/content-tab";
 
 export default function AdminReports() {
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "closed">("all");
+
+  const filtered =
+    activeTab === "all"
+      ? flagshipDummyData
+      : flagshipDummyData.filter((item) => item.status === activeTab);
+
   const rows = dummyReportsList.map((report) => ({
     id: report.id,
     name: report.name,
@@ -15,6 +26,18 @@ export default function AdminReports() {
   }));
 
   return (
+    <div className="flex flex-col gap-5">
+    <PageTitleCard title="Manage The Reports" actionLabel="Generate Report"/>
+    <ContentTab
+      items={[
+        { id: "all", label: "All" },
+        { id: "active", label: "Active" },
+        { id: "planning", label: "Planning" },
+        { id: "in-active", label: "Inactive" },
+      ]}
+      activeId={activeTab}
+      onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "closed")}
+    />
     <TableComponent
       rows={rows}
       searchKeys={["name", "type"]}
@@ -35,5 +58,6 @@ export default function AdminReports() {
         { label: "Download", onClick: () => undefined },
       ]}
     />
+    </div >
   );
 }

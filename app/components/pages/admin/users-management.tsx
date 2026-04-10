@@ -4,9 +4,19 @@ import { useState } from "react";
 import { Button, Card } from "@heroui/react";
 
 import { dummyUserTabs, dummyUsers } from "~/data/dummy-data";
-import TableComponent from "~/components/pages/table-component";
+import TableComponent from "~/components/table-component";
+import { PageTitleCard } from "~/components/page-title-card";
+import { flagshipDummyData } from "~/data/dummy-flagship-detail";
+import { ContentTab } from "~/components/content-tab";
 
 function UserManagementTable() {
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "closed">("all");
+
+  const filtered =
+    activeTab === "all"
+      ? flagshipDummyData
+      : flagshipDummyData.filter((item) => item.status === activeTab);
+
   const rows = dummyUsers.map((user) => ({
     id: user.id,
     fullName: user.fullName,
@@ -17,42 +27,53 @@ function UserManagementTable() {
   }));
 
   return (
-    <TableComponent
-      pageTitle="User Management"
-      headerActionLabel="Add a New User"
-      tableSectionTitle="Recent Users"
-      tabs={dummyUserTabs}
-      rows={rows}
-      searchKeys={["fullName", "email", "role"]}
-      filterByTab={(row, selectedTab) => {
-        if (selectedTab === "all") return true;
-        if (selectedTab === "active") return row.status === "Active";
-        if (selectedTab === "planning") return row.status === "Pending";
-        if (selectedTab === "inactive") return row.status === "Inactive";
-        return true;
-      }}
-      columns={[
-        { key: "id", label: "#" },
-        { key: "fullName", label: "Full Name" },
-        { key: "email", label: "Email" },
-        { key: "phone", label: "Phone" },
-        { key: "role", label: "Role" },
-        { key: "status", label: "Status" },
-        { key: "action", label: "Action" },
-      ]}
-      minTableWidthClassName="min-w-[940px]"
-      statusColumnKey="status"
-      statusColorMap={{
-        Active: "success",
-        Pending: "warning",
-        Inactive: "default",
-      }}
-      actions={() => [
-        { label: "View Details", onClick: () => undefined },
-        { label: "Update", onClick: () => undefined },
-        { label: "Delete", onClick: () => undefined, color: "danger" },
-      ]}
-    />
+    <div className="flex flex-col gap-5">
+      <PageTitleCard title="User Management" actionLabel="Add A New User" />
+      <ContentTab
+        items={[
+          { id: "all", label: "All" },
+          { id: "active", label: "Active" },
+          { id: "planning", label: "Planning" },
+          { id: "in-active", label: "Inactive" }
+        ]}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "closed")}
+      />
+      <TableComponent
+        tableSectionTitle="Recent Users"
+        tabs={dummyUserTabs}
+        rows={rows}
+        searchKeys={["fullName", "email", "role"]}
+        filterByTab={(row, selectedTab) => {
+          if (selectedTab === "all") return true;
+          if (selectedTab === "active") return row.status === "Active";
+          if (selectedTab === "planning") return row.status === "Pending";
+          if (selectedTab === "inactive") return row.status === "Inactive";
+          return true;
+        }}
+        columns={[
+          { key: "id", label: "#" },
+          { key: "fullName", label: "Full Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "role", label: "Role" },
+          { key: "status", label: "Status" },
+          { key: "action", label: "Action" },
+        ]}
+        minTableWidthClassName="min-w-[940px]"
+        statusColumnKey="status"
+        statusColorMap={{
+          Active: "success",
+          Pending: "warning",
+          Inactive: "default",
+        }}
+        actions={() => [
+          { label: "View Details", onClick: () => undefined },
+          { label: "Update", onClick: () => undefined },
+          { label: "Delete", onClick: () => undefined, color: "danger" },
+        ]}
+      />
+    </div>
   );
 }
 
@@ -72,9 +93,8 @@ function AddUserWizardCard() {
 
           <button type="button" onClick={() => setStep(1)} className="relative z-10 flex flex-col items-center gap-1 text-xs">
             <span
-              className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                step >= 1 ? "border-primary bg-primary text-white" : "border-default-300 bg-white text-default-500"
-              }`}
+              className={`flex h-8 w-8 items-center justify-center rounded-full border ${step >= 1 ? "border-primary bg-primary text-white" : "border-default-300 bg-white text-default-500"
+                }`}
             >
               {step > 1 ? "✓" : "1"}
             </span>
@@ -83,9 +103,8 @@ function AddUserWizardCard() {
 
           <button type="button" onClick={() => setStep(2)} className="relative z-10 flex flex-col items-center gap-1 text-xs">
             <span
-              className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                step >= 2 ? "border-primary bg-primary text-white" : "border-default-300 bg-white text-default-500"
-              }`}
+              className={`flex h-8 w-8 items-center justify-center rounded-full border ${step >= 2 ? "border-primary bg-primary text-white" : "border-default-300 bg-white text-default-500"
+                }`}
             >
               2
             </span>
@@ -179,14 +198,9 @@ export default function UsersManagementPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Button variant={view === "management" ? "primary" : "ghost"} onPress={() => setView("management")}>
-          User Management
-        </Button>
-        <Button variant={view === "new-user" ? "primary" : "ghost"} onPress={() => setView("new-user")}>
+        {/* <Button variant={view === "new-user" ? "primary" : "ghost"} onPress={() => setView("new-user")}>
           Add a New User
-        </Button>
-      </div>
+        </Button> */}
       {view === "management" ? <UserManagementTable /> : <AddUserWizardCard />}
     </div>
   );
