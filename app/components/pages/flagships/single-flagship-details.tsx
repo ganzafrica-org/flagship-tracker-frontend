@@ -28,7 +28,7 @@ import {
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 
-import { PageTitleCardWithAction } from "~/components/page-title-card-with-action";
+import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import {
   CHART,
@@ -205,7 +205,7 @@ export function SingleFlagshipDetails({
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCardWithAction
+      <PageTitleCard
         title={intro.displayTitle}
         actionLabel="View Flagship Summary"
         onActionPress={onViewSummaryPress}
