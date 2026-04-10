@@ -18,7 +18,7 @@ export function meta({}: Route.MetaArgs) {
 export default function MeFlagship({ params }: Route.ComponentProps) {
   const { data: flagship } = useQuery(flagshipQueryOptions(Number(params.id)));
 
-  const chartData = [{ name: "Progress", value: flagship?.progress ?? 0, fill: "oklch(62.16% 0.1260 233.33)" }];
+  const chartData = [{ name: "Progress", value: flagship?.progress ?? 0, fill: "var(--accent)" }];
 
   return (
     <div className="space-y-6">
@@ -36,7 +36,7 @@ export default function MeFlagship({ params }: Route.ComponentProps) {
             <div className="relative h-48 w-48">
               <ResponsiveContainer width="100%" height="100%">
                 <RadialBarChart innerRadius="70%" outerRadius="100%" data={chartData} startAngle={90} endAngle={-270}>
-                  <RadialBar dataKey="value" cornerRadius={8} background={{ fill: "oklch(94% 0.002 233)" }} />
+                  <RadialBar dataKey="value" cornerRadius={8} background={{ fill: "var(--default)" }} />
                   <Tooltip formatter={(v) => `${v}%`} />
                 </RadialBarChart>
               </ResponsiveContainer>
