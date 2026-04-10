@@ -32,8 +32,11 @@
   --segment: oklch(100.00% 0.0019 233.33);
   --segment-foreground: oklch(21.03% 0.0019 233.33);
   --separator: oklch(92.00% 0.0019 233.33);
-  --success: oklch(73.29% 0.1942 148.35);
-  --success-foreground: oklch(21.03% 0.0059 148.35);
+  /* Dark forest green (flagship cards, progress, success charts) - not mint / light green */
+  --forest: oklch(37.34% 0.0894 155.74);
+  --forest-foreground: oklch(99.11% 0 0);
+  --success: var(--forest);
+  --success-foreground: var(--forest-foreground);
   --surface: oklch(100.00% 0.0009 233.33);
   --surface-foreground: oklch(21.03% 0.0019 233.33);
   --surface-secondary: oklch(95.24% 0.0015 233.33);
@@ -42,6 +45,15 @@
   --surface-tertiary-foreground: oklch(21.03% 0.0019 233.33);
   --warning: oklch(78.19% 0.1591 69.87);
   --warning-foreground: oklch(21.03% 0.0059 69.87);
+
+  /*
+   * Icon circles: light pastel of the same hue as each token (orange -> light peach/yellow, red -> light rose, etc.).
+   * Hue values match --accent / --warning / --forest / --danger so rings never read as generic blue.
+   */
+  --accent-icon-bg: oklch(94.5% 0.058 233.33);
+  --warning-icon-bg: oklch(96.5% 0.1 69.87);
+  --forest-icon-bg: oklch(94% 0.065 155.74);
+  --danger-icon-bg: oklch(97% 0.075 23.28);
 
   /* Border Radius */
   --radius: 0.125rem;
@@ -76,8 +88,10 @@
   --segment: oklch(39.64% 0.0019 233.33);
   --segment-foreground: oklch(99.11% 0.0019 233.33);
   --separator: oklch(25.00% 0.0019 233.33);
-  --success: oklch(73.29% 0.1942 148.35);
-  --success-foreground: oklch(21.03% 0.0059 148.35);
+  --forest: oklch(58% 0.11 155);
+  --forest-foreground: oklch(99.11% 0 0);
+  --success: var(--forest);
+  --success-foreground: var(--forest-foreground);
   --surface: oklch(21.03% 0.0038 233.33);
   --surface-foreground: oklch(99.11% 0.0019 233.33);
   --surface-secondary: oklch(25.70% 0.0029 233.33);
@@ -86,4 +100,25 @@
   --surface-tertiary-foreground: oklch(99.11% 0.0019 233.33);
   --warning: oklch(82.03% 0.1393 73.88);
   --warning-foreground: oklch(21.03% 0.0059 69.87);
+
+  --accent-icon-bg: oklch(30% 0.065 233.33);
+  --warning-icon-bg: oklch(32% 0.09 73.88);
+  --forest-icon-bg: oklch(29% 0.06 155);
+  --danger-icon-bg: oklch(31% 0.08 22.17);
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+}
+
+/*
+ * Recharts marks the chart wrapper and SVG surface as focusable (keyboard a11y).
+ * Clicking the chart focuses them and shows the browser's default outline — remove it app-wide.
+ */
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible,
+.recharts-surface:focus,
+.recharts-surface:focus-visible {
+  outline: none;
 }

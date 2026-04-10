@@ -66,21 +66,21 @@ export default function AdminDashboard() {
                 <AreaChart data={stats?.trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorFlagships" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="oklch(62.16% 0.1260 233.33)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="oklch(62.16% 0.1260 233.33)" stopOpacity={0}   />
+                      <stop offset="5%"  stopColor="var(--accent)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--accent)" stopOpacity={0}   />
                     </linearGradient>
                     <linearGradient id="colorReports" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="oklch(73.29% 0.1942 148.35)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="oklch(73.29% 0.1942 148.35)" stopOpacity={0}   />
+                      <stop offset="5%"  stopColor="var(--forest)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--forest)" stopOpacity={0}   />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(90% 0.002 233)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
                   <Legend />
-                  <Area type="monotone" dataKey="flagships" stroke="oklch(62.16% 0.1260 233.33)" fill="url(#colorFlagships)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="reports"   stroke="oklch(73.29% 0.1942 148.35)" fill="url(#colorReports)"   strokeWidth={2} />
+                  <Area type="monotone" dataKey="flagships" stroke="var(--accent)" fill="url(#colorFlagships)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="reports"   stroke="var(--forest)" fill="url(#colorReports)"   strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -99,11 +99,11 @@ export default function AdminDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={stats?.trend} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(90% 0.002 233)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip />
-                  <Bar dataKey="reports" fill="oklch(62.16% 0.1260 233.33)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="reports" fill="var(--accent)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
