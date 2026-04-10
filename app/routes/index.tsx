@@ -21,14 +21,14 @@ export default function Index() {
         {/* Stat card examples */}
         <div className="space-y-3">
           <StatCard
-            color="#3b82f6"
+            color="var(--accent)"
             icon={<IconFlag size={20} />}
             stat={24}
             label="Total Flagships"
             statDescription="across all departments"
           />
           <StatCard
-            color="#f97316"
+            color="var(--warning)"
             icon={<IconAlertTriangle size={20} />}
             stat={4}
             label="At Risk"

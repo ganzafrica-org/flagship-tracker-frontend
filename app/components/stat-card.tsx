@@ -1,9 +1,13 @@
 import { Card } from "@heroui/react";
 import type { ReactNode } from "react";
 
+import { themeIconSoftBackground } from "~/lib/theme-icon-bg";
+
 interface StatCardProps {
-  /** Accent color applied to the left border line and the icon. Used at ~13% opacity for the icon background circle. */
+  /** Accent for the left bar and icon glyph (e.g. `var(--warning)`). */
   color: string;
+  /** Pastel circle behind the icon; prefer explicit `var(--*-icon-bg)` so it always matches the accent hue. */
+  iconBackground?: string;
   /** Tabler icon component rendered inside the circle. */
   icon: ReactNode;
   /** Primary statistic value displayed prominently. */
@@ -12,11 +16,17 @@ interface StatCardProps {
   label: string;
   /** Optional inline description shown next to the stat value. */
   statDescription?: string;
+  /** Optional class on the root `Card` (e.g. `h-full` for grid layouts). */
+  className?: string;
 }
 
-export function StatCard({ color, icon, stat, label, statDescription }: StatCardProps) {
+export function StatCard({ color, icon, iconBackground, stat, label, statDescription, className }: StatCardProps) {
+  const circleBg = iconBackground ?? themeIconSoftBackground(color);
+
   return (
-    <Card className="relative overflow-hidden flex flex-row items-stretch p-0 gap-0">
+    <Card
+      className={`relative overflow-hidden flex flex-row items-stretch p-0 gap-0 min-h-0 ${className ?? ""}`}
+    >
       {/* Left accent line */}
       <div
         className="w-1 shrink-0 rounded-l-sm"
@@ -28,9 +38,11 @@ export function StatCard({ color, icon, stat, label, statDescription }: StatCard
         {/* Icon circle */}
         <div
           className="flex items-center justify-center rounded-full w-11 h-11 shrink-0"
-          style={{ backgroundColor: color + "22" }}
+          style={{ backgroundColor: circleBg }}
         >
-          <span style={{ color }}>{icon}</span>
+          <span className="inline-flex [&_svg]:stroke-current [&_svg]:text-current" style={{ color }}>
+            {icon}
+          </span>
         </div>
 
         {/* Stat + label */}

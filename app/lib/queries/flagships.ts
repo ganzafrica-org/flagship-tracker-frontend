@@ -9,13 +9,50 @@ export interface Flagship {
   progress: number;
 }
 
+/** Names 1–6 align with `flagshipDummyData` titles for senior flagship detail + intro copy. */
 const DUMMY_FLAGSHIPS: Flagship[] = [
-  { id: 1,  name: "Project Alpha",    status: "active",   lead: "Alice Moyo",    progress: 72 },
-  { id: 2,  name: "Project Beta",     status: "active",   lead: "Bob Dlamini",   progress: 45 },
-  { id: 3,  name: "Project Gamma",    status: "pending",  lead: "Carol Nkosi",   progress: 10 },
-  { id: 4,  name: "Project Delta",    status: "active",   lead: "David Sithole", progress: 88 },
-  { id: 5,  name: "Project Epsilon",  status: "inactive", lead: "Eve Khumalo",   progress: 100 },
-  { id: 6,  name: "Project Zeta",     status: "active",   lead: "Frank Ndlovu",  progress: 60 },
+  {
+    id: 1,
+    name: "Youth Empowerment in Protected Agriculture (YEPA)",
+    status: "active",
+    lead: "Alice Moyo",
+    progress: 72,
+  },
+  {
+    id: 2,
+    name: "Empowering Youth in Poultry Value Chain Development For Enhanced Livelihoods (EYPDEL)",
+    status: "pending",
+    lead: "Bob Dlamini",
+    progress: 45,
+  },
+  {
+    id: 3,
+    name: "eMpowering Youth through commercial PIG farming (MYPIG)",
+    status: "active",
+    lead: "Carol Nkosi",
+    progress: 10,
+  },
+  {
+    id: 4,
+    name: "YOUTH-led AGRICULTURE MECHANIZATION SERVICES (YAMS)",
+    status: "inactive",
+    lead: "David Sithole",
+    progress: 88,
+  },
+  {
+    id: 5,
+    name: "YOUTH-LED SEED PRODUCTION HUB",
+    status: "pending",
+    lead: "Eve Khumalo",
+    progress: 100,
+  },
+  {
+    id: 6,
+    name: "Fodder Production (Conventional and Hydroponic)",
+    status: "active",
+    lead: "Frank Ndlovu",
+    progress: 60,
+  },
   { id: 7,  name: "Project Eta",      status: "pending",  lead: "Grace Dube",    progress: 25 },
   { id: 8,  name: "Project Theta",    status: "active",   lead: "Henry Zulu",    progress: 55 },
   { id: 9,  name: "Project Iota",     status: "inactive", lead: "Irene Mthembu", progress: 100 },
