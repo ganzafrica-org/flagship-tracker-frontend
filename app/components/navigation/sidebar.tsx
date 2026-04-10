@@ -105,7 +105,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
                       "flex items-center gap-3 px-3 py-2 rounded-3xl text-sm font-medium transition-colors whitespace-nowrap",
                       isActive
                         ? "bg-(--accent) text-(--accent-foreground)"
-                        : "text-(--foreground) hover:bg-(--default)",
+                        : "text-(--accent) hover:bg-(--default)",
                     ].join(" ")}
                   >
                     <span className="shrink-0">{item.icon}</span>
@@ -126,7 +126,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
                         "flex items-center justify-center w-10 h-10 rounded-3xl transition-colors",
                         isActive
                           ? "bg-(--accent) text-(--accent-foreground)"
-                          : "text-(--foreground) hover:bg-(--default)",
+                          : "text-(--accent) hover:bg-(--default)",
                       ].join(" ")}
                     >
                       {item.icon}
