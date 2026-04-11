@@ -150,7 +150,7 @@ export default function SeniorDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
-      <PageTitleCard title="Dashboard" />
+      <PageTitleCard title="Dashboard Overview" />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
