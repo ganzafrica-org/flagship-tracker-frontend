@@ -1,5 +1,6 @@
 import { NavLink } from "react-router";
 import { Tooltip } from "@heroui/react";
+import { IconTableOptions } from '@tabler/icons-react';
 import {
   IconLayoutDashboard,
   IconFlag,
@@ -86,7 +87,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Report",
       href: "/me/reports",
       icon: <IconChartBar size={20} />,
-    },
+    }
   ],
 };
 
