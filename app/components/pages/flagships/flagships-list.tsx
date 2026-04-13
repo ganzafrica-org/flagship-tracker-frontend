@@ -1,5 +1,5 @@
-import { Card } from "@heroui/react";
-import { IconCalendar, IconHomeFilled, IconMapPin, IconUsers } from "@tabler/icons-react";
+import { Avatar, Card } from "@heroui/react";
+import { IconCalendar, IconHomeFilled, IconMapPin } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import {
   flagshipDummyData,
@@ -18,14 +18,16 @@ interface FlagshipsListProps {
 const CARD_WRAPPER_CLASS = "rounded-xl overflow-hidden bg-(--surface)";
 const CARD_CLASS = "relative !rounded-xl bg-(--surface) p-5 min-h-[320px] h-full shadow-none flex flex-col";
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
+/** A small palette of bg/text pairs for avatar variety within a group. */
+const AVATAR_PALETTE: { bg: string; color: string }[] = [
+  { bg: "#dbeafe", color: "#1d4ed8" },
+  { bg: "#dcfce7", color: "#15803d" },
+  { bg: "#fef9c3", color: "#a16207" },
+  { bg: "#fce7f3", color: "#be185d" },
+  { bg: "#ede9fe", color: "#6d28d9" },
+  { bg: "#ffedd5", color: "#c2410c" },
+];
 
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
 
 function FlagshipListCard({
   item,
@@ -88,34 +90,26 @@ function FlagshipListCard({
 
         <div className="mt-auto pt-4 flex items-center justify-between gap-3">
           <div className="flex -space-x-2">
-            {visibleInvestors.map((name) => (
-              <div
-                key={name}
-                className="w-8 h-8 rounded-full border-2 border-(--surface) text-[10px] font-semibold flex items-center justify-center"
-                style={{
-                  backgroundColor: iconSoftBg,
-                  color: item.accentColor,
-                }}
-                title={name}
-              >
-                {getInitials(name)}
-              </div>
-            ))}
-            {extraInvestorsCount > 0 ? (
-              <div
-                className="w-8 h-8 rounded-full border-2 border-(--surface) text-[10px] font-semibold flex items-center justify-center text-(--foreground) bg-(--default)"
-                title={`${extraInvestorsCount} more people`}
-              >
-                +{extraInvestorsCount}
-              </div>
-            ) : investors.length === 0 ? (
-              <div
-                className="w-8 h-8 rounded-full border-2 border-(--surface) flex items-center justify-center text-(--muted) bg-(--default)"
-                title="No people assigned"
-              >
-                <IconUsers size={14} />
-              </div>
-            ) : null}
+            {visibleInvestors.map((name, i) => {
+              const palette = AVATAR_PALETTE[i % AVATAR_PALETTE.length];
+              return (
+                <Avatar
+                  key={name}
+                  size="sm"
+                  className="ring-2 ring-(--surface)"
+                  style={{ backgroundColor: palette.bg, color: palette.color }}
+                >
+                  <Avatar.Fallback style={{ backgroundColor: palette.bg, color: palette.color }}>
+                    {name.trim().split(/\s+/).map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </Avatar.Fallback>
+                </Avatar>
+              );
+            })}
+            {extraInvestorsCount > 0 && (
+              <Avatar size="sm" className="ring-2 ring-(--surface)">
+                <Avatar.Fallback className="text-xs">+{extraInvestorsCount}</Avatar.Fallback>
+              </Avatar>
+            )}
           </div>
 
           <div className="flex items-center gap-3 text-[12px] text-(--muted)">
