@@ -64,7 +64,7 @@ export default function ActionDropdown({ actions }: ActionDropdownProps) {
 
   return (
     <div ref={wrapperRef} className="relative inline-block">
-      <Button isIconOnly size="sm" variant="ghost" onPress={() => setIsOpen(!isOpen)} className="h-8 min-w-fit w-8">
+      <Button isIconOnly size="sm" variant="ghost" onPress={() => setIsOpen(!isOpen)} className="h-8 min-w-fit w-8 rotate-90">
         {ellipsisIcon()}
       </Button>
 

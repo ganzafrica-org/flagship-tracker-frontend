@@ -1,11 +1,16 @@
 import { Card, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
 import {
@@ -17,6 +22,8 @@ import {
 
 import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
+import TableComponent from "~/components/table-component";
+import { dummyUsers } from "~/data/dummy-data";
 import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 
 function renderPieLabel(props: PieLabelRenderProps) {
@@ -43,6 +50,14 @@ function renderPieLabel(props: PieLabelRenderProps) {
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useQuery(dashboardQueryOptions);
+  const recentUserRows = dummyUsers.map((user) => ({
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    phone: user.phone,
+    role: user.role,
+    status: user.status,
+  }));
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -133,43 +148,57 @@ export default function AdminDashboard() {
               <Skeleton className="h-52 rounded-lg" />
             ) : (
               <ResponsiveContainer width="100%" height={220} minWidth={0}>
-                <PieChart>
-                  <Pie
-                    data={stats?.usersByGender}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={80}
-                    paddingAngle={2}
-                    stroke="none"
-                    label={renderPieLabel}
-                    labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
-                  >
+                <BarChart data={stats?.usersByGender} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Bar dataKey="value" name="Users" radius={[4, 4, 0, 0]}>
                     {stats?.usersByGender?.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
                     ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
             )}
           </Card.Content>
         </Card>
       </div>
 
-      {/* Recent Users — placeholder */}
-      <Card>
-        <Card.Header>
-          <Card.Title>Recent Users</Card.Title>
-        </Card.Header>
-        <Card.Content className="p-4 pt-0">
-          <div className="flex h-32 items-center justify-center text-sm text-(--muted)">
-            No recent users to display.
-          </div>
-        </Card.Content>
-      </Card>
+      <TableComponent
+        tableSectionTitle="Recent Users"
+        tableAriaLabel="Recent users table"
+        rows={recentUserRows}
+        searchKeys={["fullName", "email", "role", "phone"]}
+        columns={[
+          { key: "id", label: "#" },
+          { key: "fullName", label: "Full Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "role", label: "Role" },
+          { key: "status", label: "Status" },
+          { key: "action", label: "Action" },
+        ]}
+        minTableWidthClassName="min-w-[940px]"
+        filterByTab={(row, selectedTab) => {
+          if (selectedTab === "all") return true;
+          if (selectedTab === "active") return row.status === "Active";
+          if (selectedTab === "planning") return row.status === "Pending";
+          if (selectedTab === "inactive") return row.status === "Inactive";
+          return true;
+        }}
+        statusColumnKey="status"
+        statusColorMap={{
+          Active: "success",
+          Pending: "warning",
+          Inactive: "default",
+        }}
+        actions={() => [
+          { label: "View Details", onClick: () => undefined },
+          { label: "Update", onClick: () => undefined },
+          { label: "Delete", onClick: () => undefined, color: "danger" },
+        ]}
+      />
     </div>
   );
 }

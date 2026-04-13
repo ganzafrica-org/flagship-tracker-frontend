@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card, Chip, Pagination, Table, Virtualizer } from "@heroui/react";
-import { IconChevronsRight, IconChevronsLeft } from "@tabler/icons-react";
+import { Button, Card, Chip, Pagination, Table, Virtualizer } from "@heroui/react";
+import { ChevronDownIcon } from "@heroui/shared-icons";
+import { IconChevronsRight, IconChevronsLeft } from '@tabler/icons-react';
 import { TableLayout } from "@heroui/react";
 
 import ActionDropdown from "~/components/action-dropdown";
@@ -21,6 +22,7 @@ interface TableTab {
 interface TableColumnDef {
   key: string;
   label: string;
+  width?: string;
 }
 
 interface TableActionItem {
@@ -55,13 +57,13 @@ export default function TableComponent({
   tableSectionTitle = "Recent reports",
   tableAriaLabel = "Manage table",
   columns = [
-    { key: "id", label: "#" },
-    { key: "name", label: "Report Name" },
-    { key: "type", label: "Report Type" },
-    { key: "periodOrDate", label: "Date Created" },
-    { key: "createdBy", label: "Created By" },
-    { key: "status", label: "Status" },
-    { key: "action", label: "Action" },
+    { key: "id",           label: "#",           width: "50px"  },
+    { key: "name",         label: "Report Name", width: "250px" },
+    { key: "type",         label: "Report Type", width: "130px" },
+    { key: "periodOrDate", label: "Period",       width: "120px" },
+    { key: "createdOn",    label: "Created on",   width: "120px" },
+    { key: "createdBy",    label: "Created By",   width: "120px" },
+    { key: "action",       label: "Action",       width: "80px"  },
   ],
   rows = dummyManageReports as unknown as TableRowData[],
   searchPlaceholder = "Search",
@@ -131,14 +133,13 @@ export default function TableComponent({
           </div>
         </div>
 
-        <Virtualizer layout={TableLayout} layoutOptions={{ headingHeight: 42, rowHeight: 54 }}>
           <Table>
             <Table.ScrollContainer>
               <Table.Content aria-label={tableAriaLabel} className={minTableWidthClassName}>
                 <Table.Header>
                   {columns.map((column) => (
-                    <Table.Column key={column.key}>
-                      <span className="font-bold text-lg text-black">{column.label}</span>
+                    <Table.Column key={column.key} style={{ width: column.width }}>
+                      <span className="font-semibold text-sm text-black">{column.label}</span>
                     </Table.Column>
                   ))}
                 </Table.Header>
@@ -173,7 +174,6 @@ export default function TableComponent({
               </Table.Content>
             </Table.ScrollContainer>
           </Table>
-        </Virtualizer>
 
         <div className="flex justify-between border-t border-default-200 pt-4 text-sm">
           <p className="text-sm text-default-500">
