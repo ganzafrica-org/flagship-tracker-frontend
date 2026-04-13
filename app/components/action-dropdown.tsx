@@ -22,6 +22,7 @@ export default function ActionDropdown({ actions }: ActionDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -39,6 +40,7 @@ export default function ActionDropdown({ actions }: ActionDropdownProps) {
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (target && wrapperRef.current?.contains(target)) return;
+      if (target && menuRef.current?.contains(target)) return;
       setIsOpen(false);
     };
 
@@ -69,6 +71,7 @@ export default function ActionDropdown({ actions }: ActionDropdownProps) {
       {isOpen
         ? createPortal(
             <div
+              ref={menuRef}
               className="fixed z-[9999] w-40 rounded-lg border border-gray-200 bg-white shadow-lg"
               style={{ top: menuPosition.top, left: menuPosition.left }}
             >

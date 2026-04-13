@@ -35,7 +35,7 @@ export default function AdminFlagship({ params }: Route.ComponentProps) {
           </Card.Header>
           <Card.Content className="flex items-center justify-center p-4 pt-0">
             <div className="relative h-48 w-48">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <RadialBarChart
                   innerRadius="70%"
                   outerRadius="100%"

@@ -442,3 +442,32 @@ export const dummyReportsList = [
     origin: "Auto-Generated",
   },
 ];
+
+/** M&E Data Management table — fictional sample data for UI prototyping. */
+export interface DataManagementRow {
+  id: number;
+  totalInvestment: string;
+  jobsCreated: number;
+  revenueGenerated: string;
+  createdOn: string;
+  createdBy: string;
+  [key: string]: string | number;
+}
+
+export const dummyDataManagementRows: DataManagementRow[] = [
+  { id: 1, totalInvestment: "$750,000", jobsCreated: 150, revenueGenerated: "$750,000", createdOn: "15/09/25", createdBy: "Patrick" },
+  { id: 2, totalInvestment: "$750,000", jobsCreated: 150, revenueGenerated: "$750,000", createdOn: "16/09/25", createdBy: "Oliver" },
+  { id: 4, totalInvestment: "$750,000", jobsCreated: 25, revenueGenerated: "$750,000", createdOn: "18/06/23", createdBy: "Didier" },
+  { id: 5, totalInvestment: "$750,000", jobsCreated: 25, revenueGenerated: "$750,000", createdOn: "23/03/23", createdBy: "Chantal" },
+  { id: 6, totalInvestment: "$750,000", jobsCreated: 20, revenueGenerated: "$750,000", createdOn: "11/06/24", createdBy: "Patrick" },
+  { id: 7, totalInvestment: "$750,000", jobsCreated: 150, revenueGenerated: "$750,000", createdOn: "06/07/25", createdBy: "Oliver" },
+  { id: 8, totalInvestment: "$620,000", jobsCreated: 88, revenueGenerated: "$540,000", createdOn: "02/05/25", createdBy: "Aline" },
+  { id: 9, totalInvestment: "$480,000", jobsCreated: 42, revenueGenerated: "$410,000", createdOn: "19/04/25", createdBy: "Patrick" },
+  { id: 10, totalInvestment: "$910,000", jobsCreated: 120, revenueGenerated: "$890,000", createdOn: "28/03/25", createdBy: "Didier" },
+  { id: 11, totalInvestment: "$330,000", jobsCreated: 18, revenueGenerated: "$295,000", createdOn: "14/02/25", createdBy: "Chantal" },
+  { id: 12, totalInvestment: "$705,000", jobsCreated: 95, revenueGenerated: "$680,000", createdOn: "30/01/25", createdBy: "Oliver" },
+  { id: 13, totalInvestment: "$560,000", jobsCreated: 60, revenueGenerated: "$520,000", createdOn: "11/12/24", createdBy: "Aline" },
+  { id: 14, totalInvestment: "$440,000", jobsCreated: 35, revenueGenerated: "$400,000", createdOn: "03/11/24", createdBy: "Patrick" },
+  { id: 15, totalInvestment: "$800,000", jobsCreated: 110, revenueGenerated: "$775,000", createdOn: "22/10/24", createdBy: "Didier" },
+  { id: 16, totalInvestment: "$390,000", jobsCreated: 28, revenueGenerated: "$360,000", createdOn: "07/09/24", createdBy: "Chantal" },
+];

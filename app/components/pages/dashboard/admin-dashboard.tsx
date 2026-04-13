@@ -98,7 +98,7 @@ export default function AdminDashboard() {
             {isLoading ? (
               <Skeleton className="h-52 rounded-lg" />
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0}>
                 <PieChart>
                   <Pie
                     data={stats?.usersByStatus}
@@ -132,7 +132,7 @@ export default function AdminDashboard() {
             {isLoading ? (
               <Skeleton className="h-52 rounded-lg" />
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={220} minWidth={0}>
                 <PieChart>
                   <Pie
                     data={stats?.usersByGender}

@@ -22,6 +22,7 @@ export default [
     route("me/flagships/:id",         "routes/me/flagships/$id/index.tsx"),
     route("me/reports",               "routes/me/reports/index.tsx"),
     route("me/data-management",       "routes/me/data-management/index.tsx"),
+    route("me/data-management/add-flagship-data",   "routes/me/data-management/add-flagship-data.tsx"),
   ]),
 
   // Senior Officials

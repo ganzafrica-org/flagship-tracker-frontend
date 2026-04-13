@@ -15,6 +15,7 @@ React frontend for the Flagship Tracker application. Built with React Router v7 
 | [Recharts](https://recharts.org) | Charts on dashboards |
 | [Framer Motion](https://www.framer.com/motion) | Page transition animations |
 | [@tabler/icons-react](https://tabler.io/icons) | Icon library used across all components |
+| [rwanda](https://www.npmjs.com/package/rwanda) | Rwanda administrative location data (province to village) |
 
 ---
 
