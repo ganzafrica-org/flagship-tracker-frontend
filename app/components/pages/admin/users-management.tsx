@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { dummyUserTabs, dummyUsers } from "~/data/dummy-data";
+import { dummyUsers } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
 import { ContentTab } from "~/components/content-tab";
 
 function UserManagementTable() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "closed">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "inactive">("all");
   const [rows, setRows] = useState(
     dummyUsers.map((user) => ({
       id: user.id,
@@ -21,6 +21,16 @@ function UserManagementTable() {
       status: user.status,
     }))
   );
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (activeTab === "all") return true;
+        if (activeTab === "active") return row.status === "Active";
+        if (activeTab === "planning") return row.status === "Pending";
+        return row.status === "Inactive";
+      }),
+    [activeTab, rows]
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -30,23 +40,15 @@ function UserManagementTable() {
           { id: "all", label: "All" },
           { id: "active", label: "Active" },
           { id: "planning", label: "Planning" },
-          { id: "in-active", label: "Inactive" }
+          { id: "inactive", label: "Inactive" },
         ]}
         activeId={activeTab}
-        onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "closed")}
+        onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "inactive")}
       />
       <TableComponent
         tableSectionTitle="Recent Users"
-        tabs={dummyUserTabs}
-        rows={rows}
+        rows={filteredRows}
         searchKeys={["fullName", "email", "role"]}
-        filterByTab={(row, selectedTab) => {
-          if (selectedTab === "all") return true;
-          if (selectedTab === "active") return row.status === "Active";
-          if (selectedTab === "planning") return row.status === "Pending";
-          if (selectedTab === "inactive") return row.status === "Inactive";
-          return true;
-        }}
         columns={[
           { key: "id", label: "#" },
           { key: "fullName", label: "Full Name" },
@@ -57,12 +59,7 @@ function UserManagementTable() {
           { key: "action", label: "Action" },
         ]}
         minTableWidthClassName="min-w-[940px]"
-        statusColumnKey="status"
-        statusColorMap={{
-          Active: "success",
-          Pending: "warning",
-          Inactive: "default",
-        }}
+        filterByTab={() => true}
         actions={(row) => [
           {
             label: "View Details",
