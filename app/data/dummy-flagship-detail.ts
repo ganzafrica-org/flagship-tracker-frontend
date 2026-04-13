@@ -215,15 +215,15 @@ export const flagshipDetailFarmersTotal = "2,353";
 export const flagshipDetailJobsTarget = 400;
 export const flagshipDetailJobsCurrent = 256;
 
-/** Half-donut “jobs for youth” gauge (actual vs target). */
+/** Half-donut "jobs for youth" gauge (actual vs target). */
 export const flagshipDetailJobsGauge = {
   actualFill: "#1091c1",
-  trackFill: "#f0f0f0",
-} as const;
+  trackFill: "var(--warning)",
+};
 
 export const flagshipDetailAcreageData = [
   { name: "Used", value: 4, fill: CHART.warning },
-  { name: "Remaining", value: 3, fill: CHART.track },
+  { name: "Remaining", value: 3, fill: CHART.accent },
 ];
 
 export const flagshipDetailJobsPerChain = [
