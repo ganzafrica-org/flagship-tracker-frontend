@@ -190,7 +190,7 @@ export default function SeniorDashboard() {
             <YearFilter value={genderYear} onChange={setGenderYear} ariaLabel="Gender year filter" />
           </Card.Header>
           <Card.Content className="p-4 pt-2">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <Pie
                   data={genderData}
@@ -209,7 +209,7 @@ export default function SeniorDashboard() {
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
               </PieChart>
             </ResponsiveContainer>
           </Card.Content>
@@ -222,12 +222,12 @@ export default function SeniorDashboard() {
             <YearFilter value={jobsPerFlagshipYear} onChange={setJobsPerFlagshipYear} ariaLabel="Jobs per flagship year filter" />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} minWidth={0}>
               <BarChart data={jobsPerFlagshipData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                 <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
                 <Bar dataKey="jobs" name="Jobs" radius={[4, 4, 0, 0]}>
                   {jobsPerFlagshipData.map((entry, index) => (
                     <Cell key={entry.flagship} fill={FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length]} />
@@ -245,12 +245,12 @@ export default function SeniorDashboard() {
             <YearFilter value={jobsCreatedYear} onChange={setJobsCreatedYear} ariaLabel="Jobs created year filter" />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={240} minWidth={0}>
               <BarChart data={jobsCreatedData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                 <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value: number) => value.toLocaleString()} />
+                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
                 <Bar dataKey="jobs" name="Jobs" radius={[4, 4, 0, 0]}>
                   {jobsCreatedData.map((entry, index) => (
                     <Cell key={entry.flagship} fill={FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length]} />
@@ -267,7 +267,7 @@ export default function SeniorDashboard() {
             <Card.Title>Disaggregation of Total Investment</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
                 <Pie
                   data={investmentDisaggregation}
@@ -285,7 +285,7 @@ export default function SeniorDashboard() {
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => `${value}%`} />
+                <Tooltip formatter={(value) => `${Number(value ?? 0)}%`} />
                 <Legend
                   layout="vertical"
                   align="right"

@@ -139,7 +139,7 @@ export default function TableComponent({
                 <Table.Header>
                   {columns.map((column) => (
                     <Table.Column key={column.key} style={{ width: column.width }}>
-                      <span className="font-bold text-lg text-black">{column.label}</span>
+                      <span className="font-semibold text-sm text-black">{column.label}</span>
                     </Table.Column>
                   ))}
                 </Table.Header>
@@ -189,7 +189,12 @@ export default function TableComponent({
               </Pagination.Item>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <Pagination.Item key={p}>
-                  <Pagination.Link isActive={page === p} onPress={() => setPage(p)} className={`${page === p ? "bg-blue-400 text-white" : "text-default-500"}`}>
+                  <Pagination.Link
+                    isActive={page === p}
+                    onPress={() => setPage(p)}
+                    className={page === p ? "text-white" : "text-default-500"}
+                    style={page === p ? { backgroundColor: "var(--accent)" } : undefined}
+                  >
                     {p}
                   </Pagination.Link>
                 </Pagination.Item>

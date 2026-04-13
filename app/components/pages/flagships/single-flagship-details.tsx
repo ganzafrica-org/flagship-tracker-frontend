@@ -305,7 +305,7 @@ export function SingleFlagshipDetails({
           <Card.Content className="p-4 pt-0">
             <div className="flex w-full min-w-0 flex-col items-stretch">
               <div className="relative h-[200px] w-full min-h-[180px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart margin={{ top: 8, right: 16, bottom: 8, left: 16 }}>
                     <Pie
                       data={[
@@ -378,7 +378,7 @@ export function SingleFlagshipDetails({
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             <div className="relative h-52 w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={200} minWidth={0}>
                 <PieChart>
                   <Pie
                     data={flagshipDetailAcreageData}
@@ -420,7 +420,7 @@ export function SingleFlagshipDetails({
             </div>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0}>
               <LineChart data={jobsChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
@@ -447,7 +447,7 @@ export function SingleFlagshipDetails({
             />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0}>
               <PieChart>
                 <Pie
                   data={investmentChartData}
@@ -482,7 +482,7 @@ export function SingleFlagshipDetails({
             />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0}>
               <LineChart data={revenueChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
@@ -508,7 +508,7 @@ export function SingleFlagshipDetails({
             />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={220} minWidth={0}>
               <BarChart data={quantityChartData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
                 <XAxis dataKey="year" tick={{ fontSize: 11 }} />
@@ -687,7 +687,7 @@ function GenderBigCard({
       </div>
       <div className="flex flex-1 items-center justify-center px-2 pb-3 pt-0 min-h-[132px]">
         <div className="h-[132px] w-full shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <PieChart margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
               <Pie
                 data={data}
