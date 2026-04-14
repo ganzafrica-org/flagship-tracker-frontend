@@ -1,6 +1,5 @@
-// 
-
 import { forwardRef, useId } from "react";
+import { Input as HeroInput } from "@heroui/react";
 
 type InputState = "default" | "error" | "success";
 type InputVariant = "default" | "form";
