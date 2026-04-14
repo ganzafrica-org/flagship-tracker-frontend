@@ -28,10 +28,10 @@ const DEFAULT_LOCATION_VALUE: RwandaLocationValue = {
 };
 
 export function meta() {
-  return [{ title: "Add Flagship | Admin" }];
+  return [{ title: "Add Flagship | M&E" }];
 }
 
-export default function AdminAddFlagshipPage() {
+export default function MeAddFlagshipPage() {
   const navigate = useNavigate();
   const [location, setLocation] = useState<RwandaLocationValue>(DEFAULT_LOCATION_VALUE);
   const [valueChain, setValueChain] = useState<string>("");

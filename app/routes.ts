@@ -11,7 +11,6 @@ export default [
   layout("routes/admin/layout.tsx", [
     route("admin/dashboard",          "routes/admin/dashboard/index.tsx"),
     route("admin/flagships",          "routes/admin/flagships/index.tsx"),
-    route("admin/flagships/add-flagship", "routes/admin/flagships/add-flagship.tsx"),
     route("admin/flagships/:id",      "routes/admin/flagships/$id/index.tsx"),
     route("admin/reports",            "routes/admin/reports/index.tsx"),
     route("admin/users",              "routes/admin/users/index.tsx"),
@@ -21,6 +20,7 @@ export default [
   // M&E
   layout("routes/me/layout.tsx", [
     route("me/flagships",             "routes/me/flagships/index.tsx"),
+    route("me/flagships/add-flagship", "routes/me/flagships/add-flagship.tsx"),
     route("me/flagships/:id",         "routes/me/flagships/$id/index.tsx"),
     route("me/reports",               "routes/me/reports/index.tsx"),
     route("me/data-management",       "routes/me/data-management/index.tsx"),

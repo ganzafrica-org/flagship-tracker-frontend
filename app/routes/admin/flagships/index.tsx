@@ -47,11 +47,7 @@ export default function AdminFlagships() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCard
-        title="Flagship Projects Management"
-        actionLabel="Add a Flagship"
-        onActionPress={() => navigate("/admin/flagships/add-flagship")}
-      />
+      <PageTitleCard title="Flagship Projects Management" />
       <ContentTab
         items={[
           { id: "all", label: "All" },
