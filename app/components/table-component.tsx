@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useMemo, useState } from "react";
 import { Button, Card, Chip, Pagination, Table, Virtualizer } from "@heroui/react";

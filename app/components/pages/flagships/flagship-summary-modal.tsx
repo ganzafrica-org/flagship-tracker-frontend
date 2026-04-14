@@ -1,4 +1,4 @@
-"use client";
+
 
 import { Card, Chip } from "@heroui/react";
 import { IconPointFilled, IconX } from "@tabler/icons-react";
