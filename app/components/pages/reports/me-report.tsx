@@ -1,5 +1,3 @@
-"use client";
-
 import { dummyReportsList } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
