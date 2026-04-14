@@ -1,14 +1,14 @@
 
 
 import { useMemo, useState } from "react";
-import { Button, Card, Chip, Pagination, Table, Virtualizer } from "@heroui/react";
+import type React from "react";
+import { Button, Card, Chip, Pagination, SearchField, Table, Virtualizer } from "@heroui/react";
 import { ChevronDownIcon } from "@heroui/shared-icons";
 import { IconChevronsRight, IconChevronsLeft } from '@tabler/icons-react';
 import { TableLayout } from "@heroui/react";
 
 import ActionDropdown from "~/components/action-dropdown";
 import { dummyManageReports, dummyUserTabs } from "~/data/dummy-data";
-import { IconSearch } from "@tabler/icons-react";
 
 const ITEMS_PER_PAGE = 7;
 
@@ -118,19 +118,17 @@ export default function TableComponent({
         <div className="flex justify-between mx-5">
           <h1 className="text-xl font-semibold">{tableSectionTitle}</h1>
 
-          <div className="w-[30%] rounded-full border border-default-300 bg-white px-3 py-3 text-sm flex gap-2">
-            <IconSearch stroke={2} className="w-5 h-5" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              className="w-full outline-none"
-            />
-          </div>
+          <SearchField
+            className="w-[30%]"
+            value={search}
+            onChange={(val) => { setSearch(val); setPage(1); }}
+          >
+            <SearchField.Group className="rounded-full border border-default-300" style={{ "--field-background": "var(--default)" } as React.CSSProperties}>
+              <SearchField.SearchIcon />
+              <SearchField.Input placeholder={searchPlaceholder} className="py-2 text-sm outline-none" />
+              <SearchField.ClearButton />
+            </SearchField.Group>
+          </SearchField>
         </div>
 
           <Table>

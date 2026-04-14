@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { dummyUsers } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
@@ -63,15 +64,18 @@ function UserManagementTable() {
         actions={(row) => [
           {
             label: "View Details",
+            icon: <IconEye size={14} />,
             onClick: () =>
               navigate(`/admin/users/add-user?editId=${encodeURIComponent(String(row.id))}&mode=view`),
           },
           {
             label: "Edit",
+            icon: <IconPencil size={14} />,
             onClick: () => navigate(`/admin/users/add-user?editId=${encodeURIComponent(String(row.id))}`),
           },
           {
             label: "Delete",
+            icon: <IconTrash size={14} />,
             onClick: () =>
               setRows((prev) => prev.filter((item) => String(item.id) !== String(row.id))),
             color: "danger",

@@ -1,10 +1,23 @@
-import { useRef, useState } from "react";
-import { Button, Card } from "@heroui/react";
+import { useState } from "react";
+import {
+  Button,
+  Card,
+  FieldError,
+  FieldGroup,
+  Fieldset,
+  Form,
+  Label,
+  ListBox,
+  Select,
+  TextField,
+} from "@heroui/react";
 import { useNavigate } from "react-router";
 
-import Input from "~/components/input";
+import AppInput from "~/components/input";
 import { PageTitleCard } from "~/components/page-title-card";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
+
+const VALUE_CHAINS = ["Tomatoes", "Potatoes", "Rice", "Cassava", "Avocado"];
 
 const DEFAULT_LOCATION_VALUE: RwandaLocationValue = {
   province: "",
@@ -20,68 +33,130 @@ export function meta() {
 
 export default function AdminAddFlagshipPage() {
   const navigate = useNavigate();
-  const formRef = useRef<HTMLFormElement>(null);
   const [location, setLocation] = useState<RwandaLocationValue>(DEFAULT_LOCATION_VALUE);
+  const [valueChain, setValueChain] = useState<string>("");
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+  };
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
       <PageTitleCard title="Flagship Projects Management" />
 
-      <Card className="p-5 space-y-4 rounded-lg">
-        <h2 className="text-[20px] leading-tight font-semibold text-(--foreground)">Add a Flagship</h2>
+      <Card className="p-5">
+        <h2 className="text-[20px] leading-tight font-semibold text-(--foreground) mb-4">Add a Flagship</h2>
 
-        <form ref={formRef} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-10">
-            <Input variant="form" containerClassName="sm:col-span-5" label="Flagship Name" placeholder="Flagship name" required />
+        <Form onSubmit={handleSubmit}>
+          <Fieldset className="w-full border-none p-0">
+            <FieldGroup className="grid gap-4 sm:grid-cols-10 w-full">
 
-            <div className="sm:col-span-5 space-y-1">
-              <label className="mb-1 block text-[15px] font-medium text-(--foreground)">Value Chain</label>
-              <select className="h-10 w-full rounded-lg border border-default-300 bg-white px-3 py-1.5 text-sm text-(--foreground) outline-none" defaultValue="">
-                <option value="" disabled>
-                  Select value chain
-                </option>
-                <option value="Tomatoes">Tomatoes</option>
-                <option value="Potatoes">Potatoes</option>
-                <option value="Rice">Rice</option>
-                <option value="Cassava">Cassava</option>
-                <option value="Avocado">Avocado</option>
-              </select>
-            </div>
+              {/* Flagship Name */}
+              <TextField name="flagshipName" isRequired className="sm:col-span-5 w-full">
+                <Label>Flagship Name</Label>
+                <AppInput variant="form" placeholder="Flagship name" />
+                <FieldError />
+              </TextField>
 
-            <Input variant="form" containerClassName="sm:col-span-5" label="Acreage" type="number" min={0} step={1} placeholder="Land size" required />
+              {/* Value Chain */}
+              <Select
+                name="valueChain"
+                className="sm:col-span-5 w-full"
+                placeholder="Select value chain"
+                selectedKey={valueChain}
+                onSelectionChange={(key) => setValueChain(key as string)}
+              >
+                <Label>Value Chain</Label>
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    {VALUE_CHAINS.map((item) => (
+                      <ListBox.Item key={item} id={item} textValue={item}>
+                        {item}
+                        <ListBox.ItemIndicator />
+                      </ListBox.Item>
+                    ))}
+                  </ListBox>
+                </Select.Popover>
+              </Select>
 
-            <div className="sm:col-span-5 space-y-1">
-              <label className="mb-1 block text-[15px] font-medium text-(--foreground)">How many farmers</label>
-              <div className="grid grid-cols-2 gap-2">
-                <Input variant="form" placeholder="Men" type="number" min={0} step={1} required />
-                <Input variant="form" placeholder="Women" type="number" min={0} step={1} required />
+              {/* Acreage */}
+              <TextField name="acreage" isRequired className="sm:col-span-5 w-full">
+                <Label>Acreage</Label>
+                <AppInput variant="form" type="number" min={0} step={1} placeholder="Land size" />
+                <FieldError />
+              </TextField>
+
+              {/* How many farmers */}
+              <div className="sm:col-span-5 grid grid-cols-2 gap-2">
+                <TextField name="farmersMen" isRequired className="w-full">
+                  <Label>Farmers (Men)</Label>
+                  <AppInput variant="form" type="number" min={0} step={1} placeholder="0" />
+                  <FieldError />
+                </TextField>
+                <TextField name="farmersWomen" isRequired className="w-full">
+                  <Label>Farmers (Women)</Label>
+                  <AppInput variant="form" type="number" min={0} step={1} placeholder="0" />
+                  <FieldError />
+                </TextField>
               </div>
-            </div>
 
-            <Input variant="form" containerClassName="sm:col-span-5" label="Number of youths Engaged" type="number" min={0} step={1} placeholder="0" required />
-            <Input variant="form" containerClassName="sm:col-span-5" label="Total Investment" type="text" inputMode="decimal" placeholder="0" required />
+              {/* Youths Engaged */}
+              <TextField name="youthsEngaged" isRequired className="sm:col-span-5 w-full">
+                <Label>Number of Youths Engaged</Label>
+                <AppInput variant="form" type="number" min={0} step={1} placeholder="0" />
+                <FieldError />
+              </TextField>
 
-            <Input variant="form" containerClassName="sm:col-span-3" label="Quantities produced" type="number" min={0} step={1} placeholder="0" />
-            <Input variant="form" containerClassName="sm:col-span-4" label="Monthly Net Income per Youth" type="number" min={0} step={1} placeholder="0" />
-            <Input variant="form" containerClassName="sm:col-span-3" label="Expected Revenue" type="text" inputMode="decimal" placeholder="0" required />
+              {/* Total Investment */}
+              <TextField name="totalInvestment" isRequired className="sm:col-span-5 w-full">
+                <Label>Total Investment</Label>
+                <AppInput variant="form" placeholder="0" inputMode="decimal" />
+                <FieldError />
+              </TextField>
 
-            <div className="sm:col-span-10">
-              <label className="mb-1 block text-[15px] font-medium text-(--foreground)">Location</label>
-            </div>
-            <div className="sm:col-span-10">
-              <RwandaLocationSelector value={location} onChange={setLocation} />
-            </div>
-          </div>
+              {/* Quantities Produced */}
+              <TextField name="quantitiesProduced" className="sm:col-span-3 w-full">
+                <Label>Quantities Produced</Label>
+                <AppInput variant="form" type="number" min={0} step={1} placeholder="0" />
+                <FieldError />
+              </TextField>
 
-          <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" className="h-10 !rounded-lg px-8 font-medium" onPress={() => navigate("/admin/flagships")}>
+              {/* Monthly Net Income per Youth */}
+              <TextField name="monthlyNetIncome" className="sm:col-span-4 w-full">
+                <Label>Monthly Net Income per Youth</Label>
+                <AppInput variant="form" type="number" min={0} step={1} placeholder="0" />
+                <FieldError />
+              </TextField>
+
+              {/* Expected Revenue */}
+              <TextField name="expectedRevenue" isRequired className="sm:col-span-3 w-full">
+                <Label>Expected Revenue</Label>
+                <AppInput variant="form" placeholder="0" inputMode="decimal" />
+                <FieldError />
+              </TextField>
+
+              {/* Location */}
+              <div className="sm:col-span-10">
+                <span className="mb-2 block text-sm font-medium text-(--foreground)">Location</span>
+                <RwandaLocationSelector value={location} onChange={setLocation} />
+              </div>
+
+            </FieldGroup>
+          </Fieldset>
+
+          <div className="flex flex-wrap justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onPress={() => navigate("/admin/flagships")}>
               Save the Draft
             </Button>
-            <Button type="button" variant="primary" className="h-10 !rounded-lg px-10 font-medium" onPress={() => formRef.current?.requestSubmit()}>
+            <Button type="submit" variant="primary">
               Continue
             </Button>
           </div>
-        </form>
+        </Form>
       </Card>
     </div>
   );

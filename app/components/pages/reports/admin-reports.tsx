@@ -8,6 +8,7 @@ import { ContentTab } from "~/components/content-tab";
 import ReportActionDialog, {
   type ReportDialogMode,
 } from "~/components/pages/reports/report-action-dialog";
+import { IconEye, IconMessageCircle, IconDownload } from "@tabler/icons-react";
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 
 export default function AdminReports() {
@@ -78,9 +79,9 @@ export default function AdminReports() {
         ]}
         minTableWidthClassName="min-w-[960px]"
         actions={(row) => [
-          { label: "View Details", onClick: () => openModal("view", row as ReportDownloadRow) },
-          { label: "Give Feedback", onClick: () => openModal("feedback", row as ReportDownloadRow) },
-          { label: "Download", onClick: () => openModal("download", row as ReportDownloadRow) },
+          { label: "View Details", icon: <IconEye size={14} />, onClick: () => openModal("view", row as ReportDownloadRow) },
+          { label: "Give Feedback", icon: <IconMessageCircle size={14} />, onClick: () => openModal("feedback", row as ReportDownloadRow) },
+          { label: "Download", icon: <IconDownload size={14} />, onClick: () => openModal("download", row as ReportDownloadRow) },
         ]}
       />
       <ReportActionDialog mode={modalType} report={selectedReport} onClose={closeModal} />
