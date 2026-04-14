@@ -15,10 +15,10 @@ const DEFAULT_LOCATION_VALUE: RwandaLocationValue = {
 };
 
 export function meta() {
-  return [{ title: "Add Flagship | Admin" }];
+  return [{ title: "Add Flagship | M&E" }];
 }
 
-export default function AdminAddFlagshipPage() {
+export default function MeAddFlagshipPage() {
   const navigate = useNavigate();
   const formRef = useRef<HTMLFormElement>(null);
   const [location, setLocation] = useState<RwandaLocationValue>(DEFAULT_LOCATION_VALUE);
@@ -74,7 +74,7 @@ export default function AdminAddFlagshipPage() {
           </div>
 
           <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" className="h-10 !rounded-lg px-8 font-medium" onPress={() => navigate("/admin/flagships")}>
+            <Button type="button" variant="outline" className="h-10 !rounded-lg px-8 font-medium" onPress={() => navigate("/me/flagships")}>
               Save the Draft
             </Button>
             <Button type="button" variant="primary" className="h-10 !rounded-lg px-10 font-medium" onPress={() => formRef.current?.requestSubmit()}>

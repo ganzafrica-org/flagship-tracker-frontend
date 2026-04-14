@@ -1,11 +1,11 @@
 import { NavLink } from "react-router";
 import { Tooltip } from "@heroui/react";
-import { IconTableOptions } from '@tabler/icons-react';
 import {
   IconLayoutDashboard,
   IconFlag,
   IconChartBar,
   IconUsers,
+  IconCirclePlus,
 } from "@tabler/icons-react";
 
 type UserRole = "admin" | "senior" | "me";
@@ -77,6 +77,12 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconFlag size={20} />,
     },
     {
+      id: "add-flagship",
+      label: "Add Flagship",
+      href: "/me/flagships/add-flagship",
+      icon: <IconCirclePlus size={20} />,
+    },
+    {
       id: "data-management",
       label: "Data Management",
       href: "/me/data-management",
@@ -93,6 +99,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
 
 export default function Sidebar({ role, isOpen }: SidebarProps) {
   const items = SIDEBAR_ITEMS[role];
+  const exactMatchIds = new Set(["flagships", "data-management", "reports", "users", "dashboard"]);
 
   return (
     <aside
@@ -105,7 +112,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
         {items.map((item) => {
           if (isOpen) {
             return (
-              <NavLink key={item.id} to={item.href}>
+              <NavLink key={item.id} to={item.href} end={exactMatchIds.has(item.id)}>
                 {({ isActive }) => (
                   <span
                     className={[
@@ -126,7 +133,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
           return (
             <Tooltip key={item.id} delay={150}>
               <Tooltip.Trigger>
-                <NavLink to={item.href}>
+                <NavLink to={item.href} end={exactMatchIds.has(item.id)}>
                   {({ isActive }) => (
                     <span
                       className={[
