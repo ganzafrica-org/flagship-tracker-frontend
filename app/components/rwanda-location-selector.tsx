@@ -1,7 +1,6 @@
-// 
-
 import { Cells, Districts, Provinces, Sectors, Villages } from "rwanda";
 import { useEffect } from "react";
+import { ComboBox, Input, Label, ListBox } from "@heroui/react";
 
 export interface RwandaLocationValue {
   province: string;
@@ -18,9 +17,6 @@ interface RwandaLocationSelectorProps {
   disabled?: boolean;
 }
 
-const SELECT_CLASS_NAME =
-  "w-full h-10 rounded-lg border border-default-300 bg-white px-3 py-1.5 text-sm text-(--foreground) outline-none transition-colors focus:border-default-500 disabled:cursor-not-allowed disabled:opacity-60";
-
 function toOptionList(values: unknown): string[] {
   if (!Array.isArray(values)) return [];
   return values.filter((value): value is string => typeof value === "string");
@@ -32,6 +28,43 @@ function safeLookup(lookup: () => unknown): string[] {
   } catch {
     return [];
   }
+}
+
+interface LocationComboBoxProps {
+  label: string;
+  placeholder: string;
+  options: string[];
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+}
+
+function LocationComboBox({ label, placeholder, options, value, onChange, disabled }: LocationComboBoxProps) {
+  return (
+    <ComboBox
+      className="w-full"
+      selectedKey={value || null}
+      onSelectionChange={(key) => onChange(key as string)}
+      isDisabled={disabled}
+      variant="secondary"
+    >
+      <Label>{label}</Label>
+      <ComboBox.InputGroup>
+        <Input className="h-10 border border-default-500 rounded-3xl px-3 text-sm text-(--foreground) transition-colors" placeholder={placeholder} />
+        <ComboBox.Trigger />
+      </ComboBox.InputGroup>
+      <ComboBox.Popover>
+        <ListBox>
+          {options.map((opt) => (
+            <ListBox.Item key={opt} id={opt} textValue={opt}>
+              {opt}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </ComboBox.Popover>
+    </ComboBox>
+  );
 }
 
 export function RwandaLocationSelector({ value, onChange, className, disabled = false }: RwandaLocationSelectorProps) {
@@ -86,91 +119,12 @@ export function RwandaLocationSelector({ value, onChange, className, disabled = 
   };
 
   return (
-    <div className={`grid gap-4 sm:grid-cols-10 ${className ?? ""}`}>
-      <div className="sm:col-span-2">
-        <select
-          className={SELECT_CLASS_NAME}
-          value={value.province}
-          onChange={(event) => update("province", event.target.value)}
-          disabled={disabled}
-          required
-        >
-          <option value="">Province</option>
-          {provinces.map((province) => (
-            <option key={province} value={province}>
-              {province}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="sm:col-span-2">
-        <select
-          className={SELECT_CLASS_NAME}
-          value={value.district}
-          onChange={(event) => update("district", event.target.value)}
-          disabled={disabled || !value.province}
-          required
-        >
-          <option value="">District</option>
-          {districts.map((district) => (
-            <option key={district} value={district}>
-              {district}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="sm:col-span-2">
-        <select
-          className={SELECT_CLASS_NAME}
-          value={value.sector}
-          onChange={(event) => update("sector", event.target.value)}
-          disabled={disabled || !value.district}
-          required
-        >
-          <option value="">Sector</option>
-          {sectors.map((sector) => (
-            <option key={sector} value={sector}>
-              {sector}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="sm:col-span-2">
-        <select
-          className={SELECT_CLASS_NAME}
-          value={value.cell}
-          onChange={(event) => update("cell", event.target.value)}
-          disabled={disabled || !value.sector}
-          required
-        >
-          <option value="">Cell</option>
-          {cells.map((cell) => (
-            <option key={cell} value={cell}>
-              {cell}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="sm:col-span-2">
-        <select
-          className={SELECT_CLASS_NAME}
-          value={value.village}
-          onChange={(event) => update("village", event.target.value)}
-          disabled={disabled || !value.cell}
-          required
-        >
-          <option value="">Village</option>
-          {villages.map((village) => (
-            <option key={village} value={village}>
-              {village}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className={`grid gap-4 sm:grid-cols-5 ${className ?? ""}`}>
+      <LocationComboBox label="Province" placeholder="Province" options={provinces} value={value.province} onChange={(v) => update("province", v)} disabled={disabled} />
+      <LocationComboBox label="District" placeholder="District" options={districts} value={value.district} onChange={(v) => update("district", v)} disabled={disabled || !value.province} />
+      <LocationComboBox label="Sector" placeholder="Sector" options={sectors} value={value.sector} onChange={(v) => update("sector", v)} disabled={disabled || !value.district} />
+      <LocationComboBox label="Cell" placeholder="Cell" options={cells} value={value.cell} onChange={(v) => update("cell", v)} disabled={disabled || !value.sector} />
+      <LocationComboBox label="Village" placeholder="Village" options={villages} value={value.village} onChange={(v) => update("village", v)} disabled={disabled || !value.cell} />
     </div>
   );
 }
