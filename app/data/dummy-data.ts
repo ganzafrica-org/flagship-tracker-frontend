@@ -93,7 +93,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 4,
+    id: 3,
     fullName: "Patrick Uwimana",
     email: "puwimana@example.com",
     phone: "+250 788 123 456",
@@ -101,8 +101,16 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 5,
+    id: 4,
     fullName: "Patrick Uwimana",
+    email: "amukamana@example.com",
+    phone: "+250 788 123 456",
+    role: "M & E",
+    status: "Pending",
+  },
+  {
+    id: 5,
+    fullName: "Jean-Claude Nkurunziza",
     email: "amukamana@example.com",
     phone: "+250 788 123 456",
     role: "M & E",
@@ -114,18 +122,10 @@ export const dummyUsers: DummyUserRow[] = [
     email: "amukamana@example.com",
     phone: "+250 788 123 456",
     role: "M & E",
-    status: "Pending",
-  },
-  {
-    id: 7,
-    fullName: "Jean-Claude Nkurunziza",
-    email: "amukamana@example.com",
-    phone: "+250 788 123 456",
-    role: "M & E",
     status: "Inactive",
   },
   {
-    id: 8,
+    id: 7,
     fullName: "Claude Ndayisenga",
     email: "cndayisenga@example.com",
     phone: "+250 788 111 222",
@@ -133,7 +133,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 9,
+    id: 8,
     fullName: "Olive Uwamahoro",
     email: "ouwamahoro@example.com",
     phone: "+250 788 333 444",
@@ -141,7 +141,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Pending",
   },
   {
-    id: 10,
+    id: 9,
     fullName: "Patrick Rwabukumba",
     email: "prwabukumba@example.com",
     phone: "+250 788 555 666",
@@ -149,7 +149,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 11,
+    id: 10,
     fullName: "Jane Mukandayisenga",
     email: "jmukandayisenga@example.com",
     phone: "+250 788 777 888",
@@ -157,7 +157,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Inactive",
   },
   {
-    id: 12,
+    id: 11,
     fullName: "Emmanuel Nkundabera",
     email: "enkundabera@example.com",
     phone: "+250 788 909 101",
@@ -165,7 +165,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 13,
+    id: 12,
     fullName: "Didier Mugabo",
     email: "dmugabo@example.com",
     phone: "+250 788 202 303",
@@ -173,7 +173,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Pending",
   },
   {
-    id: 14,
+    id: 13,
     fullName: "Marie Claire Uwera",
     email: "mcuwera@example.com",
     phone: "+250 788 404 505",
@@ -181,7 +181,7 @@ export const dummyUsers: DummyUserRow[] = [
     status: "Active",
   },
   {
-    id: 15,
+    id: 14,
     fullName: "Ariane Nishimwe",
     email: "anishimwe@example.com",
     phone: "+250 788 606 707",
@@ -217,7 +217,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Auto-Generated",
   },
   {
-    id: 4,
+    id: 3,
     name: "Progress Report",
     type: "Progress",
     periodOrDate: "2025-09-10",
@@ -225,7 +225,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Auto-Generated",
   },
   {
-    id: 5,
+    id: 4,
     name: "Patrick Uwimana",
     type: "Monitoring",
     periodOrDate: "2025-09-10",
@@ -233,7 +233,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Generated",
   },
   {
-    id: 6,
+    id: 5,
     name: "Investment Impact Report",
     type: "Financial",
     periodOrDate: "2025-09-10",
@@ -241,7 +241,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Generated",
   },
   {
-    id: 7,
+    id: 6,
     name: "Investment Impact Report",
     type: "Progress",
     periodOrDate: "2025-09-10",
@@ -249,7 +249,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Generated",
   },
   {
-    id: 8,
+    id: 7,
     name: "District Delivery Performance",
     type: "Monitoring",
     periodOrDate: "2025-09-09",
@@ -257,7 +257,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Generated",
   },
   {
-    id: 9,
+    id: 8,
     name: "Annual Budget Report",
     type: "Financial",
     periodOrDate: "2025-09-09",
@@ -265,7 +265,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Auto-Generated",
   },
   {
-    id: 10,
+    id: 9,
     name: "Program Outcome Dashboard",
     type: "Progress",
     periodOrDate: "2025-09-08",
@@ -273,7 +273,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Auto-Generated",
   },
   {
-    id: 11,
+    id: 10,
     name: "Capital Projects Utilization",
     type: "Financial",
     periodOrDate: "2025-09-08",
@@ -281,7 +281,7 @@ export const dummyManageReports: DummyReportRow[] = [
     status: "Generated",
   },
   {
-    id: 12,
+    id: 11,
     name: "Compliance and Risk Report",
     type: "Monitoring",
     periodOrDate: "2025-09-07",

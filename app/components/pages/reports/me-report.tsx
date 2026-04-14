@@ -1,33 +1,51 @@
-"use client";
-
 import { dummyReportsList } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
 import { ContentTab } from "~/components/content-tab";
-import { flagshipDummyData } from "~/data/dummy-flagship-detail";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import ReportActionDialog, {
+  type ReportDialogMode,
+} from "~/components/pages/reports/report-action-dialog";
+import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 
 export default function MeReports() {
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "closed">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "auto-generated" | "created-reports">("all");
+  const [selectedReport, setSelectedReport] = useState<ReportDownloadRow | null>(null);
+  const [modalType, setModalType] = useState<ReportDialogMode>(null);
 
-  const filtered =
-    activeTab === "all"
-      ? flagshipDummyData
-      : flagshipDummyData.filter((item) => item.status === activeTab);
+  const rows = useMemo(
+    () =>
+      dummyReportsList.map((report) => ({
+        id: report.id,
+        name: report.name,
+        type: report.type,
+        period: report.period,
+        createdOn: report.createdOn,
+        createdBy: report.createdBy,
+        origin: report.origin,
+      })),
+    []
+  );
 
-  const rows = dummyReportsList.map((report) => ({
-    id: report.id,
-    name: report.name,
-    type: report.type,
-    period: report.period,
-    createdOn: report.createdOn,
-    createdBy: report.createdBy,
-    origin: report.origin,
-  }));
+  const filteredRows = useMemo(() => {
+    if (activeTab === "all") return rows;
+    if (activeTab === "auto-generated") return rows.filter((r) => r.origin === "Auto-Generated");
+    return rows.filter((r) => r.origin === "Created Reports");
+  }, [activeTab, rows]);
+
+  const openModal = (type: Exclude<ReportDialogMode, null>, row: ReportDownloadRow) => {
+    setSelectedReport(row);
+    setModalType(type);
+  };
+
+  const closeModal = () => {
+    setModalType(null);
+    setSelectedReport(null);
+  };
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title="Youth Empowerment in Protected Agriculture  (YEPA) Reports" />
+      <PageTitleCard title="Youth Empowerment in Protected Agriculture (YEPA) Reports" />
       <ContentTab
         items={[
           { id: "all", label: "All" },
@@ -35,13 +53,15 @@ export default function MeReports() {
           { id: "created-reports", label: "Created Reports" },
         ]}
         activeId={activeTab}
-        onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "closed")}
+        onChange={(id) =>
+          setActiveTab(id as "all" | "auto-generated" | "created-reports")
+        }
       />
       <TableComponent
         tableSectionTitle="List of Reports"
-        rows={rows}
+        rows={filteredRows}
         searchKeys={["name", "type"]}
-        filterByTab={(row, selectedTab) => selectedTab === "all" || String(row.origin) === selectedTab}
+        filterByTab={() => true}
         columns={[
           { key: "id", label: "#" },
           { key: "name", label: "Report Name" },
@@ -52,12 +72,13 @@ export default function MeReports() {
           { key: "action", label: "Action" },
         ]}
         minTableWidthClassName="min-w-[960px]"
-        actions={() => [
-          { label: "View Details", onClick: () => undefined },
-          { label: "Give Feedback", onClick: () => undefined },
-          { label: "Download", onClick: () => undefined },
+        actions={(row) => [
+          { label: "View Details", onClick: () => openModal("view", row as ReportDownloadRow) },
+          { label: "Give Feedback", onClick: () => openModal("feedback", row as ReportDownloadRow) },
+          { label: "Download", onClick: () => openModal("download", row as ReportDownloadRow) },
         ]}
       />
+      <ReportActionDialog mode={modalType} report={selectedReport} onClose={closeModal} />
     </div>
   );
 }

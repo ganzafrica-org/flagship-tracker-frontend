@@ -1,4 +1,4 @@
-"use client";
+// 
 
 import { Cells, Districts, Provinces, Sectors, Villages } from "rwanda";
 import { useEffect } from "react";

@@ -56,7 +56,6 @@ export default function AdminAddUserPage() {
             <label className="mb-1 block text-[15px] font-medium text-(--foreground)">Gender</label>
             <select className="h-10 w-full rounded-lg border border-default-300 bg-white px-3 py-1.5 text-sm text-(--foreground) outline-none" value={gender} onChange={(e) => setGender(e.target.value)} disabled={isViewMode}>
               <option value="">Female</option>
-              <option value="female">Female</option>
               <option value="male">Male</option>
               <option value="other">Other</option>
             </select>
