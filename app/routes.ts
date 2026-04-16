@@ -6,6 +6,9 @@ export default [
 
   // Login
   route("login", "routes/login/index.tsx"),
+  route("login/forgot-password", "routes/login/forgot-password.tsx"),
+  route("login/verify-code", "routes/login/verify-code.tsx"),
+  route("login/change-password", "routes/login/change-password.tsx"),
 
   // Admin
   layout("routes/admin/layout.tsx", [

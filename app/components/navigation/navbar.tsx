@@ -11,6 +11,7 @@ import {
 interface NavbarProps {
   onMenuToggle: () => void;
   userName: string;
+  onLogout?: () => void;
 }
 
 interface Language {
@@ -49,7 +50,7 @@ const LANGUAGES: Language[] = [
   { id: "fr", label: "Français", flag: <FlagFR /> },
 ];
 
-export default function Navbar({ onMenuToggle, userName }: NavbarProps) {
+export default function Navbar({ onMenuToggle, userName, onLogout }: NavbarProps) {
   const [currentLang, setCurrentLang] = useState<string>("en");
 
   const selectedLanguage = LANGUAGES.find((l) => l.id === currentLang) ?? LANGUAGES[0];
@@ -99,7 +100,13 @@ export default function Navbar({ onMenuToggle, userName }: NavbarProps) {
             </Card>
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end" className="w-(--trigger-width) min-w-0">
-            <Dropdown.Menu>
+            <Dropdown.Menu
+              onAction={(key) => {
+                if (key === "logout") {
+                  onLogout?.();
+                }
+              }}
+            >
               <Dropdown.Item id="profile" textValue="Profile">
                 <IconUser size={16} />
                 <Label>Profile</Label>
