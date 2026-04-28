@@ -33,5 +33,6 @@ export default [
     route("senior/flagships",         "routes/senior/flagships/index.tsx"),
     route("senior/flagships/:id",     "routes/senior/flagships/$id/index.tsx"),
     route("senior/reports",           "routes/senior/reports/index.tsx"),
-  ]),
+  ])
+
 ] satisfies RouteConfig;

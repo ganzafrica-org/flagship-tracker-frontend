@@ -53,7 +53,11 @@ export default function AdminReports() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title="Manage The Reports" actionLabel="Generate Report" />
+      <PageTitleCard
+        title="Manage The Reports"
+        actionLabel="Generate Report"
+        onActionPress={() => setModalType("generate")}
+      />
       <ContentTab
         items={[
           { id: "all", label: "All" },

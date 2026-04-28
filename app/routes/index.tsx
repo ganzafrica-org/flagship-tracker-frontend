@@ -6,6 +6,7 @@ import { IconFlag, IconAlertTriangle } from "@tabler/icons-react";
 
 import { healthQueryOptions } from "~/lib/queries/health";
 import { StatCard } from "~/components/stat-card";
+import Report2 from "~/components/pdf-format/pdf-service";
 
 export default function Index() {
   const { isSuccess, isError, isPending } = useQuery(healthQueryOptions);
@@ -94,6 +95,9 @@ export default function Index() {
             <Link to="/me/flagships">
               <Button variant="outline" fullWidth>M&amp;E Flagships</Button>
             </Link>
+              <Link to="/report-pdf">
+                  <Button variant="outline" fullWidth>Report PDF</Button>
+              </Link>
           </Card.Content>
         </Card>
       </div>
