@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card } from "@heroui/react";
+import { PDFViewer } from "@react-pdf/renderer";
+import { ReportPDF } from "~/components/pdf-format/pdf-service";
 
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 import { downloadReportAsPdf, downloadReportCsv } from "~/components/pages/reports/report-download-utils";
 
-export type ReportDialogMode = "view" | "feedback" | "download" | null;
+export type ReportDialogMode = "view" | "feedback" | "download" | "generate" | null;
 
 const EMOJI_RATINGS = [
   { value: 1, emoji: "😞", label: "Poor" },
@@ -37,7 +39,7 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
     }
   }, [mode, report?.id, report]);
 
-  if (!mode || !report) return null;
+  if (!mode || (!report && mode !== "generate")) return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
@@ -54,9 +56,25 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
       onClick={handleBackdropClick}
       role="presentation"
     >
-      <div className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+      <div className={`w-full ${mode === "generate" ? "max-w-4xl" : "max-w-lg"}`} onClick={(e) => e.stopPropagation()}>
       <Card className="overflow-hidden rounded-xl border border-default-200 bg-white shadow-xl dark:border-default-100 dark:bg-(--field-background)">
-        {mode === "view" ? (
+        {mode === "generate" ? (
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-(--foreground) mb-4">Generated Report Preview</h2>
+            <div className="w-full h-[600px] border border-default-200 rounded-lg overflow-hidden">
+              <PDFViewer width="100%" height="100%">
+                <ReportPDF />
+              </PDFViewer>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Button variant="primary" onPress={onClose}>
+                Close
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {mode === "view" && report ? (
           <div className="p-6">
             <h2 className="text-xl font-bold text-(--foreground)">Report details</h2>
             <p className="mt-1 text-sm text-(--muted) line-clamp-2">{report.name}</p>
@@ -98,7 +116,7 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
           </div>
         ) : null}
 
-        {mode === "feedback" ? (
+        {mode === "feedback" && report ? (
           <div className="p-6">
             <h2 className="text-xl font-bold text-(--foreground)">Help us improve!</h2>
             <p className="mt-2 text-sm text-(--muted)">
@@ -184,7 +202,7 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
           </div>
         ) : null}
 
-        {mode === "download" ? (
+        {mode === "download" && report ? (
           <div className="p-6">
             <h2 className="text-xl font-bold text-(--foreground)">Download report data</h2>
             <p className="mt-2 text-sm text-(--muted)">
