@@ -27,7 +27,11 @@ export default function MeFlagships() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCard title="Flagship Projects" />
+      <PageTitleCard
+        title="Flagship Projects"
+        actionLabel="Add Flagship"
+        onActionPress={() => navigate("/me/flagships/add-flagship")}
+      />
       <FlagshipsList
         items={flagshipCards}
         className="w-full"
