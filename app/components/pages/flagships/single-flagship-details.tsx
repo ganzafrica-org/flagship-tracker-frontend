@@ -207,7 +207,7 @@ export function SingleFlagshipDetails({
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title={intro.displayTitle}
-        actionLabel="View Flagship Summary"
+        actionLabel="Generate Report"
         onActionPress={onViewSummaryPress}
       />
 

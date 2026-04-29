@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button, Card } from "@heroui/react";
-import { PDFViewer } from "@react-pdf/renderer";
+import { PDFDownloadLink, PDFViewer } from "@react-pdf/renderer";
 import { ReportPDF } from "~/components/pdf-format/pdf-service";
 
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
-import { downloadReportAsPdf, downloadReportCsv } from "~/components/pages/reports/report-download-utils";
+import { downloadReportCsv } from "~/components/pages/reports/report-download-utils";
 
-export type ReportDialogMode = "view" | "feedback" | "download" | "generate" | null;
+export type ReportDialogMode = "view" | "feedback" | "download" | null;
 
 const EMOJI_RATINGS = [
   { value: 1, emoji: "😞", label: "Poor" },
@@ -39,7 +39,7 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
     }
   }, [mode, report?.id, report]);
 
-  if (!mode || (!report && mode !== "generate")) return null;
+  if (!mode || !report) return null;
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
@@ -56,62 +56,32 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
       onClick={handleBackdropClick}
       role="presentation"
     >
-      <div className={`w-full ${mode === "generate" ? "max-w-4xl" : "max-w-lg"}`} onClick={(e) => e.stopPropagation()}>
-      <Card className="overflow-hidden rounded-xl border border-default-200 bg-white shadow-xl dark:border-default-100 dark:bg-(--field-background)">
-        {mode === "generate" ? (
+      <div className={`w-full ${mode === "view" ? "max-w-4xl" : "max-w-lg"}`} onClick={(e) => e.stopPropagation()}>
+      <Card className="overflow-hidden rounded-2xl border-none bg-white shadow-2xl dark:bg-(--field-background)">
+        {mode === "view" ? (
           <div className="p-6">
-            <h2 className="text-xl font-bold text-(--foreground) mb-4">Generated Report Preview</h2>
-            <div className="w-full h-[600px] border border-default-200 rounded-lg overflow-hidden">
-              <PDFViewer width="100%" height="100%">
-                <ReportPDF />
+            <div className="w-full h-[620px] overflow-hidden rounded-xl bg-white">
+              <PDFViewer width="100%" height="100%" showToolbar={false}>
+                <ReportPDF report={report} />
               </PDFViewer>
             </div>
-            <div className="mt-6 flex justify-end">
-              <Button variant="primary" onPress={onClose}>
-                Close
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button variant="outline" className="border-none bg-transparent shadow-none" onPress={onClose}>
+                Cancel
               </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {mode === "view" && report ? (
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-(--foreground)">Report details</h2>
-            <p className="mt-1 text-sm text-(--muted) line-clamp-2">{report.name}</p>
-            <dl className="mt-5 space-y-3 text-sm">
-              <div className="flex flex-col gap-0.5 border-b border-default-200 pb-3 dark:border-default-100">
-                <dt className="font-semibold text-(--foreground)">Report name</dt>
-                <dd className="text-(--muted)">{report.name}</dd>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <dt className="font-semibold text-(--foreground)">Report type</dt>
-                  <dd className="text-(--muted)">{report.type}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-(--foreground)">Period</dt>
-                  <dd className="text-(--muted)">{report.period}</dd>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <dt className="font-semibold text-(--foreground)">Created on</dt>
-                  <dd className="text-(--muted)">{report.createdOn}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-(--foreground)">Created by</dt>
-                  <dd className="text-(--muted)">{report.createdBy}</dd>
-                </div>
-              </div>
-              <div>
-                <dt className="font-semibold text-(--foreground)">Origin</dt>
-                <dd className="text-(--muted)">{report.origin}</dd>
-              </div>
-            </dl>
-            <div className="mt-6 flex justify-end">
-              <Button variant="primary" onPress={onClose}>
-                Close
-              </Button>
+              <PDFDownloadLink
+                document={<ReportPDF report={report} />}
+                fileName={`${report.name.replace(/[^\w-]+/g, "_")}.pdf`}
+              >
+                {({ loading }) => (
+                  <Button
+                    variant="primary"
+                    className="bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent)]/90"
+                  >
+                    {loading ? "Preparing..." : "Download PDF"}
+                  </Button>
+                )}
+              </PDFDownloadLink>
             </div>
           </div>
         ) : null}
@@ -220,19 +190,22 @@ export default function ReportActionDialog({ mode, report, onClose }: ReportActi
               >
                 Excel (CSV)
               </Button>
-              <Button
-                variant="primary"
-                className="w-full sm:w-auto"
-                onPress={() => {
-                  downloadReportAsPdf(report);
-                  onClose();
-                }}
+              <PDFDownloadLink
+                document={<ReportPDF report={report} />}
+                fileName={`${report.name.replace(/[^\w-]+/g, "_")}.pdf`}
               >
-                PDF
-              </Button>
+                {({ loading }) => (
+                  <Button
+                    variant="primary"
+                    className="w-full bg-[color:var(--accent)] text-white hover:bg-[color:var(--accent)]/90 sm:w-auto"
+                  >
+                    {loading ? "Preparing..." : "PDF"}
+                  </Button>
+                )}
+              </PDFDownloadLink>
             </div>
             <div className="mt-4 flex justify-end">
-              <Button variant="outline" onPress={onClose}>
+              <Button variant="outline" className="border-none bg-transparent shadow-none" onPress={onClose}>
                 Cancel
               </Button>
             </div>

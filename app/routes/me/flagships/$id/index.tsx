@@ -5,7 +5,10 @@ import type { Route } from "./+types/index";
 import { queryClient } from "~/lib/query-client";
 import { flagshipQueryOptions } from "~/lib/queries/flagships";
 import { SingleFlagshipDetails } from "~/components/pages/flagships/single-flagship-details";
-import FlagshipSummaryModal from "~/components/pages/flagships/flagship-summary-modal";
+import ReportActionDialog, {
+  type ReportDialogMode,
+} from "~/components/pages/reports/report-action-dialog";
+import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 
 export async function loader({ params }: Route.LoaderArgs) {
   await queryClient.ensureQueryData(flagshipQueryOptions(Number(params.id)));
@@ -19,21 +22,28 @@ export function meta({}: Route.MetaArgs) {
 export default function MeFlagship({ params }: Route.ComponentProps) {
   const { data: flagship } = useQuery(flagshipQueryOptions(Number(params.id)));
   const pageId = Number(params.id);
-  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [modalType, setModalType] = useState<ReportDialogMode>(null);
+
+  const reportRow: ReportDownloadRow | null = flagship
+    ? {
+        id: flagship.id,
+        name: flagship.name,
+        type: "Custom",
+        period: "Current",
+        createdOn: "Today",
+        createdBy: flagship.lead,
+        origin: "Flagship Details",
+      }
+    : null;
 
   return (
     <>
       <SingleFlagshipDetails
         flagship={flagship ?? undefined}
         flagshipPageId={Number.isFinite(pageId) ? pageId : undefined}
-        onViewSummaryPress={() => setIsSummaryOpen(true)}
+        onViewSummaryPress={() => setModalType("view")}
       />
-      <FlagshipSummaryModal
-        isOpen={isSummaryOpen}
-        onClose={() => setIsSummaryOpen(false)}
-        flagshipId={Number.isFinite(pageId) ? pageId : undefined}
-        fallbackName={flagship?.name}
-      />
+      <ReportActionDialog mode={modalType} report={reportRow} onClose={() => setModalType(null)} />
     </>
   );
 }

@@ -85,11 +85,11 @@ export function downloadReportCsv(report: ReportDownloadRow) {
 export function downloadReportAsPdf(report: ReportDownloadRow) {
   const safeName = report.name.replace(/[^\w-]+/g, "_");
   downloadReportPdf(`${safeName}.pdf`, [
-    "Flagship Tracker — Report export",
+    report.name,
     "",
+    `Report type: ${report.type}`,
+    `Reporting period: ${report.period}`,
     `Report name: ${report.name}`,
-    `Type: ${report.type}`,
-    `Period: ${report.period}`,
     `Created on: ${report.createdOn}`,
     `Created by: ${report.createdBy}`,
     `Origin: ${report.origin}`,

@@ -73,7 +73,7 @@ export default function MeReports() {
         ]}
         minTableWidthClassName="min-w-[960px]"
         actions={(row) => [
-          { label: "View Details", onClick: () => openModal("view", row as ReportDownloadRow) },
+          { label: "View Report", onClick: () => openModal("view", row as ReportDownloadRow) },
           { label: "Give Feedback", onClick: () => openModal("feedback", row as ReportDownloadRow) },
           { label: "Download", onClick: () => openModal("download", row as ReportDownloadRow) },
         ]}
