@@ -53,11 +53,7 @@ export default function AdminReports() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard
-        title="Manage The Reports"
-        actionLabel="Generate Report"
-        onActionPress={() => setModalType("generate")}
-      />
+      <PageTitleCard title="Manage The Reports" />
       <ContentTab
         items={[
           { id: "all", label: "All" },
@@ -83,7 +79,7 @@ export default function AdminReports() {
         ]}
         minTableWidthClassName="min-w-[960px]"
         actions={(row) => [
-          { label: "View Details", icon: <IconEye size={14} />, onClick: () => openModal("view", row as ReportDownloadRow) },
+          { label: "View Report", icon: <IconEye size={14} />, onClick: () => openModal("view", row as ReportDownloadRow) },
           { label: "Give Feedback", icon: <IconMessageCircle size={14} />, onClick: () => openModal("feedback", row as ReportDownloadRow) },
           { label: "Download", icon: <IconDownload size={14} />, onClick: () => openModal("download", row as ReportDownloadRow) },
         ]}
