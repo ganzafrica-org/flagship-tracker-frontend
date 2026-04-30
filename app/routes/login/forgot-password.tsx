@@ -30,21 +30,15 @@ export default function ForgotPasswordPage() {
           navigate("/login/verify-code");
         }}
       >
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-neutral-800">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <AppInput
-            type="email"
-            variant="form"
-            placeholder="Email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            containerClassName="w-full"
-            inputClassName="h-[34px] rounded-[4px] border-default-200 bg-white px-3 py-1 text-sm placeholder:text-neutral-200 focus:border-[color:var(--accent)]"
-          />
-        </div>
+        <AppInput
+          label="Email"
+          type="email"
+          variant="form"
+          placeholder="Email"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
 
         <Button
           type="submit"
@@ -62,7 +56,7 @@ export default function ForgotPasswordPage() {
 
       <p className="mt-5 self-center text-sm text-neutral-700">
         Go back to{" "}
-        <Link to="/login" className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
+        <Link to="/login" viewTransition className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
           Login?
         </Link>
       </p>

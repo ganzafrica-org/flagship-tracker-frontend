@@ -10,7 +10,7 @@ import ReportActionDialog, {
 } from "~/components/pages/reports/report-action-dialog";
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   await queryClient.ensureQueryData(flagshipQueryOptions(Number(params.id)));
   return null;
 }

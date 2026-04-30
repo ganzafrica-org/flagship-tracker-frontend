@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { IconChevronDown, IconHomeFilled } from "@tabler/icons-react";
+import { IconHomeFilled } from "@tabler/icons-react";
+import { Select, Label, ListBox } from "@heroui/react";
 
 function LanguageFlag({ language }: { language: "EN" | "Kiny" }) {
   if (language === "Kiny") {
@@ -43,14 +44,13 @@ interface AuthShellProps {
 }
 
 export function AuthShell({ title, description, children }: AuthShellProps) {
-  const [showLanguageMenu, setShowLanguageMenu] = useState(false);
   const [language, setLanguage] = useState<"EN" | "Kiny">("EN");
 
   return (
     <main className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#1f95c8_0%,#0f5872_100%)] p-4 text-(--foreground) sm:p-6 lg:p-8">
       <section className="grid h-full max-h-[560px] w-full max-w-[1160px] overflow-hidden rounded-[14px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] lg:grid-cols-[0.92fr_1.08fr]">
         <div className="relative flex min-h-0 flex-col overflow-hidden rounded-br-[92px] bg-[#edf4fb] px-6 py-7 sm:px-9 sm:py-8 lg:h-full lg:rounded-br-[124px] lg:px-10 lg:py-9">
-          <Link to="/login" className="relative z-10 flex w-fit items-center gap-1.5 text-[color:var(--accent)]">
+          <Link to="/login" viewTransition className="relative z-10 flex w-fit items-center gap-1.5 text-[color:var(--accent)]">
             <div className="flex h-9 w-9 items-center justify-center">
               <IconHomeFilled size={27} />
             </div>
@@ -68,41 +68,46 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
 
         <div className="flex min-h-0 flex-col bg-white px-6 py-6 sm:px-10 sm:py-7 lg:h-full lg:px-14 lg:py-8">
           <div className="flex justify-end">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowLanguageMenu((value) => !value)}
-                className="inline-flex items-center gap-2 rounded-[4px] border border-default-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-(--foreground) shadow-sm"
-                aria-haspopup="menu"
-                aria-expanded={showLanguageMenu}
-              >
-                <LanguageFlag language={language} />
-                <span>{language}</span>
-                <IconChevronDown size={14} stroke={2} />
-              </button>
-              {showLanguageMenu ? (
-                <div className="absolute right-0 z-20 mt-2 min-w-[96px] rounded-[6px] border border-default-200 bg-white p-1 shadow-lg">
-                  {(["EN", "Kiny"] as const).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => {
-                        setLanguage(option);
-                        setShowLanguageMenu(false);
-                      }}
-                      className={`flex w-full items-center rounded-[4px] px-2 py-1.5 text-left text-[11px] font-medium transition ${
-                        language === option ? "bg-(--default) text-(--foreground)" : "text-neutral-600 hover:bg-(--default)"
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <Select
+              className="w-[96px]"
+              value={language}
+              onChange={(val) => setLanguage(val as "EN" | "Kiny")}
+              aria-label="Language"
+              variant="secondary"
+            >
+              <Select.Trigger className="h-8 text-[11px] font-semibold">
+                <Select.Value>
+                  {() => (
+                    <span className="flex items-center gap-1.5">
+                      <LanguageFlag language={language} />
+                      {language}
+                    </span>
+                  )}
+                </Select.Value>
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover placement="bottom end">
+                <ListBox>
+                  <ListBox.Item id="EN" textValue="EN">
+                    <span className="flex items-center gap-2 text-[11px]">
+                      <LanguageFlag language="EN" />
+                      EN
+                    </span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="Kiny" textValue="Kiny">
+                    <span className="flex items-center gap-2 text-[11px]">
+                      <LanguageFlag language="Kiny" />
+                      Kiny
+                    </span>
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
+            </Select>
           </div>
 
-          <div className="mx-auto flex w-full max-w-[360px] flex-1 flex-col justify-center overflow-hidden">
+          <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center">
             <div>
               <h1 className="text-[2rem] font-extrabold tracking-[-0.03em] text-black sm:text-[2.15rem]">{title}</h1>
               <p className="mt-3 text-[0.98rem] text-neutral-600">{description}</p>
