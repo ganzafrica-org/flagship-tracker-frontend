@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@heroui/react";
+import { useEffect, useMemo, useState } from "react";
+import { Button, InputOTP, Label, REGEXP_ONLY_DIGITS } from "@heroui/react";
 import { Link, useNavigate } from "react-router";
 
 import { AuthShell } from "~/components/auth/auth-shell";
-import AppInput from "~/components/input";
 import {
   getLatestPasswordReset,
   markPasswordResetVerified,
@@ -18,11 +17,8 @@ export default function VerifyCodePage() {
   const navigate = useNavigate();
   const record = useMemo(() => getLatestPasswordReset(), []);
 
-  const [codeDigits, setCodeDigits] = useState<string[]>(Array.from({ length: 6 }, () => ""));
+  const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
-  const code = codeDigits.join("");
 
   useEffect(() => {
     if (!record) {
@@ -59,42 +55,30 @@ export default function VerifyCodePage() {
           navigate("/login/change-password");
         }}
       >
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-neutral-800">
+        <div className="flex flex-col items-center gap-2">
+          <Label className="text-sm font-semibold text-neutral-800">
             Enter The Code <span className="text-red-500">*</span>
-          </label>
-          <div className="flex gap-2">
-            {codeDigits.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => {
-                  refs.current[idx] = el;
-                }}
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => {
-                  const nextDigit = e.target.value.replace(/\D/g, "").slice(-1);
-                  setCodeDigits((prev) => {
-                    const next = [...prev];
-                    next[idx] = nextDigit;
-                    return next;
-                  });
-                  if (nextDigit && idx < 5) {
-                    refs.current[idx + 1]?.focus();
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Backspace" && !codeDigits[idx] && idx > 0) {
-                    refs.current[idx - 1]?.focus();
-                  }
-                }}
-                className="h-[34px] w-10 rounded-[4px] border border-default-200 bg-white text-center text-sm text-(--foreground) outline-none transition-colors focus:border-[color:var(--accent)]"
-              />
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-neutral-500">Demo code: 123456</p>
+          </Label>
+          <InputOTP
+            maxLength={6}
+            value={code}
+            onChange={setCode}
+            pattern={REGEXP_ONLY_DIGITS}
+            isInvalid={Boolean(errorMessage)}
+          >
+            <InputOTP.Group>
+              <InputOTP.Slot index={0} />
+              <InputOTP.Slot index={1} />
+              <InputOTP.Slot index={2} />
+            </InputOTP.Group>
+            <InputOTP.Separator />
+            <InputOTP.Group>
+              <InputOTP.Slot index={3} />
+              <InputOTP.Slot index={4} />
+              <InputOTP.Slot index={5} />
+            </InputOTP.Group>
+          </InputOTP>
+          <p className="text-xs text-neutral-500">Demo code: 123456</p>
         </div>
 
         <Button
@@ -109,11 +93,10 @@ export default function VerifyCodePage() {
 
       <p className="mt-5 self-center text-sm text-neutral-700">
         Go back to{" "}
-        <Link to="/login" className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
+        <Link to="/login" viewTransition className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
           Login?
         </Link>
       </p>
     </AuthShell>
   );
 }
-

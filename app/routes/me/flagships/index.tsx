@@ -30,12 +30,12 @@ export default function MeFlagships() {
       <PageTitleCard
         title="Flagship Projects"
         actionLabel="Add Flagship"
-        onActionPress={() => navigate("/me/flagships/add-flagship")}
+        onActionPress={() => navigate("/me/flagships/add-flagship", { viewTransition: true })}
       />
       <FlagshipsList
         items={flagshipCards}
         className="w-full"
-        onViewMore={(item) => navigate(`/me/flagships/${item.id}`)}
+        onViewMore={(item) => navigate(`/me/flagships/${item.id}`, { viewTransition: true })}
       />
     </div>
   );

@@ -1,5 +1,9 @@
-import { Navigate } from "react-router";
+import { redirect } from "react-router";
+
+export function clientLoader() {
+  return redirect("/login");
+}
 
 export default function Index() {
-  return <Navigate to="/login" replace />;
+  return null;
 }

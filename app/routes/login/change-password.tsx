@@ -57,35 +57,23 @@ export default function ChangePasswordPage() {
           setTimeout(() => navigate("/login"), 700);
         }}
       >
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-neutral-800">
-            New Password <span className="text-red-500">*</span>
-          </label>
-          <AppInput
-            type="password"
-            variant="form"
-            placeholder="New password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            containerClassName="w-full"
-            inputClassName="h-[34px] rounded-[4px] border-default-200 bg-white px-3 py-1 text-sm placeholder:text-neutral-200 focus:border-[color:var(--accent)]"
-          />
-        </div>
+        <AppInput
+          label="New Password"
+          type="password"
+          variant="form"
+          placeholder="New password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+        />
 
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-neutral-800">
-            Confirm Password <span className="text-red-500">*</span>
-          </label>
-          <AppInput
-            type="password"
-            variant="form"
-            placeholder="Confirm password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            containerClassName="w-full"
-            inputClassName="h-[34px] rounded-[4px] border-default-200 bg-white px-3 py-1 text-sm placeholder:text-neutral-200 focus:border-[color:var(--accent)]"
-          />
-        </div>
+        <AppInput
+          label="Confirm Password"
+          type="password"
+          variant="form"
+          placeholder="Confirm password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
 
         <Button
           type="submit"
@@ -100,7 +88,7 @@ export default function ChangePasswordPage() {
 
       <p className="mt-5 self-center text-sm text-neutral-700">
         Go back to{" "}
-        <Link to="/login" className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
+        <Link to="/login" viewTransition className="font-medium text-[color:var(--accent)] transition hover:opacity-80">
           Login?
         </Link>
       </p>

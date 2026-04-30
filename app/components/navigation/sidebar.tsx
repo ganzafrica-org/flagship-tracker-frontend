@@ -112,7 +112,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
         {items.map((item) => {
           if (isOpen) {
             return (
-              <NavLink key={item.id} to={item.href} end={exactMatchIds.has(item.id)}>
+              <NavLink key={item.id} to={item.href} end={exactMatchIds.has(item.id)} viewTransition>
                 {({ isActive }) => (
                   <span
                     className={[
@@ -133,7 +133,7 @@ export default function Sidebar({ role, isOpen }: SidebarProps) {
           return (
             <Tooltip key={item.id} delay={150}>
               <Tooltip.Trigger>
-                <NavLink to={item.href} end={exactMatchIds.has(item.id)}>
+                <NavLink to={item.href} end={exactMatchIds.has(item.id)} viewTransition>
                   {({ isActive }) => (
                     <span
                       className={[

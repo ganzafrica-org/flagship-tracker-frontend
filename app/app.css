@@ -113,6 +113,72 @@ body {
 }
 
 /*
+ * AppInput — HeroUI Input with project-standard styling.
+ * Variants mirror what the auth pages previously applied inline.
+ */
+@layer components {
+  .app-input {
+    @apply w-full rounded-[4px] bg-white px-3 text-sm outline-none transition-colors;
+    color: var(--foreground);
+    border: 1px solid var(--default);
+
+    &:hover,
+    &[data-hovered="true"] {
+      border-color: var(--border);
+    }
+
+    &:focus-visible,
+    &[data-focus-visible="true"] {
+      border-color: var(--accent);
+    }
+
+    &[data-disabled="true"] {
+      @apply cursor-not-allowed opacity-60;
+    }
+  }
+
+  .app-input--default {
+    @apply h-10 py-2;
+  }
+
+  .app-input--form {
+    @apply h-[34px] py-1;
+  }
+
+  .app-input--error {
+    border-color: oklch(70% 0.19 23);
+
+    &:focus-visible,
+    &[data-focus-visible="true"] {
+      border-color: oklch(65% 0.23 23);
+    }
+  }
+
+  .app-input--success {
+    border-color: oklch(65% 0.17 155);
+
+    &:focus-visible,
+    &[data-focus-visible="true"] {
+      border-color: oklch(55% 0.17 155);
+    }
+  }
+}
+
+/*
+ * InputOTP — match the original individual digit box sizing and shape.
+ */
+@layer components {
+  .input-otp__slot {
+    @apply h-[34px] w-10 rounded-[4px] text-sm;
+    border: 1px solid var(--border);
+
+    &[data-active="true"] {
+      border-color: var(--accent);
+    }
+  }
+}
+
+/*
  * Recharts marks the chart wrapper and SVG surface as focusable (keyboard a11y).
  * Clicking the chart focuses them and shows the browser's default outline — remove it app-wide.
  */

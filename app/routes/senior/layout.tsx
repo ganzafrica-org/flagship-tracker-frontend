@@ -3,7 +3,6 @@ import { Outlet, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
 import { queryClient } from "~/lib/query-client";
-import { PageTransition } from "~/components/page-transition";
 import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";
@@ -11,7 +10,7 @@ import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
 import { clearStoredDemoUser, getRoleHomePath, getStoredDemoUser } from "~/lib/demo-auth";
 
-export async function loader(_: Route.LoaderArgs) {
+export async function clientLoader() {
   queryClient.prefetchQuery(dashboardQueryOptions);
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
@@ -58,9 +57,7 @@ export default function SeniorLayout() {
       <div className="flex flex-1 min-h-0">
         <Sidebar role="senior" isOpen={sidebarOpen} />
         <main className="flex-1 p-6 overflow-auto">
-          <PageTransition>
-            <Outlet />
-          </PageTransition>
+          <Outlet />
         </main>
       </div>
     </div>
