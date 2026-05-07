@@ -46,7 +46,7 @@ export default function SeniorFlagships() {
       <FlagshipsList
         items={flagshipCards}
         className="w-full"
-        onViewMore={(item) => navigate(`/senior/flagships/${item.id}`)}
+        onViewMore={(item) => navigate(`/senior/flagships/${item.id}`, { viewTransition: true })}
       />
     </div>
   );

@@ -72,7 +72,7 @@ export default function AdminFlagships() {
         <FlagshipsList
           items={flagshipCards}
           className="w-full"
-          onViewMore={(item) => navigate(`/admin/flagships/${item.id}`)}
+          onViewMore={(item) => navigate(`/admin/flagships/${item.id}`, { viewTransition: true })}
         />
       ) : (
         <TableComponent
@@ -92,7 +92,7 @@ export default function AdminFlagships() {
           minTableWidthClassName="min-w-[1050px]"
           filterByTab={() => true}
           actions={(row) => [
-            { label: "View Details", onClick: () => navigate(`/admin/flagships/${row.id}`) },
+            { label: "View Details", onClick: () => navigate(`/admin/flagships/${row.id}`, { viewTransition: true }) },
             { label: "Update", onClick: () => undefined },
             { label: "Delete", onClick: () => undefined, color: "danger" },
           ]}
