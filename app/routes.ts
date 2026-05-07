@@ -25,6 +25,8 @@ export default [
     route("me/flagships",             "routes/me/flagships/index.tsx"),
     route("me/flagships/add-flagship", "routes/me/flagships/add-flagship.tsx"),
     route("me/flagships/:id",         "routes/me/flagships/$id/index.tsx"),
+    route("me/cooperatives",          "routes/me/cooperatives/index.tsx"),
+    route("me/cooperatives/add-cooperative", "routes/me/cooperatives/add-cooperative.tsx"),
     route("me/reports",               "routes/me/reports/index.tsx"),
     route("me/data-management",       "routes/me/data-management/index.tsx"),
     route("me/data-management/add-flagship-data",   "routes/me/data-management/add-flagship-data.tsx"),
