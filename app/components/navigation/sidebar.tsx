@@ -6,6 +6,7 @@ import {
   IconChartBar,
   IconUsers,
   IconCirclePlus,
+  IconBuildingCommunity,
 } from "@tabler/icons-react";
 
 type UserRole = "admin" | "senior" | "me";
@@ -89,6 +90,12 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconUsers size={20} />,
     },
     {
+      id: "cooperatives",
+      label: "Cooperatives",
+      href: "/me/cooperatives",
+      icon: <IconBuildingCommunity size={20} />,
+    },
+    {
       id: "reports",
       label: "Report",
       href: "/me/reports",
@@ -99,7 +106,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
 
 export default function Sidebar({ role, isOpen }: SidebarProps) {
   const items = SIDEBAR_ITEMS[role];
-  const exactMatchIds = new Set(["flagships", "data-management", "reports", "users", "dashboard"]);
+  const exactMatchIds = new Set(["flagships", "data-management", "cooperatives", "reports", "users", "dashboard"]);
 
   return (
     <aside

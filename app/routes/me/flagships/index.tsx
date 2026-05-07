@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
+import { Button } from "@heroui/react";
 import { IconHomeFilled } from "@tabler/icons-react";
 
 import type { Route } from "./+types/index";
