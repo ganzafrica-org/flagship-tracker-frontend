@@ -7,6 +7,7 @@ import {
   IconUsers,
   IconCirclePlus,
   IconBuildingCommunity,
+  IconIdBadge2,
 } from "@tabler/icons-react";
 
 type UserRole = "admin" | "senior" | "me";
@@ -44,6 +45,12 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconUsers size={20} />,
     },
     {
+      id: "individuals",
+      label: "Individuals",
+      href: "/admin/individuals",
+      icon: <IconIdBadge2 size={20} />,
+    },
+    {
       id: "reports",
       label: "Reports",
       href: "/admin/reports",
@@ -62,6 +69,12 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Flagships",
       href: "/senior/flagships",
       icon: <IconFlag size={20} />,
+    },
+    {
+      id: "individuals",
+      label: "Individuals",
+      href: "/senior/individuals",
+      icon: <IconIdBadge2 size={20} />,
     },
     {
       id: "reports",
@@ -96,6 +109,12 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconBuildingCommunity size={20} />,
     },
     {
+      id: "individuals",
+      label: "Individuals",
+      href: "/me/individuals",
+      icon: <IconIdBadge2 size={20} />,
+    },
+    {
       id: "reports",
       label: "Report",
       href: "/me/reports",
@@ -106,7 +125,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
 
 export default function Sidebar({ role, isOpen }: SidebarProps) {
   const items = SIDEBAR_ITEMS[role];
-  const exactMatchIds = new Set(["flagships", "data-management", "cooperatives", "reports", "users", "dashboard"]);
+  const exactMatchIds = new Set(["flagships", "data-management", "cooperatives", "reports", "users", "dashboard", "individuals"]);
 
   return (
     <aside
