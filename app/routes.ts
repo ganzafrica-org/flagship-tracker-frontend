@@ -18,6 +18,9 @@ export default [
     route("admin/reports",            "routes/admin/reports/index.tsx"),
     route("admin/users",              "routes/admin/users/index.tsx"),
     route("admin/users/add-user",     "routes/admin/users/add-user.tsx"),
+    route("admin/individuals",                  "routes/admin/individuals/index.tsx"),
+    route("admin/individuals/add-individual",   "routes/admin/individuals/add.tsx"),
+    route("admin/individuals/update",           "routes/admin/individuals/update.tsx"),
   ]),
 
   // M&E
@@ -30,6 +33,9 @@ export default [
     route("me/reports",               "routes/me/reports/index.tsx"),
     route("me/data-management",       "routes/me/data-management/index.tsx"),
     route("me/data-management/add-flagship-data",   "routes/me/data-management/add-flagship-data.tsx"),
+    route("me/individuals",                     "routes/me/individuals/index.tsx"),
+    route("me/individuals/add-individual",      "routes/me/individuals/add.tsx"),
+    route("me/individuals/update",              "routes/me/individuals/update.tsx"),
   ]),
 
   // Senior Officials
@@ -38,6 +44,7 @@ export default [
     route("senior/flagships",         "routes/senior/flagships/index.tsx"),
     route("senior/flagships/:id",     "routes/senior/flagships/$id/index.tsx"),
     route("senior/reports",           "routes/senior/reports/index.tsx"),
+    route("senior/individuals",          "routes/senior/individuals/index.tsx"),
   ])
 
 ] satisfies RouteConfig;
