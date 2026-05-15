@@ -57,6 +57,7 @@ async function request<T>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     signal,
+    credentials: "include",
   });
 
   return handleResponse<T>(response);
