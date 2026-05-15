@@ -1,11 +1,8 @@
 
-
 import { useMemo, useState } from "react";
 import type React from "react";
-import { Button, Card, Chip, Pagination, SearchField, Table, Virtualizer } from "@heroui/react";
-import { ChevronDownIcon } from "@heroui/shared-icons";
-import { IconChevronsRight, IconChevronsLeft } from '@tabler/icons-react';
-import { TableLayout } from "@heroui/react";
+import { Button, Card, Chip, Label, ListBox, Pagination, SearchField, Select, Table } from "@heroui/react";
+import { IconChevronsRight, IconChevronsLeft, IconX } from '@tabler/icons-react';
 
 import ActionDropdown from "~/components/action-dropdown";
 import { dummyManageReports, dummyUserTabs } from "~/data/dummy-data";
@@ -31,6 +28,12 @@ interface TableActionItem {
   color?: "default" | "danger";
 }
 
+export interface MultiSelectFilterDef {
+  key: string;
+  placeholder: string;
+  options: { id: string; label: string }[];
+}
+
 type TableRowData = {
   id: RowValue;
   [key: string]: unknown;
@@ -49,7 +52,8 @@ interface TableComponentProps {
   filterByTab?: (row: TableRowData, selectedTab: string) => boolean;
   statusColumnKey?: string;
   statusColorMap?: Record<string, "default" | "success" | "warning" | "danger" | "accent">;
-  actions?: (row: TableRowData) => TableActionItem[];
+  actions?: ((row: TableRowData) => TableActionItem[]) | undefined;
+  multiSelectFilters?: MultiSelectFilterDef[];
 }
 
 export default function TableComponent({
@@ -88,10 +92,21 @@ export default function TableComponent({
     { label: "Update", onClick: () => undefined },
     { label: "Delete", onClick: () => undefined, color: "danger" },
   ],
+  multiSelectFilters = [],
 }: TableComponentProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [multiSelections, setMultiSelections] = useState<Record<string, Set<string>>>({});
+
+  function getSelection(key: string): Set<string> {
+    return multiSelections[key] ?? new Set<string>();
+  }
+
+  function setSelection(key: string, selected: Set<string>) {
+    setMultiSelections((prev) => ({ ...prev, [key]: selected }));
+    setPage(1);
+  }
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -102,9 +117,16 @@ export default function TableComponent({
         searchKeys.some((key) => String(row[key] ?? "").toLowerCase().includes(term));
 
       const tabMatch = filterByTab(row, selectedTab);
-      return searchMatch && tabMatch;
+
+      const multiMatch = multiSelectFilters.every((filter) => {
+        const selected = multiSelections[filter.key];
+        if (!selected || selected.size === 0) return true;
+        return selected.has(String(row[filter.key] ?? ""));
+      });
+
+      return searchMatch && tabMatch && multiMatch;
     });
-  }, [filterByTab, rows, search, searchKeys, selectedTab]);
+  }, [filterByTab, multiSelectFilters, multiSelections, rows, search, searchKeys, selectedTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const start = (page - 1) * itemsPerPage;
@@ -115,8 +137,49 @@ export default function TableComponent({
   return (
     <div className="space-y-4">
       <Card className="space-y-4 p-5">
-        <div className="flex justify-between mx-5">
-          <h1 className="text-xl font-semibold">{tableSectionTitle}</h1>
+        {/* Title row: multiselect filters (left) + search (right) */}
+        <div className="flex items-center justify-between gap-3 mx-5">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <h1 className="text-xl font-semibold shrink-0">{tableSectionTitle}</h1>
+
+            {multiSelectFilters.map((filter) => {
+              const selected = getSelection(filter.key);
+              const triggerLabel =
+                selected.size === 0
+                  ? filter.placeholder
+                  : selected.size === 1
+                  ? (filter.options.find((o) => selected.has(o.id))?.label ?? "1 selected")
+                  : `${selected.size} selected`;
+              return (
+                <Select
+                  key={filter.key}
+                  selectionMode="multiple"
+                  selectedKeys={selected}
+                  onSelectionChange={(keys) => setSelection(filter.key, new Set(Array.from(keys).map(String)))}
+                  className="w-52"
+                  placeholder={filter.placeholder}
+                >
+                  <Label className="sr-only">{filter.placeholder}</Label>
+                  <Select.Trigger className="h-9 border border-default-300 rounded-full px-3 text-sm w-full flex items-center gap-2">
+                    <Select.Value>
+                      {() => <span className="truncate text-sm">{triggerLabel}</span>}
+                    </Select.Value>
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover className="w-64">
+                    <ListBox selectionMode="multiple">
+                      {filter.options.map((opt) => (
+                        <ListBox.Item key={opt.id} id={opt.id} textValue={opt.label}>
+                          {opt.label}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
+              );
+            })}
+          </div>
 
           <SearchField
             className="w-[30%]"
@@ -130,6 +193,33 @@ export default function TableComponent({
             </SearchField.Group>
           </SearchField>
         </div>
+
+        {/* Selected chips row — right-aligned, newest on the right */}
+        {multiSelectFilters.some((f) => getSelection(f.key).size > 0) && (
+          <div className="flex flex-wrap justify-end gap-2 mx-5">
+            {multiSelectFilters.flatMap((filter) =>
+              Array.from(getSelection(filter.key)).map((id) => {
+                const label = filter.options.find((o) => o.id === id)?.label ?? id;
+                return (
+                  <Chip key={`${filter.key}-${id}`} size="sm" variant="soft" color="accent">
+                    <Chip.Label>{label}</Chip.Label>
+                    <button
+                      aria-label={`Remove ${label}`}
+                      onClick={() => {
+                        const next = new Set(getSelection(filter.key));
+                        next.delete(id);
+                        setSelection(filter.key, next);
+                      }}
+                      className="ml-1 flex items-center opacity-70 hover:opacity-100 transition-opacity"
+                    >
+                      <IconX size={12} />
+                    </button>
+                  </Chip>
+                );
+              })
+            )}
+          </div>
+        )}
 
           <Table>
             <Table.ScrollContainer>
@@ -148,7 +238,7 @@ export default function TableComponent({
                         if (column.key === "action") {
                           return (
                             <Table.Cell key={`${row.id}-action`}>
-                              <ActionDropdown actions={actions(row)} />
+                              {actions && <ActionDropdown actions={actions(row)} />}
                             </Table.Cell>
                           );
                         }
