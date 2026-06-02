@@ -25,55 +25,61 @@ import {
 import { StatCard } from "~/components/stat-card";
 import AppSelect from "~/components/app-select";
 import { CHART } from "~/data/dummy-flagship-detail";
-import {
-  cooperativeOverviewStats,
-  cooperativeFlagshipProportionData,
-  cooperativeMembersByFlagship,
-  engagementTypeByFlagship,
-  inclusionShareByFlagship,
-  cooperativesPerFlagship,
-  COOP_BAR_COLORS,
-} from "~/data/dummy-cooperatives";
+import { COOP_BAR_COLORS } from "~/data/dummy-cooperatives";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
+import { cooperativesDashboardQueryOptions } from "~/lib/queries/visualizations";
+
+const PROPORTION_FILLS = [CHART.accent, CHART.warning];
 
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export default function CooperativeOverview() {
-  const [flagshipFilter, setFlagshipFilter] = useState("all");
+  // "" = all flagships (server-side filter via ?flagship=<code>).
+  const [flagshipFilter, setFlagshipFilter] = useState("");
 
   const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
+  const { data } = useQuery(
+    cooperativesDashboardQueryOptions(flagshipFilter || undefined),
+  );
 
-  // When a flagship is selected, filter the chart data to that flagship only.
-  // (With real API this would be a query param; here we filter the dummy arrays.)
-  const filteredMembers =
-    flagshipFilter === "all"
-      ? cooperativeMembersByFlagship
-      : cooperativeMembersByFlagship.filter(
-          (r) => flagshipOptions.find((f) => f.value === flagshipFilter)?.label.startsWith(r.flagship) ?? true,
-        );
+  const stats = data?.cards;
 
-  const filteredEngagement =
-    flagshipFilter === "all"
-      ? engagementTypeByFlagship
-      : engagementTypeByFlagship.filter(
-          (r) => flagshipOptions.find((f) => f.value === flagshipFilter)?.label.startsWith(r.flagship) ?? true,
-        );
+  // Map the API payload onto the data-keys the charts already use.
+  const proportionData = (data?.flagshipProportion ?? []).map((p, i) => ({
+    name: p.name,
+    value: p.value,
+    fill: PROPORTION_FILLS[i % PROPORTION_FILLS.length],
+  }));
+  const filteredMembers = (data?.membersByFlagship ?? []).map((r) => ({
+    flagship: r.flagshipCode,
+    members: r.members ?? 0,
+  }));
+  const filteredEngagement = (data?.engagementByFlagship ?? []).map((r) => ({
+    flagship: r.flagshipCode,
+    implementing_partner: r.implementingPartner,
+    beneficiary_group: r.beneficiaryGroup,
+    service_provider: r.serviceProvider,
+  }));
+  const filteredInclusion = (data?.inclusionShare ?? []).map((r) => ({
+    flagship: r.flagshipCode,
+    femaleShare: r.femaleShare ?? 0,
+    youthShare: r.youthShare ?? 0,
+  }));
+  const filteredPerFlagship = (data?.cooperativesPerFlagship ?? []).map((r) => ({
+    flagship: r.flagshipCode,
+    cooperatives: r.cooperatives,
+  }));
 
-  const filteredInclusion =
-    flagshipFilter === "all"
-      ? inclusionShareByFlagship
-      : inclusionShareByFlagship.filter(
-          (r) => flagshipOptions.find((f) => f.value === flagshipFilter)?.label.startsWith(r.flagship) ?? true,
-        );
-
-  const filteredPerFlagship =
-    flagshipFilter === "all"
-      ? cooperativesPerFlagship
-      : cooperativesPerFlagship.filter(
-          (r) => flagshipOptions.find((f) => f.value === flagshipFilter)?.label.startsWith(r.flagship) ?? true,
-        );
+  // Options use the flagship CODE as the value (the API filters by code).
+  const flagshipFilterOptions = [
+    { label: "All Flagships", value: "" },
+    ...flagshipOptions.map((f) => ({
+      label: f.label,
+      value: f.label.split(" — ")[0],
+    })),
+  ];
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -85,7 +91,7 @@ export default function CooperativeOverview() {
           placeholder="All Flagships"
           selectedKey={flagshipFilter}
           onSelectionChange={setFlagshipFilter}
-          options={[{ label: "All Flagships", value: "all" }, ...flagshipOptions]}
+          options={flagshipFilterOptions}
         />
       </div>
 
@@ -94,31 +100,31 @@ export default function CooperativeOverview() {
         <StatCard
           color="var(--accent)"
           icon={<IconBuildingCommunity size={20} />}
-          stat={cooperativeOverviewStats.totalCooperatives}
+          stat={stats?.totalCooperatives ?? "—"}
           label="Total Cooperatives"
         />
         <StatCard
           color="var(--success)"
           icon={<IconLink size={20} />}
-          stat={cooperativeOverviewStats.linkedToFlagships}
+          stat={stats?.linkedToFlagships ?? "—"}
           label="Linked to Flagships"
         />
         <StatCard
           color="var(--warning)"
           icon={<IconLinkOff size={20} />}
-          stat={cooperativeOverviewStats.notLinkedToFlagships}
+          stat={stats?.notLinkedToFlagships ?? "—"}
           label="Not Linked"
         />
         <StatCard
           color="var(--forest)"
           icon={<IconUsers size={20} />}
-          stat={cooperativeOverviewStats.totalMembers.toLocaleString()}
+          stat={stats?.totalMembers != null ? stats.totalMembers.toLocaleString() : "—"}
           label="Total Members"
         />
         <StatCard
           color="var(--danger)"
           icon={<IconWoman size={20} />}
-          stat={cooperativeOverviewStats.totalFemaleMembers.toLocaleString()}
+          stat={stats?.totalFemaleMembers != null ? stats.totalFemaleMembers.toLocaleString() : "—"}
           label="Female Members"
         />
       </div>
@@ -134,7 +140,7 @@ export default function CooperativeOverview() {
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <Pie
-                  data={cooperativeFlagshipProportionData}
+                  data={proportionData}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
@@ -146,7 +152,7 @@ export default function CooperativeOverview() {
                   label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                   labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
                 >
-                  {cooperativeFlagshipProportionData.map((entry) => (
+                  {proportionData.map((entry) => (
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
