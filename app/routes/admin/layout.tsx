@@ -16,7 +16,7 @@ export async function clientLoader() {
   queryClient.prefetchQuery(dashboardQueryOptions);
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
-  queryClient.prefetchQuery(usersQueryOptions);
+  queryClient.prefetchQuery(usersQueryOptions());
   return null;
 }
 

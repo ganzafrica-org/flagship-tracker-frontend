@@ -21,6 +21,16 @@ export default [
     route("admin/individuals",                  "routes/admin/individuals/index.tsx"),
     route("admin/individuals/add-individual",   "routes/admin/individuals/add.tsx"),
     route("admin/individuals/update",           "routes/admin/individuals/update.tsx"),
+    route("admin/value-chains",       "routes/admin/value-chains/index.tsx"),
+    route("admin/value-chains/add",   "routes/admin/value-chains/add.tsx"),
+    route("admin/kpis",               "routes/admin/kpis/index.tsx"),
+    route("admin/kpis/add",           "routes/admin/kpis/add.tsx"),
+    route("admin/agencies",           "routes/admin/agencies/index.tsx"),
+    route("admin/agencies/add",       "routes/admin/agencies/add.tsx"),
+    route("admin/funders",            "routes/admin/funders/index.tsx"),
+    route("admin/funders/add",        "routes/admin/funders/add.tsx"),
+    route("admin/cooperatives",       "routes/admin/cooperatives/index.tsx"),
+    route("admin/cooperatives/add",   "routes/admin/cooperatives/add.tsx"),
   ]),
 
   // M&E
@@ -45,6 +55,7 @@ export default [
     route("senior/flagships/:id",     "routes/senior/flagships/$id/index.tsx"),
     route("senior/reports",           "routes/senior/reports/index.tsx"),
     route("senior/individuals",          "routes/senior/individuals/index.tsx"),
+    route("senior/cooperatives",         "routes/senior/cooperatives/index.tsx"),
   ])
 
 ] satisfies RouteConfig;

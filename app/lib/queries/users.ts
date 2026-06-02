@@ -1,20 +1,59 @@
 import { queryOptions } from "@tanstack/react-query";
+import { api, API_BASE_URL, ApiError } from "~/lib/api";
+
+export type UserRole = "ADMIN" | "SENIOR" | "MONITORING_OFFICER";
 
 export interface User {
   id: number;
-  name: string;
   email: string;
-  role: "admin" | "me" | "senior";
+  fullName: string;
+  role: string;
+  active: boolean;
+  mustChangePassword: boolean;
+  createdAt: string;
 }
 
-const DUMMY_USERS: User[] = [
-  { id: 1, name: "Alice Moyo",   email: "alice@example.com", role: "admin"  },
-  { id: 2, name: "Bob Dlamini",  email: "bob@example.com",   role: "me"     },
-  { id: 3, name: "Carol Nkosi",  email: "carol@example.com", role: "senior" },
-];
+export interface UserPageResponse {
+  content: User[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}
 
-export const usersQueryOptions = queryOptions({
-  queryKey: ["users"],
-  // TODO: replace with api.get<User[]>("/api/users", undefined, signal)
-  queryFn: () => Promise.resolve(DUMMY_USERS),
-});
+export interface CreateUserRequest {
+  email: string;
+  fullName: string;
+  role: UserRole;
+}
+
+export interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: string[];
+}
+
+export const usersQueryOptions = (params?: { cursor?: string; search?: string; role?: string }) =>
+  queryOptions({
+    queryKey: ["users", params ?? {}],
+    queryFn: ({ signal }) => api.get<UserPageResponse>("/api/users", params, signal),
+  });
+
+/**
+ * CSV import is multipart/form-data, which the JSON `api` client can't build —
+ * so we use a dedicated fetch here. Backend expects field name `file`.
+ */
+export async function importUsersCsv(file: File): Promise<ImportResult> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/users/import`, {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText);
+    throw new ApiError(response.status, response.statusText, text);
+  }
+  return response.json() as Promise<ImportResult>;
+}
