@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
@@ -9,6 +10,7 @@ import {
   Modal,
   Checkbox,
 } from "@heroui/react";
+import { parseDate } from "@internationalized/date";
 import type { DateValue } from "@internationalized/date";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 
@@ -19,7 +21,16 @@ import AppTextField from "~/components/app-text-field";
 import AppTextarea from "~/components/app-textarea";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
 import { Stepper, type StepConfig } from "~/components/stepper";
-import { flagshipDummyData } from "~/data/dummy-flagship-detail";
+import { ApiError } from "~/lib/api";
+import { formatApiErrorMessage } from "~/lib/api-errors";
+import {
+  createIndividual,
+  individualQueryOptions,
+  individualsQueryOptions,
+  updateIndividual,
+} from "~/lib/queries/individuals";
+import { useIndividualsFormLookups } from "~/lib/queries/lookups";
+import { useFlagshipSelectOptions } from "~/lib/queries/flagships";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -186,6 +197,29 @@ const SEVERITY_OPTIONS = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
+
+const INDIVIDUAL_MODAL_DIALOG_CLASS = "w-full sm:max-w-3xl max-h-[85vh] overflow-y-auto";
+
+function pickOptions<T extends { value: string; label: string }>(
+  apiOptions: T[],
+  fallbackOptions: T[],
+): T[] {
+  return apiOptions.length > 0 ? apiOptions : fallbackOptions;
+}
+
+function parseOptionalNumber(value: string): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseOptionalInt(value: string): number | undefined {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function dateValueToIso(value: DateValue | null): string | undefined {
+  return value ? value.toString() : undefined;
+}
 
 const STEPS: StepConfig[] = [
   { id: "basic-info", label: "Basic Information" },
@@ -439,7 +473,8 @@ function FlagshipStep({ entries, onAdd, onRemove }: { entries: FlagshipEntry[]; 
   const [draft, setDraft] = useState<FlagshipEntry>({ id: "", flagshipId: "", participationType: "", startDate: null, endDate: null, notes: "" });
   const [errors, setErrors] = useState<FlagshipEntryErrors>({});
 
-  const flagshipOptions = flagshipDummyData.map((f) => ({ value: String(f.id), label: f.title }));
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
+  const { participationTypeOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), flagshipId: "", participationType: "", startDate: null, endDate: null, notes: "" });
@@ -476,7 +511,7 @@ function FlagshipStep({ entries, onAdd, onRemove }: { entries: FlagshipEntry[]; 
             <EntryCard
               key={e.id}
               title={flagshipLabel(e.flagshipId)}
-              subtitle={PARTICIPATION_TYPE_OPTIONS.find((p) => p.value === e.participationType)?.label}
+              subtitle={pickOptions(participationTypeOptions, PARTICIPATION_TYPE_OPTIONS).find((p) => p.value === e.participationType)?.label}
               onRemove={() => onRemove(e.id)}
             />
           ))}
@@ -485,7 +520,7 @@ function FlagshipStep({ entries, onAdd, onRemove }: { entries: FlagshipEntry[]; 
 
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Flagship Participation</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
@@ -503,7 +538,7 @@ function FlagshipStep({ entries, onAdd, onRemove }: { entries: FlagshipEntry[]; 
                 name="participationType"
                 label="Participation Type"
                 placeholder="Select type"
-                options={PARTICIPATION_TYPE_OPTIONS}
+                options={pickOptions(participationTypeOptions, PARTICIPATION_TYPE_OPTIONS)}
                 selectedKey={draft.participationType}
                 onSelectionChange={(v) => setDraft((d) => ({ ...d, participationType: v }))}
               />
@@ -547,6 +582,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<CooperativeEntry>({ id: "", cooperativeId: "", role: "", joinDate: null, endDate: null });
   const [errors, setErrors] = useState<CooperativeEntryErrors>({});
+  const { cooperativeOptions, cooperativeRoleOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), cooperativeId: "", role: "", joinDate: null, endDate: null });
@@ -561,7 +597,8 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
     setModalOpen(false);
   }
 
-  const coopLabel = (id: string) => DUMMY_COOPERATIVES.find((c) => c.value === id)?.label ?? id;
+  const coopLabel = (id: string) =>
+    pickOptions(cooperativeOptions, DUMMY_COOPERATIVES).find((c) => c.value === id)?.label ?? id;
 
   return (
     <div className="space-y-4">
@@ -583,7 +620,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
             <EntryCard
               key={e.id}
               title={coopLabel(e.cooperativeId)}
-              subtitle={COOPERATIVE_ROLE_OPTIONS.find((r) => r.value === e.role)?.label}
+              subtitle={pickOptions(cooperativeRoleOptions, COOPERATIVE_ROLE_OPTIONS).find((r) => r.value === e.role)?.label}
               onRemove={() => onRemove(e.id)}
             />
           ))}
@@ -592,7 +629,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
 
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Cooperative Membership</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
@@ -600,7 +637,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
                 name="cooperativeId"
                 label="Cooperative *"
                 placeholder="Select cooperative"
-                options={DUMMY_COOPERATIVES}
+                options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)}
                 selectedKey={draft.cooperativeId}
                 onSelectionChange={(v) => { setDraft((d) => ({ ...d, cooperativeId: v })); setErrors((e) => ({ ...e, cooperativeId: undefined })); }}
                 errorMessage={errors.cooperativeId}
@@ -610,7 +647,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
                 name="role"
                 label="Role"
                 placeholder="Select role"
-                options={COOPERATIVE_ROLE_OPTIONS}
+                options={pickOptions(cooperativeRoleOptions, COOPERATIVE_ROLE_OPTIONS)}
                 selectedKey={draft.role}
                 onSelectionChange={(v) => setDraft((d) => ({ ...d, role: v }))}
               />
@@ -646,6 +683,7 @@ function ValueChainStep({ entries, onAdd, onRemove }: { entries: ValueChainEntry
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<ValueChainEntry>({ id: "", cluster: "", valueChain: "", valueChainStage: "", isPrimary: false, details: "", year: "" });
   const [errors, setErrors] = useState<ValueChainEntryErrors>({});
+  const { valueChainStageOptions, valueChainOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), cluster: "", valueChain: "", valueChainStage: "", isPrimary: false, details: "", year: "" });
@@ -682,7 +720,7 @@ function ValueChainStep({ entries, onAdd, onRemove }: { entries: ValueChainEntry
               title={`${e.cluster} — ${e.valueChain}`}
               subtitle={
                 [
-                  VALUE_CHAIN_STAGE_OPTIONS.find((s) => s.value === e.valueChainStage)?.label,
+                  pickOptions(valueChainStageOptions, VALUE_CHAIN_STAGE_OPTIONS).find((s) => s.value === e.valueChainStage)?.label,
                   e.isPrimary ? "Primary" : null,
                   e.year ? `Year: ${e.year}` : null,
                 ]
@@ -697,7 +735,7 @@ function ValueChainStep({ entries, onAdd, onRemove }: { entries: ValueChainEntry
 
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Value Chain Entry</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
@@ -711,12 +749,13 @@ function ValueChainStep({ entries, onAdd, onRemove }: { entries: ValueChainEntry
                   errorMessage={errors.cluster}
                   isRequired
                 />
-                <AppTextField
+                <AppSelect
                   name="valueChain"
                   label="Value Chain *"
-                  placeholder="e.g. maize, dairy, tomato"
-                  value={draft.valueChain}
-                  onChange={(v) => { setDraft((d) => ({ ...d, valueChain: v })); setErrors((er) => ({ ...er, valueChain: undefined })); }}
+                  placeholder="Select value chain"
+                  options={valueChainOptions}
+                  selectedKey={draft.valueChain}
+                  onSelectionChange={(v) => { setDraft((d) => ({ ...d, valueChain: v })); setErrors((er) => ({ ...er, valueChain: undefined })); }}
                   errorMessage={errors.valueChain}
                   isRequired
                 />
@@ -726,7 +765,7 @@ function ValueChainStep({ entries, onAdd, onRemove }: { entries: ValueChainEntry
                   name="valueChainStage"
                   label="Stage *"
                   placeholder="Select stage"
-                  options={VALUE_CHAIN_STAGE_OPTIONS}
+                  options={pickOptions(valueChainStageOptions, VALUE_CHAIN_STAGE_OPTIONS)}
                   selectedKey={draft.valueChainStage}
                   onSelectionChange={(v) => { setDraft((d) => ({ ...d, valueChainStage: v })); setErrors((er) => ({ ...er, valueChainStage: undefined })); }}
                   errorMessage={errors.valueChainStage}
@@ -773,7 +812,14 @@ function EmploymentStep({ entries, onAdd, onRemove }: { entries: EmploymentEntry
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<EmploymentEntry>({ id: "", flagshipId: "", cooperativeId: "", employmentType: "", employmentStatus: "", employerName: "", employerType: "", jobTitle: "", incomeRange: "", isPrimaryJob: false, startDate: null, endDate: null });
   const [errors, setErrors] = useState<EmploymentEntryErrors>({});
-  const flagshipOptions = flagshipDummyData.map((f) => ({ value: String(f.id), label: f.title }));
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
+  const {
+    employmentTypeOptions,
+    employmentStatusOptions,
+    employerTypeOptions,
+    incomeRangeOptions,
+    cooperativeOptions,
+  } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), flagshipId: "", cooperativeId: "", employmentType: "", employmentStatus: "", employerName: "", employerType: "", jobTitle: "", incomeRange: "", isPrimaryJob: false, startDate: null, endDate: null });
@@ -800,8 +846,8 @@ function EmploymentStep({ entries, onAdd, onRemove }: { entries: EmploymentEntry
         <div className="space-y-2">
           {entries.map((e) => (
             <EntryCard key={e.id}
-              title={e.jobTitle || EMPLOYMENT_TYPE_OPTIONS.find((o) => o.value === e.employmentType)?.label || "Employment entry"}
-              subtitle={[EMPLOYMENT_STATUS_OPTIONS.find((o) => o.value === e.employmentStatus)?.label, e.employerName].filter(Boolean).join(" · ")}
+              title={e.jobTitle || pickOptions(employmentTypeOptions, EMPLOYMENT_TYPE_OPTIONS).find((o) => o.value === e.employmentType)?.label || "Employment entry"}
+              subtitle={[pickOptions(employmentStatusOptions, EMPLOYMENT_STATUS_OPTIONS).find((o) => o.value === e.employmentStatus)?.label, e.employerName].filter(Boolean).join(" · ")}
               onRemove={() => onRemove(e.id)}
             />
           ))}
@@ -809,25 +855,25 @@ function EmploymentStep({ entries, onAdd, onRemove }: { entries: EmploymentEntry
       )}
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Employment Record</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="employmentType" label="Employment Type *" placeholder="Select type" options={EMPLOYMENT_TYPE_OPTIONS} selectedKey={draft.employmentType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, employmentType: v })); setErrors((er) => ({ ...er, employmentType: undefined })); }} errorMessage={errors.employmentType} isRequired />
-                <AppSelect name="employmentStatus" label="Employment Status *" placeholder="Select status" options={EMPLOYMENT_STATUS_OPTIONS} selectedKey={draft.employmentStatus} onSelectionChange={(v) => { setDraft((d) => ({ ...d, employmentStatus: v })); setErrors((er) => ({ ...er, employmentStatus: undefined })); }} errorMessage={errors.employmentStatus} isRequired />
+                <AppSelect name="employmentType" label="Employment Type *" placeholder="Select type" options={pickOptions(employmentTypeOptions, EMPLOYMENT_TYPE_OPTIONS)} selectedKey={draft.employmentType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, employmentType: v })); setErrors((er) => ({ ...er, employmentType: undefined })); }} errorMessage={errors.employmentType} isRequired />
+                <AppSelect name="employmentStatus" label="Employment Status *" placeholder="Select status" options={pickOptions(employmentStatusOptions, EMPLOYMENT_STATUS_OPTIONS)} selectedKey={draft.employmentStatus} onSelectionChange={(v) => { setDraft((d) => ({ ...d, employmentStatus: v })); setErrors((er) => ({ ...er, employmentStatus: undefined })); }} errorMessage={errors.employmentStatus} isRequired />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppTextField name="employerName" label="Employer Name" placeholder="Organisation or farm name" value={draft.employerName} onChange={(v) => setDraft((d) => ({ ...d, employerName: v }))} />
-                <AppSelect name="employerType" label="Employer Type" placeholder="Select type" options={EMPLOYER_TYPE_OPTIONS} selectedKey={draft.employerType} onSelectionChange={(v) => setDraft((d) => ({ ...d, employerType: v }))} />
+                <AppSelect name="employerType" label="Employer Type" placeholder="Select type" options={pickOptions(employerTypeOptions, EMPLOYER_TYPE_OPTIONS)} selectedKey={draft.employerType} onSelectionChange={(v) => setDraft((d) => ({ ...d, employerType: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppTextField name="jobTitle" label="Job Title" placeholder="Position or job title" value={draft.jobTitle} onChange={(v) => setDraft((d) => ({ ...d, jobTitle: v }))} />
-                <AppSelect name="incomeRange" label="Income Range (RWF/month)" placeholder="Select range" options={INCOME_RANGE_OPTIONS} selectedKey={draft.incomeRange} onSelectionChange={(v) => setDraft((d) => ({ ...d, incomeRange: v }))} />
+                <AppSelect name="incomeRange" label="Income Range (RWF/month)" placeholder="Select range" options={pickOptions(incomeRangeOptions, INCOME_RANGE_OPTIONS)} selectedKey={draft.incomeRange} onSelectionChange={(v) => setDraft((d) => ({ ...d, incomeRange: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={DUMMY_COOPERATIVES} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppDate name="startDate" label="Start Date" value={draft.startDate} onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))} />
@@ -855,6 +901,7 @@ function LandStep({ entries, onAdd, onRemove }: { entries: LandEntry[]; onAdd: (
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<LandEntry>({ id: "", landSizeHa: "", landUseType: "", ownershipStatus: "", province: "", district: "", sector: "", hasLandTitle: "", year: "" });
   const [errors, setErrors] = useState<LandEntryErrors>({});
+  const { landUseTypeOptions, ownershipStatusOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), landSizeHa: "", landUseType: "", ownershipStatus: "", province: "", district: "", sector: "", hasLandTitle: "", year: "" });
@@ -881,8 +928,8 @@ function LandStep({ entries, onAdd, onRemove }: { entries: LandEntry[]; onAdd: (
         <div className="space-y-2">
           {entries.map((e) => (
             <EntryCard key={e.id}
-              title={[LAND_USE_TYPE_OPTIONS.find((o) => o.value === e.landUseType)?.label, e.landSizeHa ? `${e.landSizeHa} ha` : null].filter(Boolean).join(" — ") || "Land entry"}
-              subtitle={[OWNERSHIP_STATUS_OPTIONS.find((o) => o.value === e.ownershipStatus)?.label, e.district, e.year ? `Year: ${e.year}` : null].filter(Boolean).join(" · ")}
+              title={[pickOptions(landUseTypeOptions, LAND_USE_TYPE_OPTIONS).find((o) => o.value === e.landUseType)?.label, e.landSizeHa ? `${e.landSizeHa} ha` : null].filter(Boolean).join(" — ") || "Land entry"}
+              subtitle={[pickOptions(ownershipStatusOptions, OWNERSHIP_STATUS_OPTIONS).find((o) => o.value === e.ownershipStatus)?.label, e.district, e.year ? `Year: ${e.year}` : null].filter(Boolean).join(" · ")}
               onRemove={() => onRemove(e.id)}
             />
           ))}
@@ -890,13 +937,13 @@ function LandStep({ entries, onAdd, onRemove }: { entries: LandEntry[]; onAdd: (
       )}
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Land Access Record</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="landUseType" label="Land Use Type *" placeholder="Select type" options={LAND_USE_TYPE_OPTIONS} selectedKey={draft.landUseType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, landUseType: v })); setErrors((er) => ({ ...er, landUseType: undefined })); }} errorMessage={errors.landUseType} isRequired />
-                <AppSelect name="ownershipStatus" label="Ownership Status *" placeholder="Select status" options={OWNERSHIP_STATUS_OPTIONS} selectedKey={draft.ownershipStatus} onSelectionChange={(v) => { setDraft((d) => ({ ...d, ownershipStatus: v })); setErrors((er) => ({ ...er, ownershipStatus: undefined })); }} errorMessage={errors.ownershipStatus} isRequired />
+                <AppSelect name="landUseType" label="Land Use Type *" placeholder="Select type" options={pickOptions(landUseTypeOptions, LAND_USE_TYPE_OPTIONS)} selectedKey={draft.landUseType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, landUseType: v })); setErrors((er) => ({ ...er, landUseType: undefined })); }} errorMessage={errors.landUseType} isRequired />
+                <AppSelect name="ownershipStatus" label="Ownership Status *" placeholder="Select status" options={pickOptions(ownershipStatusOptions, OWNERSHIP_STATUS_OPTIONS)} selectedKey={draft.ownershipStatus} onSelectionChange={(v) => { setDraft((d) => ({ ...d, ownershipStatus: v })); setErrors((er) => ({ ...er, ownershipStatus: undefined })); }} errorMessage={errors.ownershipStatus} isRequired />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppTextField name="landSizeHa" label="Land Size (ha)" placeholder="e.g. 0.5" type="number" step={0.0001} value={draft.landSizeHa} onChange={(v) => setDraft((d) => ({ ...d, landSizeHa: v }))} />
@@ -933,7 +980,8 @@ function ProductionStep({ entries, onAdd, onRemove }: { entries: ProductionEntry
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<ProductionEntry>({ id: "", flagshipId: "", cooperativeId: "", product: "", valueChain: "", season: "", year: "", quantityProduced: "", quantitySold: "", unit: "", revenueRwf: "", marketChannel: "", notes: "" });
   const [errors, setErrors] = useState<ProductionEntryErrors>({});
-  const flagshipOptions = flagshipDummyData.map((f) => ({ value: String(f.id), label: f.title }));
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
+  const { seasonOptions, unitOptions, marketChannelOptions, cooperativeOptions, valueChainOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), flagshipId: "", cooperativeId: "", product: "", valueChain: "", season: "", year: "", quantityProduced: "", quantitySold: "", unit: "", revenueRwf: "", marketChannel: "", notes: "" });
@@ -969,30 +1017,30 @@ function ProductionStep({ entries, onAdd, onRemove }: { entries: ProductionEntry
       )}
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Production Record</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <AppTextField name="product" label="Product *" placeholder="e.g. maize, milk" value={draft.product} onChange={(v) => { setDraft((d) => ({ ...d, product: v })); setErrors((er) => ({ ...er, product: undefined })); }} errorMessage={errors.product} isRequired />
-                <AppTextField name="valueChain" label="Value Chain" placeholder="e.g. dairy, horticulture" value={draft.valueChain} onChange={(v) => setDraft((d) => ({ ...d, valueChain: v }))} />
+                <AppSelect name="valueChain" label="Value Chain" placeholder="Select value chain" options={valueChainOptions} selectedKey={draft.valueChain} onSelectionChange={(v) => setDraft((d) => ({ ...d, valueChain: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="season" label="Season" placeholder="Select season" options={SEASON_OPTIONS} selectedKey={draft.season} onSelectionChange={(v) => setDraft((d) => ({ ...d, season: v }))} />
+                <AppSelect name="season" label="Season" placeholder="Select season" options={pickOptions(seasonOptions, SEASON_OPTIONS)} selectedKey={draft.season} onSelectionChange={(v) => setDraft((d) => ({ ...d, season: v }))} />
                 <AppTextField name="year" label="Year *" placeholder="e.g. 2024" type="number" value={draft.year} onChange={(v) => { setDraft((d) => ({ ...d, year: v })); setErrors((er) => ({ ...er, year: undefined })); }} errorMessage={errors.year} isRequired />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <AppTextField name="quantityProduced" label="Qty Produced" placeholder="0" type="number" value={draft.quantityProduced} onChange={(v) => setDraft((d) => ({ ...d, quantityProduced: v }))} />
                 <AppTextField name="quantitySold" label="Qty Sold" placeholder="0" type="number" value={draft.quantitySold} onChange={(v) => setDraft((d) => ({ ...d, quantitySold: v }))} />
-                <AppSelect name="unit" label="Unit" placeholder="Unit" options={UNIT_OPTIONS} selectedKey={draft.unit} onSelectionChange={(v) => setDraft((d) => ({ ...d, unit: v }))} />
+                <AppSelect name="unit" label="Unit" placeholder="Unit" options={pickOptions(unitOptions, UNIT_OPTIONS)} selectedKey={draft.unit} onSelectionChange={(v) => setDraft((d) => ({ ...d, unit: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppTextField name="revenueRwf" label="Revenue (RWF)" placeholder="0" type="number" value={draft.revenueRwf} onChange={(v) => setDraft((d) => ({ ...d, revenueRwf: v }))} />
-                <AppSelect name="marketChannel" label="Market Channel" placeholder="Select channel" options={MARKET_CHANNEL_OPTIONS} selectedKey={draft.marketChannel} onSelectionChange={(v) => setDraft((d) => ({ ...d, marketChannel: v }))} />
+                <AppSelect name="marketChannel" label="Market Channel" placeholder="Select channel" options={pickOptions(marketChannelOptions, MARKET_CHANNEL_OPTIONS)} selectedKey={draft.marketChannel} onSelectionChange={(v) => setDraft((d) => ({ ...d, marketChannel: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={DUMMY_COOPERATIVES} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <AppTextarea name="notes" label="Notes" placeholder="Additional context..." value={draft.notes} onChange={(v) => setDraft((d) => ({ ...d, notes: v }))} rows={3} />
             </Modal.Body>
@@ -1013,7 +1061,8 @@ function InterventionStep({ entries, onAdd, onRemove }: { entries: InterventionE
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<InterventionEntry>({ id: "", flagshipId: "", cooperativeId: "", interventionType: "", description: "", deliveryDate: null, valueRwf: "", deliveryLocation: "", notes: "" });
   const [errors, setErrors] = useState<InterventionEntryErrors>({});
-  const flagshipOptions = flagshipDummyData.map((f) => ({ value: String(f.id), label: f.title }));
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
+  const { interventionTypeOptions, cooperativeOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), flagshipId: "", cooperativeId: "", interventionType: "", description: "", deliveryDate: null, valueRwf: "", deliveryLocation: "", notes: "" });
@@ -1040,7 +1089,7 @@ function InterventionStep({ entries, onAdd, onRemove }: { entries: InterventionE
         <div className="space-y-2">
           {entries.map((e) => (
             <EntryCard key={e.id}
-              title={INTERVENTION_TYPE_OPTIONS.find((o) => o.value === e.interventionType)?.label || "Intervention entry"}
+              title={pickOptions(interventionTypeOptions, INTERVENTION_TYPE_OPTIONS).find((o) => o.value === e.interventionType)?.label || "Intervention entry"}
               subtitle={[e.deliveryLocation, e.valueRwf ? `${Number(e.valueRwf).toLocaleString()} RWF` : null].filter(Boolean).join(" · ")}
               onRemove={() => onRemove(e.id)}
             />
@@ -1049,14 +1098,14 @@ function InterventionStep({ entries, onAdd, onRemove }: { entries: InterventionE
       )}
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Intervention</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
-              <AppSelect name="interventionType" label="Intervention Type *" placeholder="Select type" options={INTERVENTION_TYPE_OPTIONS} selectedKey={draft.interventionType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, interventionType: v })); setErrors((er) => ({ ...er, interventionType: undefined })); }} errorMessage={errors.interventionType} isRequired />
+              <AppSelect name="interventionType" label="Intervention Type *" placeholder="Select type" options={pickOptions(interventionTypeOptions, INTERVENTION_TYPE_OPTIONS)} selectedKey={draft.interventionType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, interventionType: v })); setErrors((er) => ({ ...er, interventionType: undefined })); }} errorMessage={errors.interventionType} isRequired />
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={DUMMY_COOPERATIVES} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppDate name="deliveryDate" label="Delivery Date" value={draft.deliveryDate} onChange={(v) => setDraft((d) => ({ ...d, deliveryDate: v }))} />
@@ -1083,7 +1132,8 @@ function ConstraintStep({ entries, onAdd, onRemove }: { entries: ConstraintEntry
   const [modalOpen, setModalOpen] = useState(false);
   const [draft, setDraft] = useState<ConstraintEntry>({ id: "", flagshipId: "", cooperativeId: "", constraintType: "", severity: "", description: "", reportedDate: null, location: "" });
   const [errors, setErrors] = useState<ConstraintEntryErrors>({});
-  const flagshipOptions = flagshipDummyData.map((f) => ({ value: String(f.id), label: f.title }));
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
+  const { constraintTypeOptions, severityOptions, cooperativeOptions } = useIndividualsFormLookups();
 
   function openModal() {
     setDraft({ id: crypto.randomUUID(), flagshipId: "", cooperativeId: "", constraintType: "", severity: "", description: "", reportedDate: null, location: "" });
@@ -1110,8 +1160,8 @@ function ConstraintStep({ entries, onAdd, onRemove }: { entries: ConstraintEntry
         <div className="space-y-2">
           {entries.map((e) => (
             <EntryCard key={e.id}
-              title={CONSTRAINT_TYPE_OPTIONS.find((o) => o.value === e.constraintType)?.label || "Constraint entry"}
-              subtitle={[SEVERITY_OPTIONS.find((o) => o.value === e.severity)?.label ? `Severity: ${SEVERITY_OPTIONS.find((o) => o.value === e.severity)?.label}` : null, e.location].filter(Boolean).join(" · ")}
+              title={pickOptions(constraintTypeOptions, CONSTRAINT_TYPE_OPTIONS).find((o) => o.value === e.constraintType)?.label || "Constraint entry"}
+              subtitle={[pickOptions(severityOptions, SEVERITY_OPTIONS).find((o) => o.value === e.severity)?.label ? `Severity: ${pickOptions(severityOptions, SEVERITY_OPTIONS).find((o) => o.value === e.severity)?.label}` : null, e.location].filter(Boolean).join(" · ")}
               onRemove={() => onRemove(e.id)}
             />
           ))}
@@ -1119,17 +1169,17 @@ function ConstraintStep({ entries, onAdd, onRemove }: { entries: ConstraintEntry
       )}
       <Modal.Backdrop isOpen={modalOpen} onOpenChange={setModalOpen}>
         <Modal.Container>
-          <Modal.Dialog className="sm:max-w-lg w-full">
+          <Modal.Dialog className={INDIVIDUAL_MODAL_DIALOG_CLASS}>
             <Modal.CloseTrigger />
             <Modal.Header><Modal.Heading>Add Constraint Feedback</Modal.Heading></Modal.Header>
             <Modal.Body className="space-y-4">
               <AppSelect name="flagshipId" label="Flagship *" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => { setDraft((d) => ({ ...d, flagshipId: v })); setErrors((er) => ({ ...er, flagshipId: undefined })); }} errorMessage={errors.flagshipId} isRequired />
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="constraintType" label="Constraint Type *" placeholder="Select type" options={CONSTRAINT_TYPE_OPTIONS} selectedKey={draft.constraintType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, constraintType: v })); setErrors((er) => ({ ...er, constraintType: undefined })); }} errorMessage={errors.constraintType} isRequired />
-                <AppSelect name="severity" label="Severity" placeholder="Select severity" options={SEVERITY_OPTIONS} selectedKey={draft.severity} onSelectionChange={(v) => setDraft((d) => ({ ...d, severity: v }))} />
+                <AppSelect name="constraintType" label="Constraint Type *" placeholder="Select type" options={pickOptions(constraintTypeOptions, CONSTRAINT_TYPE_OPTIONS)} selectedKey={draft.constraintType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, constraintType: v })); setErrors((er) => ({ ...er, constraintType: undefined })); }} errorMessage={errors.constraintType} isRequired />
+                <AppSelect name="severity" label="Severity" placeholder="Select severity" options={pickOptions(severityOptions, SEVERITY_OPTIONS)} selectedKey={draft.severity} onSelectionChange={(v) => setDraft((d) => ({ ...d, severity: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={DUMMY_COOPERATIVES} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
                 <AppDate name="reportedDate" label="Reported Date" value={draft.reportedDate} onChange={(v) => setDraft((d) => ({ ...d, reportedDate: v }))} />
               </div>
               <AppTextField name="location" label="Location" placeholder="Where the constraint was observed" value={draft.location} onChange={(v) => setDraft((d) => ({ ...d, location: v }))} />
@@ -1190,6 +1240,22 @@ const DEFAULT_BASIC: BasicInfoFields = {
 
 export default function AddIndividual({ backPath }: AddIndividualProps) {
   const navigate = useNavigate();
+  const {
+    sexOptions,
+    youthCategoryOptions,
+    educationLevelOptions,
+    registrationSourceOptions,
+  } = useIndividualsFormLookups();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const editId = Number(searchParams.get("editId") || 0);
+  const isUpdateMode = Number.isFinite(editId) && editId > 0;
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const { data: existingIndividual, isLoading: detailLoading } = useQuery({
+    ...individualQueryOptions(editId),
+    enabled: isUpdateMode,
+  });
 
   const [currentStep, setCurrentStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -1206,6 +1272,195 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
   const [productionEntries, setProductionEntries] = useState<ProductionEntry[]>([]);
   const [interventionEntries, setInterventionEntries] = useState<InterventionEntry[]>([]);
   const [constraintEntries, setConstraintEntries] = useState<ConstraintEntry[]>([]);
+
+  useEffect(() => {
+    setPrefilled(false);
+  }, [editId]);
+
+  useEffect(() => {
+    if (!isUpdateMode || !existingIndividual || prefilled) return;
+    setBasic((prev) => ({
+      ...prev,
+      nationalId: existingIndividual.nationalId ?? "",
+      phoneNumber: existingIndividual.phoneNumber ?? "",
+      firstName: existingIndividual.firstName ?? "",
+      lastName: existingIndividual.lastName ?? "",
+      sex: existingIndividual.sex ?? "",
+      dateOfBirth: existingIndividual.dateOfBirth
+        ? parseDate(existingIndividual.dateOfBirth.slice(0, 10))
+        : null,
+      youthCategory: existingIndividual.youthCategory ?? "",
+      educationLevel: existingIndividual.educationLevel ?? "",
+      disabilityStatus:
+        existingIndividual.disabilityStatus == null ? "" : String(existingIndividual.disabilityStatus),
+      registrationSource: existingIndividual.registrationSource ?? "",
+      location: {
+        province: existingIndividual.province ?? "",
+        district: existingIndividual.district ?? "",
+        sector: existingIndividual.sector ?? "",
+        cell: existingIndividual.cell ?? "",
+        village: existingIndividual.village ?? "",
+      },
+      latitude: existingIndividual.latitude == null ? "" : String(existingIndividual.latitude),
+      longitude: existingIndividual.longitude == null ? "" : String(existingIndividual.longitude),
+    }));
+    setPrefilled(true);
+  }, [isUpdateMode, existingIndividual, prefilled]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        nationalId: basic.nationalId || undefined,
+        phoneNumber: basic.phoneNumber.trim(),
+        firstName: basic.firstName.trim(),
+        lastName: basic.lastName.trim(),
+        sex: basic.sex,
+        dateOfBirth: dateValueToIso(basic.dateOfBirth),
+        youthCategory: basic.youthCategory || undefined,
+        educationLevel: basic.educationLevel || undefined,
+        disabilityStatus: basic.disabilityStatus ? basic.disabilityStatus === "true" : undefined,
+        registrationSource: basic.registrationSource,
+        province: basic.location.province,
+        district: basic.location.district,
+        sector: basic.location.sector,
+        cell: basic.location.cell,
+        village: basic.location.village,
+        latitude: basic.latitude ? parseOptionalNumber(basic.latitude) : undefined,
+        longitude: basic.longitude ? parseOptionalNumber(basic.longitude) : undefined,
+      };
+      if (isUpdateMode) {
+        return updateIndividual(editId, {
+          ...payload,
+          ...(flagshipEntries.length > 0
+            ? {
+                flagships: flagshipEntries.map((entry) => ({
+                  flagshipId: Number(entry.flagshipId),
+                  participationType: entry.participationType || undefined,
+                  startDate: dateValueToIso(entry.startDate),
+                  endDate: dateValueToIso(entry.endDate),
+                  active: true,
+                  notes: entry.notes || undefined,
+                })),
+              }
+            : {}),
+          ...(cooperativeEntries.length > 0
+            ? {
+                cooperatives: cooperativeEntries.map((entry) => ({
+                  cooperativeId: Number(entry.cooperativeId),
+                  role: entry.role || undefined,
+                  joinDate: dateValueToIso(entry.joinDate),
+                  endDate: dateValueToIso(entry.endDate),
+                  active: true,
+                })),
+              }
+            : {}),
+          ...(valueChainEntries.length > 0
+            ? {
+                valueChains: valueChainEntries.map((entry) => ({
+                  cluster: entry.cluster,
+                  valueChain: entry.valueChain,
+                  valueChainStage: entry.valueChainStage || undefined,
+                  primary: entry.isPrimary,
+                  details: entry.details || undefined,
+                  year: parseOptionalInt(entry.year),
+                })),
+              }
+            : {}),
+          ...(employmentEntries.length > 0
+            ? {
+                employments: employmentEntries.map((entry) => ({
+                  flagshipId: parseOptionalInt(entry.flagshipId),
+                  cooperativeId: parseOptionalInt(entry.cooperativeId),
+                  employmentType: entry.employmentType || undefined,
+                  employmentStatus: entry.employmentStatus || undefined,
+                  employerName: entry.employerName || undefined,
+                  employerType: entry.employerType || undefined,
+                  jobTitle: entry.jobTitle || undefined,
+                  incomeRangeRwf: entry.incomeRange || undefined,
+                  primaryJob: entry.isPrimaryJob,
+                  startDate: dateValueToIso(entry.startDate),
+                  endDate: dateValueToIso(entry.endDate),
+                })),
+              }
+            : {}),
+          ...(landEntries.length > 0
+            ? {
+                landAccess: landEntries.map((entry) => ({
+                  landSizeHa: parseOptionalNumber(entry.landSizeHa),
+                  landUseType: entry.landUseType || undefined,
+                  ownershipStatus: entry.ownershipStatus || undefined,
+                  province: entry.province || undefined,
+                  district: entry.district || undefined,
+                  sector: entry.sector || undefined,
+                  hasLandTitle: entry.hasLandTitle ? entry.hasLandTitle === "true" : undefined,
+                  year: parseOptionalInt(entry.year),
+                })),
+              }
+            : {}),
+          ...(productionEntries.length > 0
+            ? {
+                productionRecords: productionEntries.map((entry) => ({
+                  flagshipId: parseOptionalInt(entry.flagshipId),
+                  cooperativeId: parseOptionalInt(entry.cooperativeId),
+                  product: entry.product || undefined,
+                  valueChain: entry.valueChain || undefined,
+                  season: entry.season || undefined,
+                  year: parseOptionalInt(entry.year),
+                  quantityProduced: parseOptionalNumber(entry.quantityProduced),
+                  quantitySold: parseOptionalNumber(entry.quantitySold),
+                  unit: entry.unit || undefined,
+                  revenueRwf: parseOptionalNumber(entry.revenueRwf),
+                  marketChannel: entry.marketChannel || undefined,
+                  notes: entry.notes || undefined,
+                })),
+              }
+            : {}),
+          ...(interventionEntries.length > 0
+            ? {
+                interventions: interventionEntries.map((entry) => ({
+                  flagshipId: parseOptionalInt(entry.flagshipId),
+                  cooperativeId: parseOptionalInt(entry.cooperativeId),
+                  interventionType: entry.interventionType || undefined,
+                  description: entry.description || undefined,
+                  deliveryDate: dateValueToIso(entry.deliveryDate),
+                  year: entry.deliveryDate ? parseOptionalInt(entry.deliveryDate.toString().slice(0, 4)) : undefined,
+                  valueRwf: parseOptionalNumber(entry.valueRwf),
+                  location: entry.deliveryLocation || undefined,
+                  notes: entry.notes || undefined,
+                })),
+              }
+            : {}),
+          ...(constraintEntries.length > 0
+            ? {
+                constraintFeedback: constraintEntries.map((entry) => ({
+                  flagshipId: parseOptionalInt(entry.flagshipId),
+                  cooperativeId: parseOptionalInt(entry.cooperativeId),
+                  constraintType: entry.constraintType || undefined,
+                  severity: entry.severity || undefined,
+                  description: entry.description || undefined,
+                  reportedDate: dateValueToIso(entry.reportedDate),
+                  year: entry.reportedDate ? parseOptionalInt(entry.reportedDate.toString().slice(0, 4)) : undefined,
+                  location: entry.location || undefined,
+                })),
+              }
+            : {}),
+        });
+      }
+      return createIndividual(payload);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
+      if (isUpdateMode) navigate(backPath, { viewTransition: true });
+      else setSubmitted(true);
+    },
+    onError: (error: Error) => {
+      if (error instanceof ApiError) {
+        setSubmitError(formatApiErrorMessage(error.message));
+      } else {
+        setSubmitError(error.message || "Failed to save individual.");
+      }
+    },
+  });
 
   const updateBasic = useCallback(<K extends keyof BasicInfoFields>(key: K, value: BasicInfoFields[K]) => {
     setBasic((prev) => ({ ...prev, [key]: value }));
@@ -1226,7 +1481,8 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
   }
 
   function handleSubmit() {
-    setSubmitted(true);
+    setSubmitError(null);
+    saveMutation.mutate();
   }
 
   function resetForm() {
@@ -1258,7 +1514,18 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
     currentStep === 8 ? constraintEntries.length > 0 :
     false;
 
-  if (submitted) {
+  if (isUpdateMode && detailLoading) {
+    return (
+      <div className="space-y-6">
+        <PageTitleCard title="Update Individual" />
+        <Card className="p-6">
+          <p className="text-sm text-(--muted-foreground)">Loading individual...</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isUpdateMode && submitted) {
     return (
       <div className="space-y-6">
         <PageTitleCard title="Add Individual" />
@@ -1271,7 +1538,12 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCard title="Add Individual" />
+      <PageTitleCard title={isUpdateMode ? "Update Individual" : "Add Individual"} />
+      {submitError ? (
+        <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">
+          {submitError}
+        </p>
+      ) : null}
 
       <Stepper
         steps={STEPS}
@@ -1283,8 +1555,10 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
         onNext={goNext}
         onSkip={() => setCurrentStep((s) => s + 1)}
         onSubmit={handleSubmit}
+        submitLabel={isUpdateMode ? "Update" : "Save"}
         stepHasValue={stepHasValue}
         stepHasError={stepHasError}
+        isSubmitting={saveMutation.isPending}
       >
           {/* ── Step 0: Basic Information ── */}
           {currentStep === 0 && (
@@ -1330,7 +1604,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
                     name="sex"
                     label="Sex *"
                     placeholder="Select sex"
-                    options={SEX_OPTIONS}
+                    options={pickOptions(sexOptions, SEX_OPTIONS)}
                     selectedKey={basic.sex}
                     onSelectionChange={(v) => updateBasic("sex", v)}
                     errorMessage={basicErrors.sex}
@@ -1346,7 +1620,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
                     name="youthCategory"
                     label="Youth Category"
                     placeholder="Select category"
-                    options={YOUTH_CATEGORY_OPTIONS}
+                    options={pickOptions(youthCategoryOptions, YOUTH_CATEGORY_OPTIONS)}
                     selectedKey={basic.youthCategory}
                     onSelectionChange={(v) => updateBasic("youthCategory", v)}
                   />
@@ -1354,7 +1628,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
                     name="educationLevel"
                     label="Education Level"
                     placeholder="Select education level"
-                    options={EDUCATION_LEVEL_OPTIONS}
+                    options={pickOptions(educationLevelOptions, EDUCATION_LEVEL_OPTIONS)}
                     selectedKey={basic.educationLevel}
                     onSelectionChange={(v) => updateBasic("educationLevel", v)}
                   />
@@ -1373,7 +1647,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
                     name="registrationSource"
                     label="Registration Source *"
                     placeholder="Select source"
-                    options={REGISTRATION_SOURCE_OPTIONS}
+                    options={pickOptions(registrationSourceOptions, REGISTRATION_SOURCE_OPTIONS)}
                     selectedKey={basic.registrationSource}
                     onSelectionChange={(v) => updateBasic("registrationSource", v)}
                     errorMessage={basicErrors.registrationSource}

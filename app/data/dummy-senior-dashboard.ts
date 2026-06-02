@@ -13,6 +13,8 @@ export const seniorDashboardStats = {
   totalFlagships: 12,
   totalJobsCreated: 34_820,
   totalInvestors: 47,
+  totalYouthRegistered: 52_460,
+  totalCooperativesEngaged: 318,
   totalInvestment: "142.6B",
 };
 
@@ -24,33 +26,33 @@ export const SENIOR_DASHBOARD_YEARS = ["2021", "2022", "2023", "2024", "2025", "
 export type SeniorDashboardYear = (typeof SENIOR_DASHBOARD_YEARS)[number];
 
 // ---------------------------------------------------------------------------
-// Donut chart — Number of Youths Employed (Men vs. Women), by year
+// Donut chart — Youth vs Non-Youth participation, by year
 // ---------------------------------------------------------------------------
 
 export const youthEmploymentByYear: Record<SeniorDashboardYear, { name: string; value: number; fill: string }[]> = {
   "2021": [
-    { name: "Male", value: 3_200, fill: CHART.accent },
-    { name: "Female", value: 2_400, fill: CHART.warning },
+    { name: "Youth", value: 5_600, fill: CHART.accent },
+    { name: "Non-Youth", value: 1_800, fill: CHART.warning },
   ],
   "2022": [
-    { name: "Male", value: 4_100, fill: CHART.accent },
-    { name: "Female", value: 3_300, fill: CHART.warning },
+    { name: "Youth", value: 7_400, fill: CHART.accent },
+    { name: "Non-Youth", value: 2_300, fill: CHART.warning },
   ],
   "2023": [
-    { name: "Male", value: 5_500, fill: CHART.accent },
-    { name: "Female", value: 4_200, fill: CHART.warning },
+    { name: "Youth", value: 9_700, fill: CHART.accent },
+    { name: "Non-Youth", value: 2_900, fill: CHART.warning },
   ],
   "2024": [
-    { name: "Male", value: 7_200, fill: CHART.accent },
-    { name: "Female", value: 5_800, fill: CHART.warning },
+    { name: "Youth", value: 13_000, fill: CHART.accent },
+    { name: "Non-Youth", value: 3_600, fill: CHART.warning },
   ],
   "2025": [
-    { name: "Male", value: 9_100, fill: CHART.accent },
-    { name: "Female", value: 7_400, fill: CHART.warning },
+    { name: "Youth", value: 16_500, fill: CHART.accent },
+    { name: "Non-Youth", value: 4_600, fill: CHART.warning },
   ],
   "2026": [
-    { name: "Male", value: 11_000, fill: CHART.accent },
-    { name: "Female", value: 9_200, fill: CHART.warning },
+    { name: "Youth", value: 20_200, fill: CHART.accent },
+    { name: "Non-Youth", value: 5_700, fill: CHART.warning },
   ],
 };
 

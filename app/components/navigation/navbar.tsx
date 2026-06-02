@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Avatar, Card, Dropdown, Label } from "@heroui/react";
+import { Avatar, Dropdown, Label } from "@heroui/react";
 import {
   IconMenu2,
   IconHelp,
@@ -83,21 +83,21 @@ export default function Navbar({ onMenuToggle, userName, onLogout }: NavbarProps
 
         {/* Profile card dropdown */}
         <Dropdown>
-          <Dropdown.Trigger>
-            <Card className="flex flex-row items-center gap-3 px-3 py-1.5 cursor-pointer bg-white/10 border-none shadow-none hover:bg-white/20 transition-colors text-(--accent-foreground)">
-              <Avatar size="sm" color="accent">
-                <Avatar.Fallback>
-                  {userName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </Avatar.Fallback>
-              </Avatar>
-              <span className="text-sm font-medium hidden sm:block">{userName}</span>
-              <IconChevronDown size={16} />
-            </Card>
+          <Dropdown.Trigger
+            className="flex flex-row items-center gap-3 rounded-(--radius) px-3 py-1.5 cursor-pointer bg-white/10 border-none shadow-none hover:bg-white/20 transition-colors text-(--accent-foreground) outline-none"
+          >
+            <Avatar size="sm" color="accent">
+              <Avatar.Fallback>
+                {userName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </Avatar.Fallback>
+            </Avatar>
+            <span className="text-sm font-medium hidden sm:block">{userName}</span>
+            <IconChevronDown size={16} />
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end" className="w-(--trigger-width) min-w-0">
             <Dropdown.Menu
@@ -121,16 +121,14 @@ export default function Navbar({ onMenuToggle, userName, onLogout }: NavbarProps
 
         {/* Language switcher */}
         <Dropdown>
-          <Dropdown.Trigger>
-            <button
-              className="flex items-center gap-1.5 py-1 px-2 border border-white/60 rounded-3xl hover:bg-white/10 transition-colors"
-              aria-label="Switch language"
-            >
-              {selectedLanguage.flag}
-              <span className="text-sm font-medium text-(--accent-foreground)">
-                {selectedLanguage.id}
-              </span>
-            </button>
+          <Dropdown.Trigger
+            className="flex items-center gap-1.5 py-1 px-2 border border-white/60 rounded-3xl hover:bg-white/10 transition-colors outline-none"
+            aria-label="Switch language"
+          >
+            {selectedLanguage.flag}
+            <span className="text-sm font-medium text-(--accent-foreground)">
+              {selectedLanguage.id}
+            </span>
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end" className="min-w-36">
             <Dropdown.Menu
