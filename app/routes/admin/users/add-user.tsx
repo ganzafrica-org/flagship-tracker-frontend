@@ -19,8 +19,8 @@ import { useNavigate, useSearchParams } from "react-router";
 import { PageTitleCard } from "~/components/page-title-card";
 import AppInput from "~/components/input";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
-import { flagshipDummyData } from "~/data/dummy-flagship-detail";
 import { dummyUsers } from "~/data/dummy-data";
+import { useFlagshipSelectOptions } from "~/lib/queries/flagships";
 
 const triggerClass = "h-10 border border-default-500 rounded-3xl px-3 text-sm text-(--foreground) transition-colors w-full";
 
@@ -30,6 +30,7 @@ export function meta() {
 
 export default function AdminAddUserPage() {
   const navigate = useNavigate();
+  const { options: flagshipOptions } = useFlagshipSelectOptions();
   const [searchParams] = useSearchParams();
   const editId = Number(searchParams.get("editId") ?? "");
   const isEditMode = Number.isFinite(editId);
@@ -153,9 +154,9 @@ export default function AdminAddUserPage() {
                 </Select.Trigger>
                 <Select.Popover>
                   <ListBox>
-                    {flagshipDummyData.map((flagship) => (
-                      <ListBox.Item key={flagship.id} id={flagship.id} textValue={flagship.title}>
-                        {flagship.title}
+                    {flagshipOptions.map((flagship) => (
+                      <ListBox.Item key={flagship.value} id={flagship.value} textValue={flagship.label}>
+                        {flagship.label}
                         <ListBox.ItemIndicator />
                       </ListBox.Item>
                     ))}

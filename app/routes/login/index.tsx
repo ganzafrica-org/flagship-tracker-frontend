@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Spinner } from "@heroui/react";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router";
 
 import AppInput from "~/components/input";
 import { AuthShell } from "~/components/auth/auth-shell";
-import { login, storeUser, getRoleHomePath, AuthError, getStoredUser } from "~/lib/auth";
+import { login, storeUser, storeAccessToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
 
 import type { Route } from "./+types/index";
 
@@ -21,11 +21,12 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // If already logged in redirect away
-  useState(() => {
+  useEffect(() => {
     const user = getStoredUser();
-    if (user) navigate(getRoleHomePath(user.role), { replace: true });
-  });
+    if (hasValidSession() && user) {
+      navigate(getRoleHomePath(user.role), { replace: true });
+    }
+  }, [navigate]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,6 +36,7 @@ export default function Login() {
     try {
       const result = await login(email, password);
       storeUser(result.user);
+      storeAccessToken(result.accessToken);
 
       if (result.user.mustChangePassword) {
         // Store email so change-password page knows who it's for

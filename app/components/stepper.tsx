@@ -35,6 +35,8 @@ export interface StepperProps {
   isNextDisabled?: boolean;
   /** Show spinner on Next/Submit */
   isSubmitting?: boolean;
+  /** Optional label for submit action */
+  submitLabel?: string;
   /** Layout direction */
   orientation?: "horizontal" | "vertical";
   /** Content for the current step */
@@ -182,6 +184,7 @@ export function Stepper({
   stepHasError = false,
   isNextDisabled = false,
   isSubmitting = false,
+  submitLabel,
   orientation = "horizontal",
   children,
   className = "",
@@ -226,6 +229,7 @@ export function Stepper({
               onNext={onNext}
               onSkip={onSkip}
               onSubmit={onSubmit}
+              submitLabel={submitLabel}
             />
           </div>
         </div>
@@ -288,6 +292,7 @@ export function Stepper({
             onNext={onNext}
             onSkip={onSkip}
             onSubmit={onSubmit}
+            submitLabel={submitLabel}
           />
         </Card>
       </div>
@@ -307,6 +312,7 @@ interface StepperActionsProps {
   onNext: () => void;
   onSkip: () => void;
   onSubmit: () => void;
+  submitLabel?: string;
 }
 
 function StepperActions({
@@ -319,6 +325,7 @@ function StepperActions({
   onNext,
   onSkip,
   onSubmit,
+  submitLabel,
 }: StepperActionsProps) {
   return (
     <div className="flex items-center justify-between gap-3 pt-2 border-t border-(--border)">
@@ -350,7 +357,7 @@ function StepperActions({
             isLoading={isSubmitting}
             className="!rounded-3xl"
           >
-            Submit
+            {submitLabel ?? "Submit"}
           </Button>
         ) : (
           <Button

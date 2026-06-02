@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { getStoredUser, getRoleHomePath } from "~/lib/auth";
+import { getRoleHomePath, getStoredUser, hasValidSession } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 export default function Index() {
@@ -9,7 +9,7 @@ export default function Index() {
 
   useEffect(() => {
     const user = getStoredUser();
-    if (user) {
+    if (hasValidSession() && user) {
       navigate(getRoleHomePath(user.role), { replace: true });
     } else {
       navigate("/login", { replace: true });
