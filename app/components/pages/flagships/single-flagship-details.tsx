@@ -183,6 +183,36 @@ export function SingleFlagshipDetails({
     };
   }, [viz]);
 
+  // 3.4 — jobs created by gender (from flagship_kpi disaggregation via the MV).
+  const liveJobsByGender = useMemo(() => {
+    const g = viz?.gender;
+    if (!g || (g.jobsMale == null && g.jobsFemale == null)) return null;
+    const male = g.jobsMale ?? 0;
+    const female = g.jobsFemale ?? 0;
+    return {
+      total: (male + female).toLocaleString(),
+      data: [
+        { name: "Male", value: male, fill: CHART.accent },
+        { name: "Female", value: female, fill: CHART.warning },
+      ],
+    };
+  }, [viz]);
+
+  // 3.5 — individuals enrolled by gender.
+  const liveIndividualsByGender = useMemo(() => {
+    const g = viz?.gender;
+    if (!g || (g.individualsMale == null && g.individualsFemale == null)) return null;
+    const male = g.individualsMale ?? 0;
+    const female = g.individualsFemale ?? 0;
+    return {
+      total: (male + female).toLocaleString(),
+      data: [
+        { name: "Male", value: male, fill: CHART.accent },
+        { name: "Female", value: female, fill: CHART.warning },
+      ],
+    };
+  }, [viz]);
+
   const funderEntries = useMemo(() => {
     const contributions = flagship?.fundingContributions ?? [];
     const withNames = contributions.filter((c) => c.name?.trim());
@@ -318,18 +348,18 @@ export function SingleFlagshipDetails({
         <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
           <GenderBigCard
             accent={flagshipDetailGenderCardAccents.jobs}
-            stat={flagshipDetailJobsCreatedTotal}
+            stat={liveJobsByGender?.total ?? flagshipDetailJobsCreatedTotal}
             label="Jobs Created by Gender"
-            data={flagshipDetailJobsByGender}
+            data={liveJobsByGender?.data ?? flagshipDetailJobsByGender}
             variant="donut"
           />
         </div>
         <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
           <GenderBigCard
             accent={flagshipDetailGenderCardAccents.individuals}
-            stat={flagshipDetailIndividualsTotal}
+            stat={liveIndividualsByGender?.total ?? flagshipDetailIndividualsTotal}
             label="Total Individuals by Gender"
-            data={flagshipDetailIndividualsByGender}
+            data={liveIndividualsByGender?.data ?? flagshipDetailIndividualsByGender}
             variant="pie"
           />
         </div>
