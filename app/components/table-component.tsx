@@ -54,6 +54,7 @@ interface TableComponentProps {
   statusColorMap?: Record<string, "default" | "success" | "warning" | "danger" | "accent">;
   actions?: ((row: TableRowData) => TableActionItem[]) | undefined;
   multiSelectFilters?: MultiSelectFilterDef[];
+  newestFirst?: boolean;
 }
 
 export default function TableComponent({
@@ -93,6 +94,7 @@ export default function TableComponent({
     { label: "Delete", onClick: () => undefined, color: "danger" },
   ],
   multiSelectFilters = [],
+  newestFirst = true,
 }: TableComponentProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -128,9 +130,27 @@ export default function TableComponent({
     });
   }, [filterByTab, multiSelectFilters, multiSelections, rows, search, searchKeys, selectedTab]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const ordered = useMemo(() => {
+    if (!newestFirst) return filtered;
+    return [...filtered].sort((a, b) => {
+      const aCreatedAt = typeof a.createdAt === "string" ? Date.parse(a.createdAt) : Number.NaN;
+      const bCreatedAt = typeof b.createdAt === "string" ? Date.parse(b.createdAt) : Number.NaN;
+      if (!Number.isNaN(aCreatedAt) && !Number.isNaN(bCreatedAt) && aCreatedAt !== bCreatedAt) {
+        return bCreatedAt - aCreatedAt;
+      }
+
+      const aId = Number(a.id);
+      const bId = Number(b.id);
+      if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) {
+        return bId - aId;
+      }
+      return 0;
+    });
+  }, [filtered, newestFirst]);
+
+  const totalPages = Math.max(1, Math.ceil(ordered.length / itemsPerPage));
   const start = (page - 1) * itemsPerPage;
-  const paginatedRows = filtered.slice(start, start + itemsPerPage);
+  const paginatedRows = ordered.slice(start, start + itemsPerPage);
   const MoveToFirstPage = () => setPage(1);
   const MoveToLastPage = () => setPage(totalPages);
 
@@ -232,13 +252,21 @@ export default function TableComponent({
                   ))}
                 </Table.Header>
                 <Table.Body>
-                  {paginatedRows.map((row) => (
+                  {paginatedRows.map((row, rowIndex) => (
                     <Table.Row key={String(row.id)}>
                       {columns.map((column) => {
                         if (column.key === "action") {
                           return (
                             <Table.Cell key={`${row.id}-action`}>
                               {actions && <ActionDropdown actions={actions(row)} />}
+                            </Table.Cell>
+                          );
+                        }
+
+                        if (column.key === "id") {
+                          return (
+                            <Table.Cell key={`${row.id}-serial`}>
+                              {start + rowIndex + 1}
                             </Table.Cell>
                           );
                         }
@@ -265,7 +293,7 @@ export default function TableComponent({
 
         <div className="flex justify-between border-t border-default-200 pt-4 text-sm">
           <p className="text-sm text-default-500">
-            Showing {paginatedRows.length} out of {filtered.length} entries
+            Showing {paginatedRows.length} out of {ordered.length} entries
           </p>
           <Pagination className="w-[30%] flex justify-end items-center">
             <Pagination.Content>

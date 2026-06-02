@@ -14,3 +14,11 @@ export function themeIconSoftBackground(accent: string): string {
   };
   return map[accent] ?? `color-mix(in oklch, ${accent} 32%, white)`;
 }
+
+/** Pastel fill for flagship cards (same hue family as the progress bar). */
+export function themeCardSoftBackground(accent: string): string {
+  if (accent === "var(--muted)") {
+    return "color-mix(in oklch, var(--muted) 12%, var(--surface))";
+  }
+  return themeIconSoftBackground(accent);
+}

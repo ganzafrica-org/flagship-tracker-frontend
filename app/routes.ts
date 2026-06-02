@@ -1,6 +1,12 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
 
 export default [
+  // Chrome DevTools automatic workspace discovery (harmless probe when DevTools is open)
+  route(
+    ".well-known/appspecific/com.chrome.devtools.json",
+    "routes/well-known.chrome-devtools.tsx",
+  ),
+
   // Root — dev landing page with health check
   index("routes/index.tsx"),
 
@@ -31,8 +37,6 @@ export default [
     route("me/cooperatives",          "routes/me/cooperatives/index.tsx"),
     route("me/cooperatives/add-cooperative", "routes/me/cooperatives/add-cooperative.tsx"),
     route("me/reports",               "routes/me/reports/index.tsx"),
-    route("me/data-management",       "routes/me/data-management/index.tsx"),
-    route("me/data-management/add-flagship-data",   "routes/me/data-management/add-flagship-data.tsx"),
     route("me/individuals",                     "routes/me/individuals/index.tsx"),
     route("me/individuals/add-individual",      "routes/me/individuals/add.tsx"),
     route("me/individuals/update",              "routes/me/individuals/update.tsx"),

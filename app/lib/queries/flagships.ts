@@ -1,76 +1,463 @@
-import { queryOptions } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
-// Shape returned by the backend — extend as the API is implemented
+import { countFunders, parseFunderNames } from "../flagship-funders";
+import { ApiError, api } from "../api";
+import { getAccessToken } from "../auth";
+
+export type FlagshipStatus = "planning" | "active" | "suspended" | "closed";
+
+/** UI tabs mirror backend statuses exactly. */
+export type FlagshipStatusTab = "all" | FlagshipStatus;
+
+export const FLAGSHIP_STATUS_TAB_ITEMS: { id: FlagshipStatusTab; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "planning", label: "Planning" },
+  { id: "active", label: "Active" },
+  { id: "suspended", label: "Suspended" },
+  { id: "closed", label: "Closed" },
+];
+
+export function filterFlagshipsByStatusTab<T extends { status: FlagshipStatus }>(
+  items: T[],
+  tab: FlagshipStatusTab,
+): T[] {
+  if (tab === "all") return items;
+  return items.filter((item) => item.status === tab);
+}
+
+export interface FundingContribution {
+  name: string;
+  currency: string | null;
+  amount: string | null;
+  description: string | null;
+  color: string | null;
+}
+
+export interface FlagshipInvestment {
+  investmentId: number;
+  flagshipId: number;
+  amount: number;
+  currency: string;
+  amountRwf: number;
+  sourceType: string;
+  investorName: string | null;
+  investmentDate: string | null;
+  year: number | null;
+  disbursementType: string | null;
+  notes: string | null;
+}
+
+export interface FlagshipLocation {
+  id: number;
+  flagshipId: number;
+  province: string;
+  district: string;
+  sector: string | null;
+}
+
+export interface FlagshipKpi {
+  kpiId: number;
+  flagshipId: number;
+  indicatorTier: string;
+  indicatorName: string;
+  indicatorValueType: string | null;
+  baselineValue: number | null;
+  targetValue: number | null;
+  actualValue: number | null;
+  measurementPoint: number;
+  year: number;
+  reportingPeriod: string;
+  disaggregation: string | null;
+  dataSource: string | null;
+  verified: boolean | null;
+  notes: string | null;
+}
+
+export interface FlagshipDetailResponse {
+  flagshipId: number;
+  flagshipName: string;
+  flagshipCode: string;
+  description: string | null;
+  flagshipCluster: string;
+  primaryValueChain: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: FlagshipStatus;
+  implementingAgency: string | null;
+  managementModel: string | null;
+  targetYouthCount: number | null;
+  jobsCreated: number | null;
+  progressPercent: number | null;
+  budgetTotalRwf: number | null;
+  funders: string | null;
+  fundingContributions: FundingContribution[];
+  createdAt: string;
+  updatedAt: string | null;
+  investments: FlagshipInvestment[];
+  kpis: FlagshipKpi[];
+  locations: FlagshipLocation[];
+}
+
+export interface FlagshipsPageResponse {
+  content: FlagshipDetailResponse[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}
+
+/** UI model for detail pages. */
 export interface Flagship {
   id: number;
   name: string;
-  status: "active" | "inactive" | "pending";
+  code: string;
+  status: FlagshipStatus;
+  cluster: string;
+  description: string | null;
+  primaryValueChain: string | null;
+  implementingAgency: string | null;
+  managementModel: string | null;
+  jobsCreated: number;
+  progressPercent: number;
+  budgetTotalRwf: number | null;
+  funders: string | null;
+  fundingContributions: FundingContribution[];
   lead: string;
-  progress: number;
+  createdAt: string;
+  investments: FlagshipInvestment[];
+  kpis: FlagshipKpi[];
+  locations: FlagshipLocation[];
 }
 
-/** Names 1–6 align with `flagshipDummyData` titles for senior flagship detail + intro copy. */
-const DUMMY_FLAGSHIPS: Flagship[] = [
-  {
-    id: 1,
-    name: "Youth Empowerment in Protected Agriculture (YEPA)",
-    status: "active",
-    lead: "Alice Moyo",
-    progress: 72,
-  },
-  {
-    id: 2,
-    name: "Empowering Youth in Poultry Value Chain Development For Enhanced Livelihoods (EYPDEL)",
-    status: "pending",
-    lead: "Bob Dlamini",
-    progress: 45,
-  },
-  {
-    id: 3,
-    name: "eMpowering Youth through commercial PIG farming (MYPIG)",
-    status: "active",
-    lead: "Carol Nkosi",
-    progress: 10,
-  },
-  {
-    id: 4,
-    name: "YOUTH-led AGRICULTURE MECHANIZATION SERVICES (YAMS)",
-    status: "inactive",
-    lead: "David Sithole",
-    progress: 88,
-  },
-  {
-    id: 5,
-    name: "YOUTH-LED SEED PRODUCTION HUB",
-    status: "pending",
-    lead: "Eve Khumalo",
-    progress: 100,
-  },
-  {
-    id: 6,
-    name: "Fodder Production (Conventional and Hydroponic)",
-    status: "active",
-    lead: "Frank Ndlovu",
-    progress: 60,
-  },
-  { id: 7,  name: "Project Eta",      status: "pending",  lead: "Grace Dube",    progress: 25 },
-  { id: 8,  name: "Project Theta",    status: "active",   lead: "Henry Zulu",    progress: 55 },
-  { id: 9,  name: "Project Iota",     status: "inactive", lead: "Irene Mthembu", progress: 100 },
-  { id: 10, name: "Project Kappa",    status: "active",   lead: "James Mhlongo", progress: 38 },
-  { id: 11, name: "Project Lambda",   status: "active",   lead: "Karen Hadebe",  progress: 67 },
-  { id: 12, name: "Project Mu",       status: "pending",  lead: "Leo Cele",      progress: 5  },
-];
+/** Card grid / table row shape used by `FlagshipsList`. */
+export interface FlagshipListItem {
+  id: number;
+  status: FlagshipStatus;
+  title: string;
+  jobsCreated: number;
+  totalBudget: string;
+  numberOfFunders: number;
+  valueChain: string;
+  progress: number;
+  location: string;
+  dateLabel: string;
+  accentColor: string;
+  funderNames: string[];
+  viewMoreLabel?: string;
+}
+
+/**
+ * Per-card hues (icon circle + progress bar only). Uses app theme tokens from app.css
+ * (primary blue, amber, dark green, red) — same palette as the flagship card design.
+ */
+const FLAGSHIP_CARD_ACCENTS = [
+  "var(--accent)",
+  "var(--warning)",
+  "var(--forest)",
+  "var(--danger)",
+  "var(--forest)",
+  "var(--accent)",
+] as const;
+
+/** Color by grid position so the first card is always primary blue (`--accent`). */
+export function getFlagshipCardAccent(cardIndex: number): string {
+  return FLAGSHIP_CARD_ACCENTS[Math.max(0, cardIndex) % FLAGSHIP_CARD_ACCENTS.length];
+}
+
+function formatDateLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/** Plain number formatting — no currency code unless the API provides one separately. */
+export function formatNumericAmount(amount: number): string {
+  return amount.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
+function formatLocations(locations: FlagshipLocation[]): string {
+  if (locations.length === 0) return "—";
+  const first = locations[0];
+  return [first.district, first.province].filter(Boolean).join(", ");
+}
+
+export function mapFlagshipToListItem(
+  detail: FlagshipDetailResponse,
+  cardIndex = 0,
+): FlagshipListItem {
+  const funderCount = countFunders(detail.funders, detail.fundingContributions);
+  let funderNames = parseFunderNames(detail.funders);
+  if (funderCount === 1 && funderNames.length > 1 && detail.funders?.trim()) {
+    funderNames = [detail.funders.trim()];
+  }
+
+  return {
+    id: detail.flagshipId,
+    status: detail.status,
+    title: detail.flagshipName,
+    jobsCreated: detail.jobsCreated ?? 0,
+    totalBudget:
+      detail.budgetTotalRwf != null && detail.budgetTotalRwf > 0
+        ? formatNumericAmount(detail.budgetTotalRwf)
+        : "—",
+    numberOfFunders: funderCount,
+    valueChain: detail.primaryValueChain?.trim() || "—",
+    progress: Math.round(detail.progressPercent ?? 0),
+    location: formatLocations(detail.locations),
+    dateLabel: formatDateLabel(detail.createdAt),
+    accentColor: getFlagshipCardAccent(cardIndex),
+    funderNames,
+  };
+}
+
+export function mapDetailToFlagship(detail: FlagshipDetailResponse): Flagship {
+  return {
+    id: detail.flagshipId,
+    name: detail.flagshipName,
+    code: detail.flagshipCode,
+    status: detail.status,
+    cluster: detail.flagshipCluster,
+    description: detail.description,
+    primaryValueChain: detail.primaryValueChain,
+    implementingAgency: detail.implementingAgency,
+    managementModel: detail.managementModel,
+    jobsCreated: detail.jobsCreated ?? 0,
+    progressPercent: detail.progressPercent ?? 0,
+    budgetTotalRwf: detail.budgetTotalRwf,
+    funders: detail.funders,
+    fundingContributions: detail.fundingContributions ?? [],
+    lead: detail.implementingAgency ?? "—",
+    createdAt: detail.createdAt,
+    investments: detail.investments,
+    kpis: detail.kpis,
+    locations: detail.locations,
+  };
+}
+
+function assertAccessToken(): void {
+  if (!getAccessToken()) {
+    throw new ApiError(401, "Unauthorized", "Missing access token. Please log in again.");
+  }
+}
+
+export async function fetchAllFlagships(
+  signal?: AbortSignal,
+  filters?: { search?: string; status?: FlagshipStatus },
+): Promise<FlagshipDetailResponse[]> {
+  assertAccessToken();
+  const all: FlagshipDetailResponse[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await api.get<FlagshipsPageResponse>(
+      "/api/flagships",
+      {
+        cursor,
+        search: filters?.search,
+        status: filters?.status,
+      },
+      signal,
+    );
+    all.push(...page.content);
+    cursor = page.hasNext && page.nextCursor ? page.nextCursor : undefined;
+  } while (cursor);
+
+  return all;
+}
 
 export const flagshipsQueryOptions = queryOptions({
   queryKey: ["flagships"],
-  // TODO: replace with api.get<Flagship[]>("/api/flagships", undefined, signal)
-  queryFn: () => Promise.resolve(DUMMY_FLAGSHIPS),
+  queryFn: ({ signal }) => fetchAllFlagships(signal),
 });
+
+export async function fetchFlagshipDetail(
+  id: number,
+  signal?: AbortSignal,
+): Promise<FlagshipDetailResponse> {
+  assertAccessToken();
+  return api.get<FlagshipDetailResponse>(`/api/flagships/${id}`, undefined, signal);
+}
+
+export const flagshipDetailQueryOptions = (id: number) =>
+  queryOptions({
+    queryKey: ["flagships", id, "detail"],
+    queryFn: ({ signal }) => fetchFlagshipDetail(id, signal),
+    enabled: Number.isFinite(id) && id > 0,
+  });
 
 export const flagshipQueryOptions = (id: number) =>
   queryOptions({
     queryKey: ["flagships", id],
-    // TODO: replace with api.get<Flagship>(`/api/flagships/${id}`, undefined, signal)
-    queryFn: () =>
-      Promise.resolve(DUMMY_FLAGSHIPS.find((f) => f.id === id) ?? null),
+    queryFn: async ({ signal }) => mapDetailToFlagship(await fetchFlagshipDetail(id, signal)),
+    enabled: Number.isFinite(id) && id > 0,
   });
+
+export interface FlagshipTableRow {
+  id: number;
+  flagshipId: number;
+  projectName: string;
+  totalBudget: string;
+  jobsCreated: number;
+  numberOfFunders: number;
+  valueChain: string;
+  progress: string;
+}
+
+export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): FlagshipTableRow[] {
+  return flagships.map((item, index) => {
+    const card = mapFlagshipToListItem(item, index);
+    return {
+      id: index + 1,
+      flagshipId: card.id,
+      projectName: card.title,
+      totalBudget: card.totalBudget,
+      jobsCreated: card.jobsCreated,
+      numberOfFunders: card.numberOfFunders,
+      valueChain: card.valueChain,
+      progress: `${card.progress}%`,
+    };
+  });
+}
+
+export function useFlagshipSelectOptions() {
+  const query = useQuery(flagshipsQueryOptions);
+  const options = useMemo(
+    () =>
+      (query.data ?? []).map((item) => ({
+        value: String(item.flagshipId),
+        label: item.flagshipName,
+      })),
+    [query.data],
+  );
+
+  return { options, ...query };
+}
+
+/** Body for POST /api/flagships (ADMIN). */
+export interface CreateFlagshipRequest {
+  flagshipName: string;
+  flagshipCode: string;
+  flagshipCluster: string;
+  status: FlagshipStatus;
+  description?: string | null;
+  primaryValueChain?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  implementingAgency?: string | null;
+  managementModel?: string | null;
+  targetYouthCount?: number | null;
+  budgetTotalRwf?: number | null;
+  funders?: string | null;
+}
+
+function parsePositiveInt(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n >= 1 ? n : undefined;
+}
+
+function parsePositiveLong(value: string): number | undefined {
+  const trimmed = value.replace(/,/g, "").trim();
+  if (!trimmed) return undefined;
+  const n = Number.parseInt(trimmed, 10);
+  return Number.isFinite(n) && n >= 1 ? n : undefined;
+}
+
+export function buildCreateFlagshipRequest(input: {
+  flagshipName: string;
+  flagshipCode: string;
+  flagshipCluster: string;
+  status: string;
+  description?: string;
+  primaryValueChain?: string;
+  startDate?: string;
+  endDate?: string;
+  implementingAgency?: string;
+  managementModel?: string;
+  targetYouthCount?: string;
+  budgetTotalRwf?: string;
+  funders?: string;
+}): CreateFlagshipRequest {
+  const body: CreateFlagshipRequest = {
+    flagshipName: input.flagshipName.trim(),
+    flagshipCode: input.flagshipCode.trim().toUpperCase(),
+    flagshipCluster: input.flagshipCluster,
+    status: input.status as FlagshipStatus,
+  };
+
+  const description = input.description?.trim();
+  if (description) body.description = description;
+
+  if (input.primaryValueChain?.trim()) {
+    body.primaryValueChain = input.primaryValueChain.trim();
+  }
+
+  if (input.startDate) body.startDate = input.startDate;
+  if (input.endDate) body.endDate = input.endDate;
+
+  if (input.implementingAgency?.trim()) {
+    body.implementingAgency = input.implementingAgency.trim();
+  }
+
+  const managementModel = input.managementModel?.trim();
+  if (managementModel) body.managementModel = managementModel;
+
+  const targetYouthCount = input.targetYouthCount ? parsePositiveInt(input.targetYouthCount) : undefined;
+  if (targetYouthCount !== undefined) body.targetYouthCount = targetYouthCount;
+
+  const budgetTotalRwf = input.budgetTotalRwf ? parsePositiveLong(input.budgetTotalRwf) : undefined;
+  if (budgetTotalRwf !== undefined) body.budgetTotalRwf = budgetTotalRwf;
+
+  if (input.funders?.trim()) body.funders = input.funders.trim();
+
+  return body;
+}
+
+export async function createFlagship(body: CreateFlagshipRequest): Promise<FlagshipDetailResponse> {
+  assertAccessToken();
+  return api.post<FlagshipDetailResponse>("/api/flagships", body);
+}
+
+/** Body for POST /api/flagships/{flagshipId}/kpis (ADMIN). */
+export interface CreateFlagshipKpiRequest {
+  indicatorTier: string;
+  indicatorName: string;
+  indicatorValueType: string;
+  baselineValue?: number | null;
+  targetValue?: number | null;
+  actualValue?: number | null;
+  measurementPoint: number;
+  year: number;
+  reportingPeriod: string;
+  verified?: boolean;
+}
+
+export async function createFlagshipKpi(
+  flagshipId: number,
+  body: CreateFlagshipKpiRequest,
+): Promise<FlagshipKpi> {
+  assertAccessToken();
+  return api.post<FlagshipKpi>(`/api/flagships/${flagshipId}/kpis`, {
+    ...body,
+    verified: body.verified ?? false,
+  });
+}
+
+export type UpdateFlagshipRequest = Partial<CreateFlagshipRequest>;
+
+export async function updateFlagship(
+  id: number,
+  body: UpdateFlagshipRequest,
+): Promise<FlagshipDetailResponse> {
+  assertAccessToken();
+  return api.put<FlagshipDetailResponse>(`/api/flagships/${id}`, body);
+}
+
+export async function deleteFlagship(id: number): Promise<void> {
+  assertAccessToken();
+  await api.delete(`/api/flagships/${id}`);
+}

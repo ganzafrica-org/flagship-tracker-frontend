@@ -1,3 +1,5 @@
+import { getAccessToken } from "./auth";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
@@ -50,6 +52,10 @@ async function request<T>(
   const headers: HeadersInit = {};
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
+  }
+  const token = getAccessToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await fetch(url, {

@@ -5,11 +5,8 @@ import {
   IconCaretDownFilled,
   IconChartBar,
   IconCoin,
-  IconDotsVertical,
   IconMapPin,
-  IconRuler,
   IconUsers,
-  IconX,
 } from "@tabler/icons-react";
 import {
   Bar,
@@ -32,13 +29,10 @@ import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import {
   CHART,
-  flagshipDetailAcreageData,
-  flagshipDetailFarmersByGender,
-  flagshipDetailFarmersTotal,
+  flagshipDetailIndividualsByGender,
+  flagshipDetailIndividualsTotal,
   flagshipDetailGenderCardAccents,
-  flagshipDetailHighlights,
   flagshipDetailInvestmentSplit,
-  getHighlightRowBackground,
   getFlagshipDetailIntro,
   flagshipDetailJobsByGender,
   flagshipDetailJobsGauge,
@@ -50,9 +44,36 @@ import {
   flagshipDetailLocations,
   flagshipDetailQuantitiesByChain,
   flagshipDetailRevenueByChain,
-  flagshipDetailTeam,
+  getHighlightRowBackground,
 } from "~/data/dummy-flagship-detail";
-import type { Flagship } from "~/lib/queries/flagships";
+import { parseFunderNames } from "~/lib/flagship-funders";
+import type { Flagship, FundingContribution } from "~/lib/queries/flagships";
+
+function formatContributionDetail(contribution: FundingContribution): string | null {
+  const parts: string[] = [];
+  const amount = contribution.amount?.trim();
+  const currency = contribution.currency?.trim();
+  const description = contribution.description?.trim();
+
+  if (amount) {
+    parts.push(currency ? `${currency} ${amount}` : amount);
+  }
+  if (description) {
+    parts.push(description);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+const FUNDER_ROW_TONES = ["accent", "success", "warning", "muted"] as const;
+
+function getFunderRowBackground(apiColor: string | null | undefined, index: number): string {
+  const tone = FUNDER_ROW_TONES[index % FUNDER_ROW_TONES.length];
+  if (apiColor?.trim() && /^#[0-9A-Fa-f]{6}$/i.test(apiColor.trim())) {
+    return `${apiColor.trim()}22`;
+  }
+  return getHighlightRowBackground(tone);
+}
 
 interface SingleFlagshipDetailsProps {
   flagship?: Flagship | null;
@@ -66,57 +87,12 @@ const motionFade = {
   animate: { opacity: 1, y: 0 },
 };
 
-/** Same soft tints as KPI / team rows (`app.css` `*-icon-bg`), not saturated `bg-* /10`. */
-function TeamRowActionsMenu({ memberName, memberId }: { memberName: string; memberId: string }) {
-  return (
-    <Dropdown>
-      <Dropdown.Trigger
-        className="flex h-8 w-8 cursor-default items-center justify-center rounded-md p-0 text-(--muted) outline-none hover:bg-black/5 hover:text-(--foreground) pressed:bg-black/10 dark:hover:bg-white/10 dark:pressed:bg-white/15"
-        aria-label={`Actions for ${memberName}`}
-      >
-        <IconDotsVertical size={16} />
-      </Dropdown.Trigger>
-      <Dropdown.Popover
-        placement="bottom end"
-        offset={4}
-        className="min-w-[11rem] rounded-lg border border-(--separator) bg-white p-1 shadow-lg outline-none dark:bg-(--field-background)"
-      >
-        <Dropdown.Menu
-          aria-label={`Actions for ${memberName}`}
-          onAction={(key) => {
-            switch (key) {
-              case "view-details":
-                console.info("[Team]", memberId, "View details", memberName);
-                break;
-              case "update":
-                console.info("[Team]", memberId, "Update", memberName);
-                break;
-              case "delete":
-                if (
-                  typeof window !== "undefined" &&
-                  window.confirm(`Remove ${memberName} from this flagship team?`)
-                ) {
-                  console.info("[Team]", memberId, "Delete", memberName);
-                }
-                break;
-              default:
-                break;
-            }
-          }}
-        >
-          <Dropdown.Item id="view-details" textValue="View details">
-            View details
-          </Dropdown.Item>
-          <Dropdown.Item id="update" textValue="Update">
-            Update
-          </Dropdown.Item>
-          <Dropdown.Item id="delete" textValue="Delete" className="text-danger">
-            Delete
-          </Dropdown.Item>
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
-  );
+function formatManagementModel(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function findKpi(id: (typeof flagshipDetailKpis)[number]["id"]) {
@@ -142,8 +118,6 @@ function KpiStatCard({
       icon={
         k.id === "invest" || k.id === "revenue" ? (
           <IconCoin size={20} />
-        ) : k.id === "acreage" ? (
-          <IconRuler size={20} />
         ) : (
           <IconChartBar size={20} />
         )
@@ -160,7 +134,59 @@ export function SingleFlagshipDetails({
   flagshipPageId,
   onViewSummaryPress,
 }: SingleFlagshipDetailsProps) {
-  const intro = getFlagshipDetailIntro(flagshipPageId, flagship?.name);
+  const intro = getFlagshipDetailIntro(flagshipPageId, flagship?.name, flagship?.description);
+  const funderEntries = useMemo(() => {
+    const contributions = flagship?.fundingContributions ?? [];
+    const withNames = contributions.filter((c) => c.name?.trim());
+    if (withNames.length > 0) {
+      return withNames.map((c, index) => {
+        const name = c.name.trim();
+        const detail = formatContributionDetail(c);
+        return {
+          key: name,
+          name,
+          detail,
+          backgroundColor: getFunderRowBackground(c.color, index),
+        };
+      });
+    }
+    return parseFunderNames(flagship?.funders).map((name, index) => ({
+      key: name,
+      name,
+      detail: "",
+      backgroundColor: getFunderRowBackground(null, index),
+    }));
+  }, [flagship?.funders, flagship?.fundingContributions]);
+  const managementModelLabel = useMemo(
+    () => formatManagementModel(flagship?.managementModel),
+    [flagship?.managementModel],
+  );
+  const implementationLocations = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+
+    const addLocation = (provinceRaw: string | null | undefined, districtRaw: string | null | undefined) => {
+      const province = (provinceRaw ?? "").trim();
+      const district = (districtRaw ?? "").trim();
+      if (!province || !district) return;
+
+      const existing = grouped.get(province) ?? [];
+      if (!existing.includes(district)) existing.push(district);
+      grouped.set(province, existing);
+    };
+
+    if (flagship?.locations?.length) {
+      flagship.locations.forEach((loc) => addLocation(loc.province, loc.district));
+    } else {
+      flagshipDetailLocations.forEach((loc) => addLocation(loc.province, loc.detail.split(",")[0]));
+    }
+
+    return Array.from(grouped.entries())
+      .map(([province, districts]) => ({
+        province,
+        districts: districts.sort((a, b) => a.localeCompare(b)),
+      }))
+      .sort((a, b) => a.province.localeCompare(b.province));
+  }, [flagship?.locations]);
   const jobsYears = flagshipDetailJobsPerChain.map((row) => row.year);
   const revenueYears = flagshipDetailRevenueByChain.map((row) => row.year);
   const quantityYears = flagshipDetailQuantitiesByChain.map((row) => row.year);
@@ -222,7 +248,7 @@ export function SingleFlagshipDetails({
             <KpiStatCard k={findKpi("invest")} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("acreage")} className="h-full min-h-0" />
+            <KpiStatCard k={findKpi("irr")} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
             <KpiStatCard k={findKpi("revenue")} className="h-full min-h-0" />
@@ -242,10 +268,10 @@ export function SingleFlagshipDetails({
         </div>
         <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
           <GenderBigCard
-            accent={flagshipDetailGenderCardAccents.farmers}
-            stat={flagshipDetailFarmersTotal}
-            label="Total Farmers by Gender"
-            data={flagshipDetailFarmersByGender}
+            accent={flagshipDetailGenderCardAccents.individuals}
+            stat={flagshipDetailIndividualsTotal}
+            label="Total Individuals by Gender"
+            data={flagshipDetailIndividualsByGender}
             variant="pie"
           />
         </div>
@@ -272,18 +298,18 @@ export function SingleFlagshipDetails({
             </div>
             <div className="w-full min-w-0">
               <h3 className="mb-5 text-base font-bold text-(--foreground)">Implementation Locations</h3>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8">
-                {flagshipDetailLocations.map((loc) => (
-                  <div key={loc.id} className="flex items-start gap-2.5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {implementationLocations.map((loc) => (
+                  <div key={loc.province} className="flex items-start gap-2.5 rounded-lg border border-(--separator) p-3">
                     <IconMapPin
-                      size={20}
+                      size={18}
                       stroke={1.35}
                       className="mt-0.5 shrink-0 text-(--accent) opacity-80"
                       aria-hidden
                     />
                     <div className="min-w-0 text-sm font-normal leading-snug text-(--foreground)">
-                      <p>{loc.province}</p>
-                      <p>{loc.detail}</p>
+                      <p className="font-semibold">{loc.province}</p>
+                      <p className="text-(--muted)">{loc.districts.join(", ")}</p>
                     </div>
                   </div>
                 ))}
@@ -296,11 +322,11 @@ export function SingleFlagshipDetails({
       <motion.div
         {...motionFade}
         transition={{ duration: 0.25, delay: 0.12 }}
-        className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        className="grid grid-cols-1 gap-4"
       >
         <Card>
           <Card.Header>
-            <Card.Title>Progress Vers Target: Jobs for Youth</Card.Title>
+            <Card.Title>Progress vs Target: Jobs for Youth</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             <div className="flex w-full min-w-0 flex-col items-stretch">
@@ -371,39 +397,6 @@ export function SingleFlagshipDetails({
             </div>
           </Card.Content>
         </Card>
-
-        <Card>
-          <Card.Header>
-            <Card.Title>Acreage Progress</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            <div className="relative h-52 w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={200} minWidth={0}>
-                <PieChart>
-                  <Pie
-                    data={flagshipDetailAcreageData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={52}
-                    outerRadius={72}
-                    paddingAngle={2}
-                  >
-                    {flagshipDetailAcreageData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center pt-6">
-                <span className="text-xl font-bold text-(--foreground)">4 ha</span>
-              </div>
-            </div>
-            <p className="text-center text-xs text-(--muted)">of 7 ha total</p>
-          </Card.Content>
-        </Card>
       </motion.div>
 
       <motion.div
@@ -413,7 +406,7 @@ export function SingleFlagshipDetails({
       >
         <Card>
           <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
-            <Card.Title>Jobs created per value chain</Card.Title>
+            <Card.Title>Jobs created over the years</Card.Title>
             <div className="flex items-center gap-2">
               <span className="text-xs text-(--muted)">Year</span>
               <YearDropdown value={jobsYear} options={jobsYears} onChange={setJobsYear} ariaLabel="Jobs year" />
@@ -531,75 +524,50 @@ export function SingleFlagshipDetails({
       >
         <Card>
           <Card.Header>
-            <Card.Title>Team Managing the Flagship</Card.Title>
+            <Card.Title>Funders</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <div
-              className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto] items-center gap-2 px-1 pb-2 text-sm font-semibold text-(--foreground)"
-            >
-              <span>Profile</span>
-              <span className="text-center">Email</span>
-              <span className="w-10 shrink-0 text-right pr-0.5">Action</span>
-            </div>
-            <ul className="m-0 list-none space-y-2 p-0">
-              {flagshipDetailTeam.map((member) => (
-                <li
-                  key={member.id}
-                  className="rounded-xl border border-(--separator) shadow-sm"
-                  style={{ backgroundColor: member.rowBackgroundColor }}
-                >
-                  <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold leading-none text-white"
-                        style={{ backgroundColor: member.avatarColor }}
-                        aria-hidden
-                      >
-                        {member.initials}
-                      </div>
-                      <span className="truncate text-sm font-semibold text-(--foreground)">{member.name}</span>
-                    </div>
-                    <div className="min-w-0 truncate text-center text-xs text-(--muted)">
-                      {member.email}
-                    </div>
-                    <div className="flex justify-end">
-                      <TeamRowActionsMenu memberName={member.name} memberId={String(member.id)} />
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {funderEntries.length === 0 ? (
+              <p className="text-sm text-(--muted)">No funders recorded for this flagship.</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {funderEntries.map((entry) => (
+                  <li
+                    key={entry.key}
+                    className="rounded-xl px-3 py-2.5"
+                    style={{ backgroundColor: entry.backgroundColor }}
+                  >
+                    <p className="text-sm font-semibold leading-snug text-(--foreground)">{entry.name}</p>
+                    {entry.detail ? (
+                      <p className="mt-1 text-xs leading-snug text-(--foreground)/80">{entry.detail}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {flagship?.funders?.trim() && funderEntries.length === 0 ? (
+              <p
+                className="mt-0 rounded-xl px-3 py-2.5 text-sm leading-relaxed text-(--foreground)"
+                style={{ backgroundColor: getHighlightRowBackground("accent") }}
+              >
+                {flagship.funders}
+              </p>
+            ) : null}
           </Card.Content>
         </Card>
 
         <Card>
-          <Card.Header className="flex flex-row items-start justify-between gap-2">
-            <Card.Title>Flagship Key Highlights and Binding constraints</Card.Title>
-            <button
-              type="button"
-              className="p-1 rounded-md text-(--muted) hover:bg-(--default)"
-              aria-label="Close"
-            >
-              <IconX size={18} />
-            </button>
+          <Card.Header>
+            <Card.Title>Management Model</Card.Title>
           </Card.Header>
-          <Card.Content className="space-y-2 p-4 pt-0">
-            {flagshipDetailHighlights.map((h) => (
-              <div
-                key={h.id}
-                className="relative rounded-lg border border-(--separator) px-3 py-2 pr-9 text-sm leading-snug text-(--foreground)"
-                style={{ backgroundColor: getHighlightRowBackground(h.tone) }}
-              >
-                {h.text}
-                <button
-                  type="button"
-                  className="absolute top-1.5 right-1.5 rounded p-0.5 text-(--muted) hover:text-(--foreground)"
-                  aria-label="Dismiss"
-                >
-                  <IconX size={14} />
-                </button>
-              </div>
-            ))}
+          <Card.Content className="p-4 pt-0">
+            {managementModelLabel ? (
+              <p className="rounded-xl border border-(--separator) bg-(--default)/40 px-4 py-3 text-sm leading-relaxed text-(--foreground)">
+                {managementModelLabel}
+              </p>
+            ) : (
+              <p className="text-sm text-(--muted)">Management model not specified.</p>
+            )}
           </Card.Content>
         </Card>
       </motion.div>
