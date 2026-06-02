@@ -32,6 +32,7 @@ import { StatCard } from "~/components/stat-card";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
+import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { PageTitleCard } from "~/components/page-title-card";
 import TableComponent from "~/components/table-component";
 
@@ -112,18 +113,6 @@ function normalize(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
-function makeCountData(items: string[]) {
-  const counter = new Map<string, number>();
-  for (const item of items) {
-    const key = normalize(item);
-    if (!key) continue;
-    counter.set(key, (counter.get(key) ?? 0) + 1);
-  }
-  return Array.from(counter.entries())
-    .map(([name, value]) => ({ name, value }))
-    .sort(byCountDesc);
-}
-
 export default function IndividualsList({
   addPath,
   updatePath,
@@ -139,6 +128,16 @@ export default function IndividualsList({
   const [selectedFlagship, setSelectedFlagship] = useState("all");
   const [selectedCategoryMode, setSelectedCategoryMode] = useState<CategoryMode>("all");
   const { data: individuals = [], isLoading, isError, error } = useQuery(individualsQueryOptions);
+
+  // Overview charts are served by the visualizations API (server-side dedup +
+  // youth MV + location filters). Cards are always system-wide per spec.
+  const { data: viz } = useQuery(
+    individualsDashboardQueryOptions({
+      province: selectedProvince === "all" ? undefined : selectedProvince,
+      district: selectedDistrict === "all" ? undefined : selectedDistrict,
+      view: selectedCategoryMode === "youth" ? "youth" : "all",
+    }),
+  );
 
   const deleteMutation = useMutation({
     mutationFn: deleteIndividual,
@@ -206,22 +205,6 @@ export default function IndividualsList({
     { value: "youth", label: "Youth Only" },
   ];
 
-  const filteredIndividuals = useMemo(() => {
-    return individuals.filter((ind) => {
-      if (selectedCategoryMode === "youth" && !ind.youthCategory) return false;
-      if (selectedProvince !== "all" && ind.province !== selectedProvince) return false;
-      if (selectedDistrict !== "all" && ind.district !== selectedDistrict) return false;
-      if (selectedFlagship !== "all" && !ind.flagshipNames.includes(selectedFlagship)) return false;
-      return true;
-    });
-  }, [
-    individuals,
-    selectedCategoryMode,
-    selectedProvince,
-    selectedDistrict,
-    selectedFlagship,
-  ]);
-
   const filteredRows = useMemo(
     () =>
       rows.filter((row) => {
@@ -245,80 +228,74 @@ export default function IndividualsList({
     ],
   );
 
-  const kpis = useMemo(() => {
-    const totalIndividuals = individuals.length;
-    const inFlagships = individuals.filter((ind) => ind.flagshipNames.length > 0).length;
-    const females = individuals.filter((ind) => ind.sex.toLowerCase() === "female").length;
-    const youth = individuals.filter((ind) => Boolean(ind.youthCategory)).length;
+  // System-wide cards from the API (filters never change these, per spec).
+  const kpis = {
+    totalIndividuals: viz?.cards.totalIndividuals ?? 0,
+    inFlagships: viz?.cards.inFlagships ?? 0,
+    outsideFlagships: viz?.cards.outsideFlagships ?? 0,
+    females: viz?.cards.female ?? 0,
+    youth: viz?.cards.youth ?? 0,
+  };
 
-    return {
-      totalIndividuals,
-      inFlagships,
-      outsideFlagships: totalIndividuals - inFlagships,
-      females,
-      youth,
-    };
-  }, [individuals]);
-
+  // Charts are driven by the visualizations API (honor province/district/view filters).
   const flagshipVsNonFlagshipData = useMemo(
-    () => [
-      {
-        name: "In Flagships",
-        value: filteredIndividuals.filter((ind) => ind.flagshipNames.length > 0).length,
-        fill: "var(--accent)",
-      },
-      {
-        name: "Outside Flagships",
-        value: filteredIndividuals.filter((ind) => ind.flagshipNames.length === 0).length,
-        fill: "var(--warning)",
-      },
-    ],
-    [filteredIndividuals],
+    () =>
+      (viz?.flagshipProportion ?? []).map((p, idx) => ({
+        name: p.name,
+        value: p.value,
+        fill: idx === 0 ? "var(--accent)" : "var(--warning)",
+      })),
+    [viz],
   );
 
   const sexData = useMemo(
     () =>
-      makeCountData(filteredIndividuals.map((ind) => ind.sex)).map((item, idx) => ({
-        ...item,
+      (viz?.bySex ?? []).map((item, idx) => ({
+        name: item.name,
+        value: item.value,
         fill: CHART_COLORS[idx % CHART_COLORS.length],
       })),
-    [filteredIndividuals],
+    [viz],
   );
 
   const youthCategoryData = useMemo(
     () =>
-      makeCountData(filteredIndividuals.map((ind) => ind.youthCategory ?? "Unspecified")).map((item, idx) => ({
-        ...item,
+      (viz?.byYouthCategory ?? []).map((item, idx) => ({
+        name: item.name,
+        value: item.value,
         fill: CHART_COLORS[idx % CHART_COLORS.length],
       })),
-    [filteredIndividuals],
+    [viz],
   );
 
-  const registeredOverTimeData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ind of filteredIndividuals) {
-      const date = new Date(ind.createdAt);
-      if (Number.isNaN(date.getTime())) continue;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, value]) => ({ month, value }));
-  }, [filteredIndividuals]);
+  const registeredOverTimeData = useMemo(
+    () =>
+      (viz?.growth ?? []).map((g) => ({
+        month: `${g.year}-${String(g.month).padStart(2, "0")}`,
+        value: g.registered,
+      })),
+    [viz],
+  );
 
-  const valueChainData = useMemo(() => {
-    // Placeholder until individual value-chain list endpoint is wired on this screen.
-    return [{ name: "No value chain data", value: filteredIndividuals.length, fill: "var(--muted)" }];
-  }, [filteredIndividuals.length]);
+  const valueChainData = useMemo(
+    () =>
+      (viz?.byValueChain ?? []).map((item, idx) => ({
+        name: item.name,
+        value: item.value,
+        fill: CHART_COLORS[idx % CHART_COLORS.length],
+      })),
+    [viz],
+  );
 
-  const enrolledPerFlagshipData = useMemo(() => {
-    const flattened = filteredIndividuals.flatMap((ind) => ind.flagshipNames);
-    return makeCountData(flattened).map((item, idx) => ({
-      ...item,
-      fill: CHART_COLORS[idx % CHART_COLORS.length],
-    }));
-  }, [filteredIndividuals]);
+  const enrolledPerFlagshipData = useMemo(
+    () =>
+      (viz?.perFlagship ?? []).map((item, idx) => ({
+        name: item.flagshipCode,
+        value: item.count,
+        fill: CHART_COLORS[idx % CHART_COLORS.length],
+      })),
+    [viz],
+  );
 
   return (
     <div className="space-y-6 w-full min-w-0">
