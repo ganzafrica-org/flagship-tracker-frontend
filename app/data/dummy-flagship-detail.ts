@@ -209,6 +209,14 @@ export const flagshipDetailKpis = [
     color: flagshipDetailStatColors.red,
     iconBackground: "var(--danger-icon-bg)",
   },
+  {
+    id: "npv",
+    stat: "—",
+    statSuffix: "(rwf)",
+    label: "Net Present Value (NPV)",
+    color: flagshipDetailStatColors.green,
+    iconBackground: "var(--success-icon-bg)",
+  },
 ] as const;
 
 export const flagshipDetailJobsByGender = [

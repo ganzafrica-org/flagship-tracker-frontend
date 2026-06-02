@@ -73,6 +73,23 @@ function liveOrUndefined(value: number | null, format: (v: number) => string): s
   return value == null ? undefined : format(value);
 }
 
+/** "input_shortage" → "Input shortage". */
+function formatConstraintType(value: string): string {
+  const spaced = value.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function severityStyle(severity: string): { backgroundColor: string; color: string } {
+  switch (severity.toLowerCase()) {
+    case "high":
+      return { backgroundColor: "var(--danger-icon-bg)", color: "var(--danger)" };
+    case "medium":
+      return { backgroundColor: "var(--warning-icon-bg)", color: "var(--warning)" };
+    default:
+      return { backgroundColor: "var(--success-icon-bg)", color: "var(--success)" };
+  }
+}
+
 function formatContributionDetail(contribution: FundingContribution): string | null {
   const parts: string[] = [];
   const amount = contribution.amount?.trim();
@@ -252,7 +269,10 @@ export function SingleFlagshipDetails({
       grouped.set(province, existing);
     };
 
-    if (flagship?.locations?.length) {
+    // 3.1 — prefer the visualization locations, then the flagship detail, then dummy.
+    if (viz?.locations?.length) {
+      viz.locations.forEach((loc) => addLocation(loc.province, loc.district));
+    } else if (flagship?.locations?.length) {
       flagship.locations.forEach((loc) => addLocation(loc.province, loc.district));
     } else {
       flagshipDetailLocations.forEach((loc) => addLocation(loc.province, loc.detail.split(",")[0]));
@@ -264,31 +284,105 @@ export function SingleFlagshipDetails({
         districts: districts.sort((a, b) => a.localeCompare(b)),
       }))
       .sort((a, b) => a.province.localeCompare(b.province));
-  }, [flagship?.locations]);
-  const jobsYears = flagshipDetailJobsPerChain.map((row) => row.year);
-  const revenueYears = flagshipDetailRevenueByChain.map((row) => row.year);
-  const quantityYears = flagshipDetailQuantitiesByChain.map((row) => row.year);
+  }, [flagship?.locations, viz]);
+
+  // ── Production / jobs series (3.10, 3.12, 3.13) from the visualizations API ──
+
+  // Distinct value chains present in the production data (chart series).
+  const valueChains = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of viz?.production ?? []) if (p.valueChain) set.add(p.valueChain);
+    return Array.from(set).sort();
+  }, [viz]);
+
+  const productionYears = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of viz?.production ?? []) if (p.year != null) set.add(p.year);
+    return Array.from(set).sort((a, b) => a - b).map(String);
+  }, [viz]);
+
+  // Years for jobs-over-time come from the jobs_created KPI rows.
+  const jobsKpiYears = useMemo(() => {
+    const set = new Set<number>();
+    for (const k of viz?.kpis ?? []) {
+      if (k.indicatorName === "jobs_created" && k.year != null) set.add(k.year);
+    }
+    return Array.from(set).sort((a, b) => a - b).map(String);
+  }, [viz]);
+
+  // Fall back to dummy years only when the API has none (keeps dropdowns populated).
+  const dummyYears = flagshipDetailJobsPerChain.map((row) => row.year);
+  const jobsYears = jobsKpiYears.length ? jobsKpiYears : dummyYears;
+  const revenueYears = productionYears.length ? productionYears : dummyYears;
+  const quantityYears = productionYears.length ? productionYears : dummyYears;
   const investmentYears = jobsYears;
 
-  const [jobsYear, setJobsYear] = useState(jobsYears[jobsYears.length - 1] ?? "2026");
-  const [investmentYear, setInvestmentYear] = useState(
-    investmentYears[investmentYears.length - 1] ?? "2026",
-  );
-  const [revenueYear, setRevenueYear] = useState(revenueYears[revenueYears.length - 1] ?? "2026");
-  const [quantityYear, setQuantityYear] = useState(quantityYears[quantityYears.length - 1] ?? "2026");
+  const [jobsYear, setJobsYear] = useState("");
+  const [investmentYear, setInvestmentYear] = useState("");
+  const [revenueYear, setRevenueYear] = useState("");
+  const [quantityYear, setQuantityYear] = useState("");
 
-  const jobsChartData = useMemo(
-    () => flagshipDetailJobsPerChain.filter((row) => Number(row.year) <= Number(jobsYear)),
-    [jobsYear],
-  );
-  const revenueChartData = useMemo(
-    () => flagshipDetailRevenueByChain.filter((row) => Number(row.year) <= Number(revenueYear)),
-    [revenueYear],
-  );
-  const quantityChartData = useMemo(
-    () => flagshipDetailQuantitiesByChain.filter((row) => Number(row.year) <= Number(quantityYear)),
-    [quantityYear],
-  );
+  const jobsYearSel = jobsYear || jobsYears[jobsYears.length - 1] || "2026";
+  const investmentYearSel = investmentYear || investmentYears[investmentYears.length - 1] || "2026";
+  const revenueYearSel = revenueYear || revenueYears[revenueYears.length - 1] || "2026";
+  const quantityYearSel = quantityYear || quantityYears[quantityYears.length - 1] || "2026";
+
+  // 3.10 — jobs created over the years (actual vs target).
+  const jobsChartData = useMemo<Array<Record<string, string | number | null>>>(() => {
+    const rows = (viz?.kpis ?? []).filter((k) => k.indicatorName === "jobs_created" && k.year != null);
+    if (rows.length === 0) {
+      return flagshipDetailJobsPerChain.filter((row) => Number(row.year) <= Number(jobsYearSel));
+    }
+    const byYear = new Map<number, { year: string; actual: number | null; target: number | null }>();
+    for (const k of rows) {
+      if (Number(k.year) > Number(jobsYearSel)) continue;
+      const entry = byYear.get(k.year!) ?? { year: String(k.year), actual: null, target: null };
+      if (k.actualValue != null) entry.actual = (entry.actual ?? 0) + k.actualValue;
+      if (k.targetValue != null) entry.target = (entry.target ?? 0) + k.targetValue;
+      byYear.set(k.year!, entry);
+    }
+    return Array.from(byYear.values()).sort((a, b) => Number(a.year) - Number(b.year));
+  }, [viz, jobsYearSel]);
+
+  // Pivot production rows into { year, [valueChain]: value } up to the selected year.
+  const pivotProduction = (field: "revenueRwf" | "quantityProduced", yearSel: string) => {
+    const rows = (viz?.production ?? []).filter(
+      (p) => p.year != null && Number(p.year) <= Number(yearSel),
+    );
+    const byYear = new Map<number, Record<string, number | string>>();
+    for (const p of rows) {
+      const entry = byYear.get(p.year!) ?? { year: String(p.year) };
+      const v = p[field];
+      if (v != null) entry[p.valueChain] = (Number(entry[p.valueChain] ?? 0)) + Number(v);
+      byYear.set(p.year!, entry);
+    }
+    return Array.from(byYear.values()).sort((a, b) => Number(a.year) - Number(b.year));
+  };
+
+  const revenueChartData = useMemo(() => {
+    if ((viz?.production ?? []).length === 0) {
+      return flagshipDetailRevenueByChain.filter((row) => Number(row.year) <= Number(revenueYearSel));
+    }
+    return pivotProduction("revenueRwf", revenueYearSel);
+  }, [viz, revenueYearSel]);
+
+  const quantityChartData = useMemo(() => {
+    if ((viz?.production ?? []).length === 0) {
+      return flagshipDetailQuantitiesByChain.filter((row) => Number(row.year) <= Number(quantityYearSel));
+    }
+    return pivotProduction("quantityProduced", quantityYearSel);
+  }, [viz, quantityYearSel]);
+
+  // Series keys + colors for the dynamic production charts (fall back to dummy crop keys).
+  const VALUE_CHAIN_COLORS = [CHART.accent, CHART.warning, CHART.success, CHART.danger];
+  const productionSeries = valueChains.length
+    ? valueChains.map((vc, i) => ({ key: vc, name: vc, color: VALUE_CHAIN_COLORS[i % VALUE_CHAIN_COLORS.length] }))
+    : [
+        { key: "tomato", name: "Tomato", color: CHART.accent },
+        { key: "cucumber", name: "Cucumber", color: CHART.warning },
+        { key: "chili", name: "Chili", color: CHART.success },
+      ];
+
   const investmentPieFills = [CHART.accent, CHART.warning, CHART.success, CHART.danger];
   const investmentChartData = useMemo(() => {
     // Prefer live investment-by-source (3.11); fall back to the dummy split.
@@ -309,13 +403,39 @@ export function SingleFlagshipDetails({
       "2025": 1.2,
       "2026": 1.3,
     };
-    const factor = multipliers[investmentYear] ?? 1;
+    const factor = multipliers[investmentYearSel] ?? 1;
 
     return flagshipDetailInvestmentSplit.map((row) => ({
       ...row,
       value: Math.round(row.value * factor),
     }));
-  }, [investmentYear, viz]);
+  }, [investmentYearSel, viz]);
+
+  // 3.8 — progress vs target gauge (jobs_created actual vs target), latest year.
+  const jobsGauge = useMemo(() => {
+    const rows = (viz?.kpis ?? []).filter(
+      (k) => k.indicatorName === "jobs_created" && k.disaggregation == null,
+    );
+    if (rows.length === 0) {
+      return {
+        current: flagshipDetailJobsCurrent,
+        target: flagshipDetailJobsTarget,
+        isLive: false,
+      };
+    }
+    const latest = rows.sort((a, b) => (b.year ?? 0) - (a.year ?? 0))[0];
+    return {
+      current: latest.actualValue ?? 0,
+      target: latest.targetValue ?? flagshipDetailJobsTarget,
+      isLive: true,
+    };
+  }, [viz]);
+
+  // 3.9 — NPV card value.
+  const npvStat = liveOrUndefined(
+    latestKpiActual(viz?.kpis, "npv"),
+    (v) => `${formatRwfShort(v)} RWF`,
+  );
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -325,27 +445,26 @@ export function SingleFlagshipDetails({
         onActionPress={onViewSummaryPress}
       />
 
+      {/* KPI cards (3.2, 3.3, 3.6, 3.7, 3.9) */}
       <motion.div
         {...motionFade}
         transition={{ duration: 0.25 }}
-        className="grid grid-cols-1 gap-3 lg:grid-cols-4 lg:items-stretch"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 auto-rows-fr"
       >
-        {/* Left: 2×2 KPI block — height follows the gender cards on lg */}
-        <div className="lg:col-span-2 grid grid-cols-2 gap-3 lg:min-h-0 auto-rows-fr">
-          <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("invest")} statOverride={liveKpiStat.invest} className="h-full min-h-0" />
-          </div>
-          <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("irr")} statOverride={liveKpiStat.irr} className="h-full min-h-0" />
-          </div>
-          <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("revenue")} statOverride={liveKpiStat.revenue} className="h-full min-h-0" />
-          </div>
-          <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("income")} statOverride={liveKpiStat.income} className="h-full min-h-0" />
-          </div>
-        </div>
-        <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
+        <KpiStatCard k={findKpi("invest")} statOverride={liveKpiStat.invest} className="h-full min-h-0" />
+        <KpiStatCard k={findKpi("irr")} statOverride={liveKpiStat.irr} className="h-full min-h-0" />
+        <KpiStatCard k={findKpi("revenue")} statOverride={liveKpiStat.revenue} className="h-full min-h-0" />
+        <KpiStatCard k={findKpi("income")} statOverride={liveKpiStat.income} className="h-full min-h-0" />
+        <KpiStatCard k={findKpi("npv")} statOverride={npvStat} className="h-full min-h-0" />
+      </motion.div>
+
+      {/* Gender donuts (3.4, 3.5) */}
+      <motion.div
+        {...motionFade}
+        transition={{ duration: 0.25, delay: 0.03 }}
+        className="grid grid-cols-1 gap-3 lg:grid-cols-2 lg:items-stretch"
+      >
+        <div className="min-h-[240px] lg:min-h-0 flex flex-col">
           <GenderBigCard
             accent={flagshipDetailGenderCardAccents.jobs}
             stat={liveJobsByGender?.total ?? flagshipDetailJobsCreatedTotal}
@@ -354,7 +473,7 @@ export function SingleFlagshipDetails({
             variant="donut"
           />
         </div>
-        <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">
+        <div className="min-h-[240px] lg:min-h-0 flex flex-col">
           <GenderBigCard
             accent={flagshipDetailGenderCardAccents.individuals}
             stat={liveIndividualsByGender?.total ?? flagshipDetailIndividualsTotal}
@@ -425,12 +544,12 @@ export function SingleFlagshipDetails({
                       data={[
                         {
                           name: "Actual Jobs for youth",
-                          value: flagshipDetailJobsCurrent,
+                          value: jobsGauge.current,
                           fill: flagshipDetailJobsGauge.actualFill,
                         },
                         {
                           name: "Total Target Jobs for youth",
-                          value: Math.max(0, flagshipDetailJobsTarget - flagshipDetailJobsCurrent),
+                          value: Math.max(0, jobsGauge.target - jobsGauge.current),
                           fill: flagshipDetailJobsGauge.trackFill,
                         },
                       ]}
@@ -453,14 +572,14 @@ export function SingleFlagshipDetails({
                   0
                 </div>
                 <div className="pointer-events-none absolute left-[calc(50%+106px)] top-[calc(82%-2px)] -translate-x-full text-xs text-(--muted)">
-                  {flagshipDetailJobsTarget}
+                  {jobsGauge.target}
                 </div>
                 <div
                   className="pointer-events-none absolute left-1/2 top-[82%] -translate-x-1/2 -translate-y-1/2 -mt-5"
                   aria-hidden
                 >
                   <span className="text-3xl font-bold text-(--foreground)">
-                    {flagshipDetailJobsCurrent}
+                    {jobsGauge.current}
                   </span>
                 </div>
               </div>
@@ -497,7 +616,7 @@ export function SingleFlagshipDetails({
             <Card.Title>Jobs created over the years</Card.Title>
             <div className="flex items-center gap-2">
               <span className="text-xs text-(--muted)">Year</span>
-              <YearDropdown value={jobsYear} options={jobsYears} onChange={setJobsYear} ariaLabel="Jobs year" />
+              <YearDropdown value={jobsYearSel} options={jobsYears} onChange={setJobsYear} ariaLabel="Jobs year" />
             </div>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
@@ -508,10 +627,19 @@ export function SingleFlagshipDetails({
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="target" name="Target" stroke={CHART.grid} strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="tomato" name="Tomato" stroke={CHART.accent} strokeWidth={2} />
-                <Line type="monotone" dataKey="cucumber" name="Cucumber" stroke={CHART.warning} strokeWidth={2} />
-                <Line type="monotone" dataKey="chili" name="Chili" stroke={CHART.success} strokeWidth={2} />
+                {jobsChartData.length > 0 && "actual" in jobsChartData[0] ? (
+                  <>
+                    <Line type="monotone" dataKey="target" name="Target" stroke={CHART.grid} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="actual" name="Jobs Created" stroke={CHART.accent} strokeWidth={2} />
+                  </>
+                ) : (
+                  <>
+                    <Line type="monotone" dataKey="target" name="Target" stroke={CHART.grid} strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="tomato" name="Tomato" stroke={CHART.accent} strokeWidth={2} />
+                    <Line type="monotone" dataKey="cucumber" name="Cucumber" stroke={CHART.warning} strokeWidth={2} />
+                    <Line type="monotone" dataKey="chili" name="Chili" stroke={CHART.success} strokeWidth={2} />
+                  </>
+                )}
               </LineChart>
             </ResponsiveContainer>
           </Card.Content>
@@ -521,7 +649,7 @@ export function SingleFlagshipDetails({
           <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
             <Card.Title>Disaggregation of Total Investment</Card.Title>
             <YearDropdown
-              value={investmentYear}
+              value={investmentYearSel}
               options={investmentYears}
               onChange={setInvestmentYear}
               ariaLabel="Investment year"
@@ -556,7 +684,7 @@ export function SingleFlagshipDetails({
           <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
             <Card.Title>Revenue by Value Chain over the Years</Card.Title>
             <YearDropdown
-              value={revenueYear}
+              value={revenueYearSel}
               options={revenueYears}
               onChange={setRevenueYear}
               ariaLabel="Revenue year"
@@ -570,9 +698,9 @@ export function SingleFlagshipDetails({
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="tomato" name="Tomato" stroke={CHART.accent} strokeWidth={2} />
-                <Line type="monotone" dataKey="cucumber" name="Cucumber" stroke={CHART.warning} strokeWidth={2} />
-                <Line type="monotone" dataKey="chili" name="Chili" stroke={CHART.success} strokeWidth={2} />
+                {productionSeries.map((s) => (
+                  <Line key={s.key} type="monotone" dataKey={s.key} name={s.name} stroke={s.color} strokeWidth={2} />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </Card.Content>
@@ -582,7 +710,7 @@ export function SingleFlagshipDetails({
           <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
             <Card.Title>Quantities produced per Value Chain</Card.Title>
             <YearDropdown
-              value={quantityYear}
+              value={quantityYearSel}
               options={quantityYears}
               onChange={setQuantityYear}
               ariaLabel="Quantity year"
@@ -596,11 +724,87 @@ export function SingleFlagshipDetails({
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="tomato" name="Tomato" fill={CHART.accent} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="cucumber" name="Cucumber" fill={CHART.warning} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="chili" name="Chili" fill={CHART.success} radius={[4, 4, 0, 0]} />
+                {productionSeries.map((s) => (
+                  <Bar key={s.key} dataKey={s.key} name={s.name} fill={s.color} radius={[4, 4, 0, 0]} />
+                ))}
               </BarChart>
             </ResponsiveContainer>
+          </Card.Content>
+        </Card>
+      </motion.div>
+
+      {/* Team (3.14) + Binding constraints (3.15) */}
+      <motion.div
+        {...motionFade}
+        transition={{ duration: 0.25, delay: 0.15 }}
+        className="grid grid-cols-1 gap-4 xl:grid-cols-2"
+      >
+        <Card>
+          <Card.Header>
+            <Card.Title>Team Managing the Flagship</Card.Title>
+          </Card.Header>
+          <Card.Content className="p-4 pt-0">
+            {(viz?.team ?? []).length === 0 ? (
+              <p className="text-sm text-(--muted)">No team members recorded for this flagship.</p>
+            ) : (
+              <ul className="m-0 list-none divide-y divide-(--separator) p-0">
+                {viz!.team.map((member) => (
+                  <li key={member.individualId} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-snug text-(--foreground)">
+                        {member.firstName} {member.lastName}
+                      </p>
+                      {member.phoneNumber ? (
+                        <p className="text-xs text-(--muted)">{member.phoneNumber}</p>
+                      ) : null}
+                    </div>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
+                      style={{
+                        backgroundColor: member.active ? "var(--success-icon-bg)" : "var(--default)",
+                        color: member.active ? "var(--success)" : "var(--muted)",
+                      }}
+                    >
+                      {member.active ? "Active" : "Inactive"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card.Content>
+        </Card>
+
+        <Card>
+          <Card.Header>
+            <Card.Title>Key Highlights &amp; Binding Constraints</Card.Title>
+          </Card.Header>
+          <Card.Content className="p-4 pt-0">
+            {(viz?.constraints ?? []).length === 0 ? (
+              <p className="text-sm text-(--muted)">No binding constraints recorded for this flagship.</p>
+            ) : (
+              <ul className="m-0 list-none space-y-2 p-0">
+                {viz!.constraints.map((c) => (
+                  <li key={c.feedbackId} className="rounded-xl border border-(--separator) px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold leading-snug text-(--foreground)">
+                        {formatConstraintType(c.constraintType)}
+                      </p>
+                      {c.severity ? (
+                        <span
+                          className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                          style={severityStyle(c.severity)}
+                        >
+                          {c.severity}
+                        </span>
+                      ) : null}
+                    </div>
+                    {c.description ? (
+                      <p className="mt-1 text-xs leading-snug text-(--muted)">{c.description}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card.Content>
         </Card>
       </motion.div>

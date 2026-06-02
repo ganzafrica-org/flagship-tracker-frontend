@@ -223,17 +223,35 @@ export default function SeniorDashboard() {
     ];
   }, [genderYear, individuals]);
 
+  // 1.8 — jobs created by flagship (prefer the materialized-view data).
   const jobsCreatedData = useMemo(() => {
+    if (viz?.jobsByFlagship && viz.jobsByFlagship.length > 0) {
+      return viz.jobsByFlagship.map((item) => ({
+        flagship: item.flagshipCode || item.flagshipName,
+        jobs: Math.max(0, item.jobs ?? 0),
+      }));
+    }
     if (flagships.length === 0) return jobsCreatedByFlagshipForYear(jobsCreatedYear);
     return flagships.map((item) => ({
       flagship: item.flagshipCode || item.flagshipName,
       jobs: Math.max(0, item.jobsCreated ?? 0),
     }));
-  }, [flagships, jobsCreatedYear]);
+  }, [viz, flagships, jobsCreatedYear]);
 
   const jobsForYouthData = jobsPerFlagshipByYear[jobsCreatedYear];
 
+  // 1.9 — investment disaggregation by source (prefer the materialized view).
   const investmentSplitData = useMemo(() => {
+    if (viz?.investmentBySource && viz.investmentBySource.length > 0) {
+      const total = viz.investmentBySource.reduce((s, r) => s + (r.value ?? 0), 0);
+      if (total > 0) {
+        return viz.investmentBySource.map((r, index) => ({
+          name: r.name.charAt(0).toUpperCase() + r.name.slice(1),
+          value: Math.round(((r.value ?? 0) / total) * 100),
+          fill: FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length],
+        }));
+      }
+    }
     if (flagships.length === 0) return investmentDisaggregation;
 
     const sourceTotals = new Map<string, number>();
@@ -257,7 +275,7 @@ export default function SeniorDashboard() {
       value: Math.round((amount / totalAmount) * 100),
       fill: FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length],
     }));
-  }, [flagships]);
+  }, [viz, flagships]);
 
   if (isLoading) {
     return (
@@ -447,7 +465,13 @@ export default function SeniorDashboard() {
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             <Suspense fallback={<Skeleton className="h-[380px] rounded-xl" />}>
-              <RwandaMap />
+              <RwandaMap
+                locations={(viz?.locations ?? []).map((l) => ({
+                  name: l.flagshipCode || l.flagshipName,
+                  district: l.district,
+                  province: l.province,
+                }))}
+              />
             </Suspense>
           </Card.Content>
         </Card>
