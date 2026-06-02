@@ -22,7 +22,7 @@ export interface FlagshipDetailIntro {
   segments: FlagshipIntroSegment[];
 }
 
-/** Intro blocks keyed by flagship list / route `id` (same as `flagshipDummyData`). */
+/** Legacy intro blocks keyed by numeric route id (used when API description is absent). */
 export const flagshipDetailIntroByListId: Record<number, FlagshipDetailIntro> = {
   1: {
     displayTitle: "Youth Empowerment in Protected Agriculture (YEPA)",
@@ -107,16 +107,28 @@ export const flagshipDetailIntroByListId: Record<number, FlagshipDetailIntro> = 
 export function getFlagshipDetailIntro(
   listId: number | undefined,
   apiName?: string | null,
+  description?: string | null,
 ): FlagshipDetailIntro {
+  const title = apiName?.trim() || "Flagship project";
+
+  if (description?.trim()) {
+    return {
+      displayTitle: title,
+      descriptionHeading: "Project Description",
+      segments: [{ text: description.trim() }],
+    };
+  }
+
   if (listId != null && Number.isFinite(listId) && flagshipDetailIntroByListId[listId]) {
     return flagshipDetailIntroByListId[listId];
   }
+
   return {
-    displayTitle: apiName?.trim() || "Flagship project",
+    displayTitle: title,
     descriptionHeading: "Project Description",
     segments: [
       {
-        text: "This flagship profile is being loaded. A full project description and impact narrative will appear here when available.",
+        text: "Project description is not available for this flagship yet.",
       },
     ],
   };
@@ -154,17 +166,17 @@ export const flagshipDetailGenderCardAccents = {
     icon: "var(--warning)",
     iconSoft: "var(--warning-icon-bg)",
   },
-  farmers: {
+  individuals: {
     icon: "var(--forest)",
     iconSoft: "var(--forest-icon-bg)",
   },
 } as const;
 
-/** Chart segments: female jobs = accent blue; farmers female = forest; male = warning (acreage orange). */
+/** Chart segments: female jobs = accent blue; individuals female = forest; male = warning. */
 const genderJobsFemale = "var(--accent)";
 const genderJobsMale = "var(--warning)";
-const genderFarmersFemale = "var(--forest)";
-const genderFarmersMale = "var(--warning)";
+const genderIndividualsFemale = "var(--forest)";
+const genderIndividualsMale = "var(--warning)";
 
 export const flagshipDetailKpis = [
   {
@@ -176,9 +188,9 @@ export const flagshipDetailKpis = [
     iconBackground: "var(--accent-icon-bg)",
   },
   {
-    id: "acreage",
-    stat: "7 ha",
-    label: "Acreage",
+    id: "irr",
+    stat: "18.4%",
+    label: "Internal Rate of Return (IRR)",
     color: flagshipDetailStatColors.orange,
     iconBackground: "var(--warning-icon-bg)",
   },
@@ -204,13 +216,14 @@ export const flagshipDetailJobsByGender = [
   { name: "Male", value: 2120, fill: genderJobsMale },
 ];
 
-export const flagshipDetailFarmersByGender = [
-  { name: "Female", value: 1402, fill: genderFarmersFemale },
-  { name: "Male", value: 951, fill: genderFarmersMale },
+/** All people working on the flagship, by gender (placeholder until API is wired). */
+export const flagshipDetailIndividualsByGender = [
+  { name: "Female", value: 1402, fill: genderIndividualsFemale },
+  { name: "Male", value: 951, fill: genderIndividualsMale },
 ];
 
 export const flagshipDetailJobsCreatedTotal = "5,323";
-export const flagshipDetailFarmersTotal = "2,353";
+export const flagshipDetailIndividualsTotal = "2,353";
 
 export const flagshipDetailJobsTarget = 400;
 export const flagshipDetailJobsCurrent = 256;
@@ -220,11 +233,6 @@ export const flagshipDetailJobsGauge = {
   actualFill: "#1091c1",
   trackFill: "var(--warning)",
 };
-
-export const flagshipDetailAcreageData = [
-  { name: "Used", value: 4, fill: CHART.warning },
-  { name: "Remaining", value: 3, fill: CHART.accent },
-];
 
 export const flagshipDetailJobsPerChain = [
   { year: "2020", target: 120, tomato: 40, cucumber: 30, chili: 25 },
@@ -343,110 +351,5 @@ export const flagshipDetailHighlights = [
     id: "4",
     text: "Monitoring data quality for remote sites needs reinforcement.",
     tone: "muted" as const,
-  },
-];
-
-/* ─── Flagship list / card grid (senior flagships index + FlagshipsList fallback) ─── */
-
-export interface FlagshipListItem {
-  id: number | string;
-  status: "active" | "planning" | "closed";
-  title: string;
-  jobsCreated: number;
-  totalInvestment: string;
-  numberOfInvestors: number;
-  valueChain: string;
-  progress: number;
-  location: string;
-  dateLabel: string;
-  accentColor: string;
-  investorNames?: string[];
-  viewMoreLabel?: string;
-}
-
-export const flagshipDummyData: FlagshipListItem[] = [
-  {
-    id: 1,
-    status: "active",
-    title: "Youth Empowerment in Protected Agriculture (YEPA)",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Tomato, Cucumber, Chili",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--accent)",
-    investorNames: ["Alice Doe", "Brian K.", "Chloe M.", "Daniel O.", "Esther P."],
-  },
-  {
-    id: 2,
-    status: "planning",
-    title: "Empowering Youth in Poultry Value Chain Development For Enhanced Livelihoods (EYPDEL)",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Chickens",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--warning)",
-    investorNames: ["Dami A.", "Eric P.", "Fatima O.", "George N."],
-  },
-  {
-    id: 3,
-    status: "active",
-    title: "eMpowering Youth through commercial PIG farming (MYPIG)",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Pig",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--forest)",
-    investorNames: ["Grace W.", "Henry B.", "Irene N."],
-  },
-  {
-    id: 4,
-    status: "closed",
-    title: "YOUTH-led AGRICULTURE MECHANIZATION SERVICES (YAMS)",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Mechanization",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--danger)",
-    investorNames: ["John T.", "Kemi F.", "Lina A."],
-  },
-  {
-    id: 5,
-    status: "planning",
-    title: "YOUTH-LED SEED PRODUCTION HUB",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Potato, rice, cassava, avocado, mango, pineapple",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--forest)",
-    investorNames: ["Mona C.", "Noah L.", "Olive R."],
-  },
-  {
-    id: 6,
-    status: "active",
-    title: "Fodder Production (Conventional and Hydroponic)",
-    jobsCreated: 400,
-    totalInvestment: "$1.95M",
-    numberOfInvestors: 8,
-    valueChain: "Mechanization",
-    progress: 25,
-    location: "Rurindo",
-    dateLabel: "10/10/2025",
-    accentColor: "var(--accent)",
-    investorNames: ["Paul M.", "Queenie S.", "Rina T."],
   },
 ];

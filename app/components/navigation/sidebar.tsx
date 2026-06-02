@@ -137,12 +137,6 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconCirclePlus size={20} />,
     },
     {
-      id: "data-management",
-      label: "Data Management",
-      href: "/me/data-management",
-      icon: <IconUsers size={20} />,
-    },
-    {
       id: "cooperatives",
       label: "Cooperatives",
       href: "/me/cooperatives",
@@ -165,7 +159,19 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
 
 export default function Sidebar({ role, isOpen }: SidebarProps) {
   const items = SIDEBAR_ITEMS[role];
-  const exactMatchIds = new Set(["flagships", "data-management", "cooperatives", "reports", "users", "dashboard", "individuals", "value-chains", "kpis", "agencies", "funders"]);
+  
+  const exactMatchIds = new Set([
+    "flagships",
+    "cooperatives",
+    "reports",
+    "users",
+    "dashboard",
+    "individuals",
+    "value-chains",
+    "kpis",
+    "agencies",
+    "funders",
+  ]);
 
   return (
     <aside

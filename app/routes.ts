@@ -1,6 +1,12 @@
 import { type RouteConfig, index, layout, route } from "@react-router/dev/routes";
 
 export default [
+  // Chrome DevTools automatic workspace discovery (harmless probe when DevTools is open)
+  route(
+    ".well-known/appspecific/com.chrome.devtools.json",
+    "routes/well-known.chrome-devtools.tsx",
+  ),
+
   // Root — dev landing page with health check
   index("routes/index.tsx"),
 
@@ -27,8 +33,10 @@ export default [
     route("admin/kpis/add",           "routes/admin/kpis/add.tsx"),
     route("admin/agencies",           "routes/admin/agencies/index.tsx"),
     route("admin/agencies/add",       "routes/admin/agencies/add.tsx"),
+    route("admin/agencies/types",     "routes/admin/agencies/types.tsx"),
     route("admin/funders",            "routes/admin/funders/index.tsx"),
     route("admin/funders/add",        "routes/admin/funders/add.tsx"),
+    route("admin/funders/types",      "routes/admin/funders/types.tsx"),
     route("admin/cooperatives",       "routes/admin/cooperatives/index.tsx"),
     route("admin/cooperatives/add",   "routes/admin/cooperatives/add.tsx"),
   ]),
@@ -41,8 +49,6 @@ export default [
     route("me/cooperatives",          "routes/me/cooperatives/index.tsx"),
     route("me/cooperatives/add-cooperative", "routes/me/cooperatives/add-cooperative.tsx"),
     route("me/reports",               "routes/me/reports/index.tsx"),
-    route("me/data-management",       "routes/me/data-management/index.tsx"),
-    route("me/data-management/add-flagship-data",   "routes/me/data-management/add-flagship-data.tsx"),
     route("me/individuals",                     "routes/me/individuals/index.tsx"),
     route("me/individuals/add-individual",      "routes/me/individuals/add.tsx"),
     route("me/individuals/update",              "routes/me/individuals/update.tsx"),

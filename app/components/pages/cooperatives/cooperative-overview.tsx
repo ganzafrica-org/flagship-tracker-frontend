@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, Dropdown } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -16,7 +16,6 @@ import {
 } from "recharts";
 import {
   IconBuildingCommunity,
-  IconCaretDownFilled,
   IconLink,
   IconLinkOff,
   IconUsers,
@@ -24,6 +23,7 @@ import {
 } from "@tabler/icons-react";
 
 import { StatCard } from "~/components/stat-card";
+import AppSelect from "~/components/app-select";
 import { CHART } from "~/data/dummy-flagship-detail";
 import {
   cooperativeOverviewStats,
@@ -35,50 +35,6 @@ import {
   COOP_BAR_COLORS,
 } from "~/data/dummy-cooperatives";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
-
-// ---------------------------------------------------------------------------
-// Flagship filter dropdown
-// ---------------------------------------------------------------------------
-
-function FlagshipFilter({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: { label: string; value: string }[];
-}) {
-  const selected = options.find((o) => o.value === value);
-  const label = selected?.label ?? "All Flagships";
-
-  return (
-    <Dropdown>
-      <Dropdown.Trigger className="flex min-w-[160px] items-center justify-between gap-2 rounded-xl border border-(--separator) bg-(--surface) px-3 py-1.5 text-sm text-(--muted) hover:bg-(--default)">
-        <span className="truncate">{label}</span>
-        <IconCaretDownFilled size={14} className="shrink-0 text-(--muted)" />
-      </Dropdown.Trigger>
-      <Dropdown.Popover placement="bottom end">
-        <Dropdown.Menu
-          aria-label="Filter by flagship"
-          selectionMode="single"
-          selectedKeys={[value]}
-          disallowEmptySelection
-          onAction={(key) => onChange(String(key))}
-        >
-          <Dropdown.Item key="all" id="all" textValue="All Flagships">
-            All Flagships
-          </Dropdown.Item>
-          {options.map((opt) => (
-            <Dropdown.Item key={opt.value} id={opt.value} textValue={opt.label}>
-              {opt.label}
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -122,12 +78,14 @@ export default function CooperativeOverview() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Flagship filter */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-(--muted)">Filter by flagship:</span>
-        <FlagshipFilter
-          value={flagshipFilter}
-          onChange={setFlagshipFilter}
-          options={flagshipOptions}
+      <div className="flex items-center gap-3 max-w-xs">
+        <AppSelect
+          name="flagshipFilter"
+          label="Filter by Flagship"
+          placeholder="All Flagships"
+          selectedKey={flagshipFilter}
+          onSelectionChange={setFlagshipFilter}
+          options={[{ label: "All Flagships", value: "all" }, ...flagshipOptions]}
         />
       </div>
 

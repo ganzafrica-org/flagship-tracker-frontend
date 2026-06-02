@@ -8,14 +8,11 @@ import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
-import { agenciesQueryOptions, type AgencyRequest } from "~/lib/queries/lookups";
-
-const TYPE_OPTIONS = [
-  { label: "Government", value: "government" },
-  { label: "Multilateral", value: "multilateral" },
-  { label: "NGO", value: "ngo" },
-  { label: "Private", value: "private" },
-];
+import {
+  agenciesQueryOptions,
+  enumValuesQueryOptions,
+  type AgencyRequest,
+} from "~/lib/queries/lookups";
 
 interface FormState {
   agencyName: string;
@@ -34,6 +31,7 @@ export default function AgencyForm() {
   const isEdit = Boolean(editId);
 
   const { data: existing = [] } = useQuery({ ...agenciesQueryOptions(), enabled: isEdit });
+  const { data: typeOptions = [] } = useQuery(enumValuesQueryOptions("agency_type"));
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -99,7 +97,7 @@ export default function AgencyForm() {
           name="agencyType"
           label="Agency Type"
           placeholder="Select a type"
-          options={TYPE_OPTIONS}
+          options={typeOptions.map((t) => ({ label: t.label, value: t.value }))}
           selectedKey={form.agencyType}
           onSelectionChange={(v) => {
             setForm((f) => ({ ...f, agencyType: v }));

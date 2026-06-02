@@ -13,18 +13,18 @@ import {
   YAxis,
 } from "recharts";
 import type { PieLabelRenderProps } from "recharts";
+import { useNavigate } from "react-router";
 import {
-  IconBuildingFactory2,
   IconUserCheck,
   IconUserCog,
+  IconUserOff,
   IconUsers,
 } from "@tabler/icons-react";
 
 import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import TableComponent from "~/components/table-component";
-import { dummyUsers } from "~/data/dummy-data";
-import { dashboardQueryOptions } from "~/lib/queries/dashboard";
+import { dashboardQueryOptions, recentUsersQueryOptions } from "~/lib/queries/dashboard";
 
 function renderPieLabel(props: PieLabelRenderProps) {
   const { x, y, value, percent, textAnchor, payload } = props;
@@ -49,14 +49,16 @@ function renderPieLabel(props: PieLabelRenderProps) {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
   const { data: stats, isLoading } = useQuery(dashboardQueryOptions);
-  const recentUserRows = dummyUsers.map((user) => ({
+  const { data: recentUsers = [] } = useQuery(recentUsersQueryOptions(10));
+
+  const recentUserRows = recentUsers.map((user) => ({
     id: user.id,
     fullName: user.fullName,
     email: user.email,
-    phone: user.phone,
     role: user.role,
-    status: user.status,
+    status: user.active ? "Active" : "Inactive",
   }));
 
   return (
@@ -79,25 +81,27 @@ export default function AdminDashboard() {
               label="Total Users"
             />
             <StatCard
-              color="var(--warning)"
-              iconBackground="var(--warning-icon-bg)"
-              icon={<IconUserCheck size={20} />}
-              stat={String(stats?.activeUsers ?? "—")}
-              label="Total Active Users"
-            />
-            <StatCard
               color="var(--forest)"
               iconBackground="var(--forest-icon-bg)"
-              icon={<IconUserCog size={20} />}
-              stat={String(stats?.pendingUsers ?? "—")}
-              label="Total Pending Users"
+              icon={<IconUserCheck size={20} />}
+              stat={String(stats?.activeUsers ?? "—")}
+              label="Active Users"
+            />
+            <StatCard
+              color="var(--warning)"
+              iconBackground="var(--warning-icon-bg)"
+              icon={<IconUserOff size={20} />}
+              stat={String(stats?.inactiveUsers ?? "—")}
+              label="Inactive Users"
             />
             <StatCard
               color="var(--danger)"
               iconBackground="var(--danger-icon-bg)"
-              icon={<IconBuildingFactory2 size={20} />}
-              stat={String(stats?.totalFlagships ?? "—")}
-              label="Total Flagships"
+              icon={<IconUserCog size={20} />}
+              stat={String(
+                stats?.usersByRole?.find((r) => r.name === "Admin")?.value ?? "—",
+              )}
+              label="Admins"
             />
           </>
         )}
@@ -141,20 +145,20 @@ export default function AdminDashboard() {
 
         <Card>
           <Card.Header>
-            <Card.Title>User Gender Distribution</Card.Title>
+            <Card.Title>Users by Role</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             {isLoading ? (
               <Skeleton className="h-52 rounded-lg" />
             ) : (
               <ResponsiveContainer width="100%" height={220} minWidth={0}>
-                <BarChart data={stats?.usersByGender} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <BarChart data={stats?.usersByRole} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" vertical={false} />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
                   <Bar dataKey="value" name="Users" radius={[4, 4, 0, 0]}>
-                    {stats?.usersByGender?.map((entry) => (
+                    {stats?.usersByRole?.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
                     ))}
                   </Bar>
@@ -169,34 +173,28 @@ export default function AdminDashboard() {
         tableSectionTitle="Recent Users"
         tableAriaLabel="Recent users table"
         rows={recentUserRows}
-        searchKeys={["fullName", "email", "role", "phone"]}
+        searchKeys={["fullName", "email", "role"]}
         columns={[
           { key: "id", label: "#" },
           { key: "fullName", label: "Full Name" },
           { key: "email", label: "Email" },
-          { key: "phone", label: "Phone" },
           { key: "role", label: "Role" },
           { key: "status", label: "Status" },
           { key: "action", label: "Action" },
         ]}
-        minTableWidthClassName="min-w-[940px]"
-        filterByTab={(row, selectedTab) => {
-          if (selectedTab === "all") return true;
-          if (selectedTab === "active") return row.status === "Active";
-          if (selectedTab === "planning") return row.status === "Pending";
-          if (selectedTab === "inactive") return row.status === "Inactive";
-          return true;
-        }}
+        minTableWidthClassName="min-w-[800px]"
+        filterByTab={() => true}
         statusColumnKey="status"
         statusColorMap={{
           Active: "success",
-          Pending: "warning",
           Inactive: "default",
         }}
-        actions={() => [
-          { label: "View Details", onClick: () => undefined },
-          { label: "Update", onClick: () => undefined },
-          { label: "Delete", onClick: () => undefined, color: "danger" },
+        actions={(row) => [
+          {
+            label: "View Details",
+            onClick: () =>
+              navigate(`/admin/users/add-user?editId=${encodeURIComponent(String(row.id))}&mode=view`),
+          },
         ]}
       />
     </div>

@@ -8,14 +8,11 @@ import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
-import { fundersQueryOptions, type FunderRequest } from "~/lib/queries/lookups";
-
-const TYPE_OPTIONS = [
-  { label: "Government", value: "government" },
-  { label: "Multilateral", value: "multilateral" },
-  { label: "NGO", value: "ngo" },
-  { label: "Private", value: "private" },
-];
+import {
+  fundersQueryOptions,
+  enumValuesQueryOptions,
+  type FunderRequest,
+} from "~/lib/queries/lookups";
 
 interface FormState {
   funderName: string;
@@ -34,6 +31,7 @@ export default function FunderForm() {
   const isEdit = Boolean(editId);
 
   const { data: existing = [] } = useQuery({ ...fundersQueryOptions(), enabled: isEdit });
+  const { data: typeOptions = [] } = useQuery(enumValuesQueryOptions("funder_type"));
 
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
@@ -97,7 +95,7 @@ export default function FunderForm() {
           name="funderType"
           label="Funder Type"
           placeholder="Select a type"
-          options={TYPE_OPTIONS}
+          options={typeOptions.map((t) => ({ label: t.label, value: t.value }))}
           selectedKey={form.funderType}
           onSelectionChange={(v) => {
             setForm((f) => ({ ...f, funderType: v }));

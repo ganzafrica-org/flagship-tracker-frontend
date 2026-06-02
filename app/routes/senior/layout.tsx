@@ -3,16 +3,15 @@ import { Outlet, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
 import { queryClient } from "~/lib/query-client";
-import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
-import { getStoredUser, clearUser, logout, getRoleHomePath } from "~/lib/auth";
+import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 export async function clientLoader() {
-  queryClient.prefetchQuery(dashboardQueryOptions);
+  if (!hasValidSession()) return null;
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
   return null;
@@ -25,8 +24,13 @@ export default function SeniorLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const user = getStoredUser();
+    if (!hasValidSession()) {
+      clearUser();
+      navigate("/login", { replace: true });
+      return;
+    }
 
+    const user = getStoredUser();
     if (!user) {
       navigate("/login", { replace: true });
       return;

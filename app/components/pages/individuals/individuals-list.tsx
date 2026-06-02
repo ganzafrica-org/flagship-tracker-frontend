@@ -1,10 +1,37 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Button } from "@heroui/react";
-import { IconEdit, IconUserPlus } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Card } from "@heroui/react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  IconChartBar,
+  IconUserPlus,
+  IconUsers,
+  IconUserCircle,
+  IconUserShare,
+  IconUserQuestion,
+  IconUserCheck,
+} from "@tabler/icons-react";
 
-import { dummyIndividuals } from "~/data/dummy-data";
-import { flagshipDummyData } from "~/data/dummy-flagship-detail";
+import AppSelect from "~/components/app-select";
+import { ContentTab } from "~/components/content-tab";
+import { StatCard } from "~/components/stat-card";
+import { ApiError } from "~/lib/api";
+import { formatApiErrorMessage } from "~/lib/api-errors";
+import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
 import { PageTitleCard } from "~/components/page-title-card";
 import TableComponent from "~/components/table-component";
 
@@ -41,93 +68,519 @@ interface IndividualsListProps {
   addPath?: string;
   updatePath?: string;
   readOnly?: boolean;
+  showHeader?: boolean;
 }
 
-export default function IndividualsList({ addPath, updatePath, readOnly = false }: IndividualsListProps) {
+type ViewMode = "overview" | "list";
+type CategoryMode = "all" | "youth";
+
+type IndividualsTableRow = {
+  id: number;
+  name: string;
+  sex: string;
+  category: string;
+  flagship: string;
+  location: string;
+  source: string;
+  province: string;
+  district: string;
+  sector: string;
+  cell: string;
+  flagshipFilterKey: string;
+  isYouth: boolean;
+};
+
+const OVERVIEW_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "list", label: "Individuals List" },
+] as const;
+
+const CHART_COLORS = [
+  "var(--accent)",
+  "var(--warning)",
+  "var(--forest)",
+  "var(--danger)",
+  "var(--success)",
+  "var(--muted)",
+];
+
+function byCountDesc(a: { value: number }, b: { value: number }) {
+  return b.value - a.value;
+}
+
+function normalize(v: string | null | undefined): string {
+  return (v ?? "").trim();
+}
+
+function makeCountData(items: string[]) {
+  const counter = new Map<string, number>();
+  for (const item of items) {
+    const key = normalize(item);
+    if (!key) continue;
+    counter.set(key, (counter.get(key) ?? 0) + 1);
+  }
+  return Array.from(counter.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort(byCountDesc);
+}
+
+export default function IndividualsList({
+  addPath,
+  updatePath,
+  readOnly = false,
+  showHeader = true,
+}: IndividualsListProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("overview");
+  const [selectedProvince, setSelectedProvince] = useState("all");
+  const [selectedDistrict, setSelectedDistrict] = useState("all");
+  const [selectedFlagship, setSelectedFlagship] = useState("all");
+  const [selectedCategoryMode, setSelectedCategoryMode] = useState<CategoryMode>("all");
+  const { data: individuals = [], isLoading, isError, error } = useQuery(individualsQueryOptions);
 
-  const rows = useMemo(() =>
-    dummyIndividuals.map((ind) => ({
-      id:           ind.id,
-      name:         `${ind.first_name} ${ind.last_name}`,
-      sex:          ind.sex,
-      category:     ind.youth_category ? (CATEGORY_LABELS[ind.youth_category] ?? ind.youth_category) : "—",
-      flagship:     ind.flagship_name ?? "—",
-      flagship_id:  ind.flagship_id != null ? String(ind.flagship_id) : "",
-      location:     [ind.district, ind.province].filter(Boolean).join(", "),
-      source:       ind.registration_source,
-    })),
-  []);
-
-  const flagshipFilterOptions = useMemo(() =>
-    flagshipDummyData.map((f) => ({ id: String(f.id), label: f.title })),
-  []);
-
-  const multiSelectFilters = [
-    {
-      key:         "flagship_id",
-      placeholder: "Filter by flagship",
-      options:     flagshipFilterOptions,
+  const deleteMutation = useMutation({
+    mutationFn: deleteIndividual,
+    onSuccess: () => {
+      setSubmitError(null);
+      void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
     },
+    onError: (err: Error) => {
+      if (err instanceof ApiError) {
+        setSubmitError(formatApiErrorMessage(err.message));
+        return;
+      }
+      setSubmitError(err.message || "Failed to delete individual");
+    },
+  });
+
+  const rows = useMemo<IndividualsTableRow[]>(
+    () =>
+      individuals.map((ind) => ({
+        id: ind.individualId,
+        name: `${ind.firstName} ${ind.lastName}`,
+        sex: ind.sex,
+        category: ind.youthCategory ? (CATEGORY_LABELS[ind.youthCategory] ?? ind.youthCategory) : "—",
+        flagship: ind.flagshipNames?.length ? ind.flagshipNames.join(", ") : "—",
+        location: [ind.district, ind.province].filter(Boolean).join(", "),
+        source: ind.registrationSource,
+        province: ind.province,
+        district: ind.district,
+        sector: ind.sector,
+        cell: ind.cell,
+        flagshipFilterKey: ind.flagshipNames?.join("||") ?? "",
+        isYouth: Boolean(ind.youthCategory),
+      })),
+    [individuals],
+  );
+
+  const provinceOptions = useMemo(() => {
+    const provinces = Array.from(new Set(rows.map((r) => normalize(r.province)).filter(Boolean))).sort();
+    return [{ value: "all", label: "All Provinces" }, ...provinces.map((v) => ({ value: v, label: v }))];
+  }, [rows]);
+
+  const districtOptions = useMemo(() => {
+    const districts = Array.from(
+      new Set(
+        rows
+          .filter((r) => selectedProvince === "all" || r.province === selectedProvince)
+          .map((r) => normalize(r.district))
+          .filter(Boolean),
+      ),
+    ).sort();
+    return [{ value: "all", label: "All Districts" }, ...districts.map((v) => ({ value: v, label: v }))];
+  }, [rows, selectedProvince]);
+
+  const flagshipOptions = useMemo(() => {
+    const names = Array.from(
+      new Set(
+        individuals.flatMap((item) => item.flagshipNames.map((name) => normalize(name))).filter(Boolean),
+      ),
+    ).sort();
+    return [{ value: "all", label: "All Flagships" }, ...names.map((name) => ({ value: name, label: name }))];
+  }, [individuals]);
+
+  const categoryViewOptions = [
+    { value: "all", label: "All Individuals" },
+    { value: "youth", label: "Youth Only" },
   ];
+
+  const filteredIndividuals = useMemo(() => {
+    return individuals.filter((ind) => {
+      if (selectedCategoryMode === "youth" && !ind.youthCategory) return false;
+      if (selectedProvince !== "all" && ind.province !== selectedProvince) return false;
+      if (selectedDistrict !== "all" && ind.district !== selectedDistrict) return false;
+      if (selectedFlagship !== "all" && !ind.flagshipNames.includes(selectedFlagship)) return false;
+      return true;
+    });
+  }, [
+    individuals,
+    selectedCategoryMode,
+    selectedProvince,
+    selectedDistrict,
+    selectedFlagship,
+  ]);
+
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        if (selectedCategoryMode === "youth" && !row.isYouth) return false;
+        if (selectedProvince !== "all" && row.province !== selectedProvince) return false;
+        if (selectedDistrict !== "all" && row.district !== selectedDistrict) return false;
+        if (
+          selectedFlagship !== "all" &&
+          !row.flagshipFilterKey.split("||").filter(Boolean).includes(selectedFlagship)
+        ) {
+          return false;
+        }
+        return true;
+      }),
+    [
+      rows,
+      selectedCategoryMode,
+      selectedProvince,
+      selectedDistrict,
+      selectedFlagship,
+    ],
+  );
+
+  const kpis = useMemo(() => {
+    const totalIndividuals = individuals.length;
+    const inFlagships = individuals.filter((ind) => ind.flagshipNames.length > 0).length;
+    const females = individuals.filter((ind) => ind.sex.toLowerCase() === "female").length;
+    const youth = individuals.filter((ind) => Boolean(ind.youthCategory)).length;
+
+    return {
+      totalIndividuals,
+      inFlagships,
+      outsideFlagships: totalIndividuals - inFlagships,
+      females,
+      youth,
+    };
+  }, [individuals]);
+
+  const flagshipVsNonFlagshipData = useMemo(
+    () => [
+      {
+        name: "In Flagships",
+        value: filteredIndividuals.filter((ind) => ind.flagshipNames.length > 0).length,
+        fill: "var(--accent)",
+      },
+      {
+        name: "Outside Flagships",
+        value: filteredIndividuals.filter((ind) => ind.flagshipNames.length === 0).length,
+        fill: "var(--warning)",
+      },
+    ],
+    [filteredIndividuals],
+  );
+
+  const sexData = useMemo(
+    () =>
+      makeCountData(filteredIndividuals.map((ind) => ind.sex)).map((item, idx) => ({
+        ...item,
+        fill: CHART_COLORS[idx % CHART_COLORS.length],
+      })),
+    [filteredIndividuals],
+  );
+
+  const youthCategoryData = useMemo(
+    () =>
+      makeCountData(filteredIndividuals.map((ind) => ind.youthCategory ?? "Unspecified")).map((item, idx) => ({
+        ...item,
+        fill: CHART_COLORS[idx % CHART_COLORS.length],
+      })),
+    [filteredIndividuals],
+  );
+
+  const registeredOverTimeData = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const ind of filteredIndividuals) {
+      const date = new Date(ind.createdAt);
+      if (Number.isNaN(date.getTime())) continue;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, value]) => ({ month, value }));
+  }, [filteredIndividuals]);
+
+  const valueChainData = useMemo(() => {
+    // Placeholder until individual value-chain list endpoint is wired on this screen.
+    return [{ name: "No value chain data", value: filteredIndividuals.length, fill: "var(--muted)" }];
+  }, [filteredIndividuals.length]);
+
+  const enrolledPerFlagshipData = useMemo(() => {
+    const flattened = filteredIndividuals.flatMap((ind) => ind.flagshipNames);
+    return makeCountData(flattened).map((item, idx) => ({
+      ...item,
+      fill: CHART_COLORS[idx % CHART_COLORS.length],
+    }));
+  }, [filteredIndividuals]);
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCard
-        title="Individuals"
-        actionSlot={
-          readOnly ? undefined : (
-            <div className="flex gap-3">
-              {updatePath && (
-                <Button
-                  variant="outline"
-                  className="!rounded-3xl font-medium"
-                  onPress={() => navigate(updatePath, { viewTransition: true })}
-                >
-                  <IconEdit size={16} />
-                  Update
-                </Button>
-              )}
-              {addPath && (
-                <Button
-                  variant="primary"
-                  className="!rounded-3xl font-medium"
-                  onPress={() => navigate(addPath, { viewTransition: true })}
-                >
-                  <IconUserPlus size={16} />
-                  Add Individual
-                </Button>
-              )}
-            </div>
-          )
-        }
+      {showHeader ? (
+        <PageTitleCard
+          title="Individuals"
+          actionSlot={
+            readOnly ? undefined : (
+              <div className="flex gap-3">
+                {addPath && (
+                  <Button
+                    variant="primary"
+                    className="!rounded-3xl font-medium"
+                    onPress={() => navigate(addPath, { viewTransition: true })}
+                  >
+                    <IconUserPlus size={16} />
+                    Add Individual
+                  </Button>
+                )}
+              </div>
+            )
+          }
+        />
+      ) : null}
+      {submitError ? (
+        <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">
+          {submitError}
+        </p>
+      ) : null}
+      {isError ? (
+        <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">
+          {error instanceof Error ? error.message : "Failed to load individuals."}
+        </p>
+      ) : null}
+      <ContentTab
+        items={[...OVERVIEW_TABS]}
+        activeId={viewMode}
+        onChange={(id) => setViewMode(id as ViewMode)}
       />
 
-      <TableComponent
-        tableSectionTitle="Individuals List"
-        tableAriaLabel="Individuals table"
-        columns={readOnly ? COLUMNS_READONLY : COLUMNS}
-        rows={rows}
-        searchPlaceholder="Search by name, sex, category, location…"
-        searchKeys={["name", "sex", "category", "location", "source"]}
-        statusColumnKey="source"
-        statusColorMap={STATUS_COLOR_MAP}
-        multiSelectFilters={multiSelectFilters}
-        filterByTab={() => true}
-        actions={
-          readOnly
-            ? undefined
-            : (row) => [
-                {
-                  label: "Update",
-                  onClick: () =>
-                    updatePath
-                      ? navigate(`${updatePath}?editId=${row.id}`, { viewTransition: true })
-                      : undefined,
-                },
-              ]
-        }
-      />
+      {viewMode === "overview" ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <AppSelect
+              name="overviewProvince"
+              label="Province"
+              options={provinceOptions}
+              selectedKey={selectedProvince}
+              onSelectionChange={(value) => {
+                setSelectedProvince(value);
+                setSelectedDistrict("all");
+              }}
+            />
+            <AppSelect
+              name="overviewDistrict"
+              label="District"
+              options={districtOptions}
+              selectedKey={selectedDistrict}
+              onSelectionChange={setSelectedDistrict}
+            />
+            <AppSelect
+              name="overviewCategory"
+              label="Category View"
+              options={categoryViewOptions}
+              selectedKey={selectedCategoryMode}
+              onSelectionChange={(value) => setSelectedCategoryMode(value as CategoryMode)}
+            />
+            <AppSelect
+              name="overviewFlagship"
+              label="Flagship"
+              options={flagshipOptions}
+              selectedKey={selectedFlagship}
+              onSelectionChange={setSelectedFlagship}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <StatCard
+              color="var(--accent)"
+              iconBackground="var(--accent-icon-bg)"
+              icon={<IconUsers size={18} />}
+              stat={kpis.totalIndividuals}
+              label="Total individuals registered"
+            />
+            <StatCard
+              color="var(--warning)"
+              iconBackground="var(--warning-icon-bg)"
+              icon={<IconUserCheck size={18} />}
+              stat={kpis.inFlagships}
+              label="Individuals in flagships"
+            />
+            <StatCard
+              color="var(--danger)"
+              iconBackground="var(--danger-icon-bg)"
+              icon={<IconUserQuestion size={18} />}
+              stat={kpis.outsideFlagships}
+              label="Individuals outside flagships"
+            />
+            <StatCard
+              color="var(--forest)"
+              iconBackground="var(--forest-icon-bg)"
+              icon={<IconUserCircle size={18} />}
+              stat={kpis.females}
+              label="Female individuals"
+            />
+            <StatCard
+              color="var(--success)"
+              iconBackground="var(--success-icon-bg)"
+              icon={<IconUserShare size={18} />}
+              stat={kpis.youth}
+              label="Youth individuals"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Flagship vs non-flagship proportion</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={flagshipVsNonFlagshipData} dataKey="value" nameKey="name" outerRadius={90} label>
+                      {flagshipVsNonFlagshipData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Individuals by sex</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={sexData} dataKey="value" nameKey="name" outerRadius={90} label>
+                      {sexData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Individuals by youth category</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={youthCategoryData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value">
+                      {youthCategoryData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Individuals registered over time</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={registeredOverTimeData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Individuals by value chain</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={valueChainData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value">
+                      {valueChainData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="mb-3 text-base font-semibold">Individuals enrolled per flagship</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={enrolledPerFlagshipData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="value">
+                      {enrolledPerFlagshipData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <TableComponent
+          tableSectionTitle="Individuals List"
+          tableAriaLabel="Individuals table"
+          columns={readOnly ? COLUMNS_READONLY : COLUMNS}
+          rows={filteredRows}
+          searchPlaceholder="Search by name, sex, category, location…"
+          searchKeys={["name", "sex", "category", "location", "source"]}
+          statusColumnKey="source"
+          statusColorMap={STATUS_COLOR_MAP}
+          filterByTab={() => true}
+          actions={
+            readOnly
+              ? undefined
+              : (row) => [
+                  {
+                    label: "View Details",
+                    onClick: () =>
+                      updatePath
+                        ? navigate(`${updatePath}?editId=${row.id}&mode=view`, { viewTransition: true })
+                        : undefined,
+                  },
+                  {
+                    label: "Update",
+                    onClick: () =>
+                      updatePath
+                        ? navigate(`${updatePath}?editId=${row.id}`, { viewTransition: true })
+                        : undefined,
+                  },
+                  {
+                    label: "Delete",
+                    onClick: () => {
+                      const confirmed = window.confirm("Delete this individual?");
+                      if (!confirmed) return;
+                      deleteMutation.mutate(Number(row.id));
+                    },
+                    color: "danger",
+                  },
+                ]
+          }
+        />
+      )}
     </div>
   );
 }

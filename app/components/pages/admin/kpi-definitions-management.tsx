@@ -4,15 +4,26 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
+import AppSelect from "~/components/app-select";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
-import { kpiDefinitionsQueryOptions, type KpiDefinition } from "~/lib/queries/lookups";
+import {
+  kpiDefinitionsQueryOptions,
+  flagshipCodesQueryOptions,
+  type KpiDefinition,
+} from "~/lib/queries/lookups";
 
 export default function KpiDefinitionsManagement() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data = [], isLoading, isError, error } = useQuery(kpiDefinitionsQueryOptions());
+
+  // Server-side filter by flagship code ("" = all flagships).
+  const [flagshipCode, setFlagshipCode] = useState("");
+  const { data = [], isLoading, isError, error } = useQuery(
+    kpiDefinitionsQueryOptions(flagshipCode ? { flagshipCode } : undefined),
+  );
+  const { data: flagshipCodes = [] } = useQuery(flagshipCodesQueryOptions());
 
   const [toDelete, setToDelete] = useState<KpiDefinition | null>(null);
 
@@ -39,14 +50,13 @@ export default function KpiDefinitionsManagement() {
     [data],
   );
 
-  const flagshipFilter = useMemo(() => {
-    const codes = Array.from(new Set(data.map((k) => k.flagshipCode)));
-    return {
-      key: "flagshipCode",
-      placeholder: "Filter by flagship",
-      options: codes.map((c) => ({ id: c, label: c })),
-    };
-  }, [data]);
+  const flagshipOptions = useMemo(
+    () => [
+      { label: "All flagships", value: "" },
+      ...flagshipCodes.map((f) => ({ label: `${f.code} — ${f.name}`, value: f.code })),
+    ],
+    [flagshipCodes],
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -62,13 +72,23 @@ export default function KpiDefinitionsManagement() {
         </p>
       ) : null}
 
+      <div className="max-w-xs">
+        <AppSelect
+          name="flagshipFilter"
+          label="Filter by flagship"
+          placeholder="All flagships"
+          options={flagshipOptions}
+          selectedKey={flagshipCode}
+          onSelectionChange={setFlagshipCode}
+        />
+      </div>
+
       <TableComponent
         tableSectionTitle={isLoading ? "Loading…" : "KPI Definitions"}
         rows={rows}
         searchKeys={["flagshipCode", "indicatorName", "indicatorTier"]}
         statusColumnKey="status"
         statusColorMap={{ Active: "success", Inactive: "default" }}
-        multiSelectFilters={[flagshipFilter]}
         columns={[
           { key: "id", label: "#", width: "60px" },
           { key: "flagshipCode", label: "Flagship" },

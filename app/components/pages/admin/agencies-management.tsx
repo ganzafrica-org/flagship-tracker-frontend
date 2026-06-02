@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
 
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
@@ -41,8 +42,16 @@ export default function AgenciesManagement() {
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="Implementing Agencies"
-        actionLabel="Add Agency"
-        onActionPress={() => navigate("/admin/agencies/add")}
+        actionSlot={
+          <div className="flex gap-3">
+            <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/agencies/types")}>
+              Manage Types
+            </Button>
+            <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/agencies/add")}>
+              Add Agency
+            </Button>
+          </div>
+        }
       />
 
       {isError ? (
