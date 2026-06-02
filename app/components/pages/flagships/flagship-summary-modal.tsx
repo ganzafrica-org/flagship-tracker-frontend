@@ -3,10 +3,11 @@
 import { Card, Chip } from "@heroui/react";
 import { IconPointFilled, IconX } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import {
-  flagshipDetailFarmersByGender,
-  flagshipDetailFarmersTotal,
+  flagshipDetailIndividualsByGender,
+  flagshipDetailIndividualsTotal,
   flagshipDetailHighlights,
   flagshipDetailInvestmentSplit,
   flagshipDetailJobsByGender,
@@ -16,9 +17,9 @@ import {
   flagshipDetailKpis,
   flagshipDetailLocations,
   flagshipDetailTeam,
-  flagshipDummyData,
   getFlagshipDetailIntro,
 } from "~/data/dummy-flagship-detail";
+import { flagshipQueryOptions } from "~/lib/queries/flagships";
 
 interface FlagshipSummaryModalProps {
   isOpen: boolean;
@@ -44,15 +45,20 @@ export default function FlagshipSummaryModal({
   flagshipId,
   fallbackName,
 }: FlagshipSummaryModalProps) {
+  const id = flagshipId != null && Number.isFinite(flagshipId) ? flagshipId : 0;
+  const { data: flagship } = useQuery({
+    ...flagshipQueryOptions(id),
+    enabled: isOpen && id > 0,
+  });
+
   if (!isOpen) return null;
 
-  const listItem = flagshipDummyData.find((item) => Number(item.id) === Number(flagshipId));
-  const intro = getFlagshipDetailIntro(flagshipId, fallbackName ?? listItem?.title);
+  const intro = getFlagshipDetailIntro(flagshipId, fallbackName ?? flagship?.name, flagship?.description);
   const investmentKpi = findKpi("invest");
   const revenueKpi = findKpi("revenue");
   const incomeKpi = findKpi("income");
   const jobsPercent = Math.max(0, Math.min(100, Math.round((flagshipDetailJobsCurrent / flagshipDetailJobsTarget) * 100)));
-  const valueChains = (listItem?.valueChain ?? "Tomato, Cucumber, Chili")
+  const valueChains = (flagship?.primaryValueChain ?? "—")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
@@ -91,12 +97,12 @@ export default function FlagshipSummaryModal({
           <SummaryBlock title="Gender breakdown">
             <StatLine label="Jobs - Female" value={`${flagshipDetailJobsByGender[0]?.value ?? 0}`} percent="60%" color="#0ea5e9" />
             <StatLine label="Jobs - Male" value={`${flagshipDetailJobsByGender[1]?.value ?? 0}`} percent="40%" color="#f59e0b" />
-            <StatLine label="Farmers - Female" value={`${flagshipDetailFarmersByGender[0]?.value ?? 0}`} percent="60%" color="#14b8a6" />
-            <StatLine label="Farmers - Male" value={`${flagshipDetailFarmersByGender[1]?.value ?? 0}`} percent="40%" color="#f59e0b" />
+            <StatLine label="Individuals - Female" value={`${flagshipDetailIndividualsByGender[0]?.value ?? 0}`} percent="60%" color="#14b8a6" />
+            <StatLine label="Individuals - Male" value={`${flagshipDetailIndividualsByGender[1]?.value ?? 0}`} percent="40%" color="#f59e0b" />
             <div className="mt-2 space-y-1 border-t border-white/10 pt-2 text-xs">
               <div className="text-white/80">Total jobs · {flagshipDetailJobsCreatedTotal}</div>
               <ProgressBar color="#f59e0b" width="100%" />
-              <div className="text-white/80">Total farmers · {flagshipDetailFarmersTotal}</div>
+              <div className="text-white/80">Total individuals · {flagshipDetailIndividualsTotal}</div>
               <ProgressBar color="#14b8a6" width="60%" />
             </div>
           </SummaryBlock>

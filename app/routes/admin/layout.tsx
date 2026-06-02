@@ -9,10 +9,11 @@ import { reportsQueryOptions } from "~/lib/queries/reports";
 import { usersQueryOptions } from "~/lib/queries/users";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
-import { getStoredUser, clearUser, logout, getRoleHomePath } from "~/lib/auth";
+import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 export async function clientLoader() {
+  if (!hasValidSession()) return null;
   queryClient.prefetchQuery(dashboardQueryOptions);
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
@@ -27,8 +28,13 @@ export default function AdminLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const user = getStoredUser();
+    if (!hasValidSession()) {
+      clearUser();
+      navigate("/login", { replace: true });
+      return;
+    }
 
+    const user = getStoredUser();
     if (!user) {
       navigate("/login", { replace: true });
       return;
