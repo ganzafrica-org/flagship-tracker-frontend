@@ -48,6 +48,30 @@ import {
 } from "~/data/dummy-flagship-detail";
 import { parseFunderNames } from "~/lib/flagship-funders";
 import type { Flagship, FundingContribution } from "~/lib/queries/flagships";
+import { useQuery } from "@tanstack/react-query";
+import { flagshipDashboardQueryOptions, type FlagshipDashboard } from "~/lib/queries/visualizations";
+
+/** Latest non-null actual_value for an indicator from the viz KPI list. */
+function latestKpiActual(kpis: FlagshipDashboard["kpis"] | undefined, indicatorName: string): number | null {
+  if (!kpis) return null;
+  const matches = kpis
+    .filter((k) => k.indicatorName === indicatorName && k.actualValue != null)
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+  return matches.length > 0 ? matches[0].actualValue : null;
+}
+
+function formatRwfShort(value: number | null): string {
+  if (value == null) return "—";
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+/** Format a live value when present; undefined keeps the dummy fallback in place. */
+function liveOrUndefined(value: number | null, format: (v: number) => string): string | undefined {
+  return value == null ? undefined : format(value);
+}
 
 function formatContributionDetail(contribution: FundingContribution): string | null {
   const parts: string[] = [];
@@ -106,9 +130,12 @@ function findKpi(id: (typeof flagshipDetailKpis)[number]["id"]) {
 function KpiStatCard({
   k,
   className,
+  statOverride,
 }: {
   k: (typeof flagshipDetailKpis)[number];
   className?: string;
+  /** Live value from the visualizations API; falls back to the dummy stat when undefined. */
+  statOverride?: string;
 }) {
   return (
     <StatCard
@@ -122,7 +149,7 @@ function KpiStatCard({
           <IconChartBar size={20} />
         )
       }
-      stat={k.stat}
+      stat={statOverride ?? k.stat}
       label={k.label}
       statDescription={"statSuffix" in k ? k.statSuffix : undefined}
     />
@@ -135,6 +162,27 @@ export function SingleFlagshipDetails({
   onViewSummaryPress,
 }: SingleFlagshipDetailsProps) {
   const intro = getFlagshipDetailIntro(flagshipPageId, flagship?.name, flagship?.description);
+
+  // Live visualization data (3.1–3.15) for this flagship, when a real id is present.
+  const { data: viz } = useQuery({
+    ...flagshipDashboardQueryOptions(flagship?.id ?? 0),
+    enabled: Boolean(flagship?.id),
+  });
+
+  // Override the dummy KPI card numbers with real values where the API has them.
+  const liveKpiStat = useMemo(() => {
+    const investTotal = (viz?.investmentBySource ?? []).reduce(
+      (sum, r) => sum + (r.value ?? 0),
+      0,
+    );
+    return {
+      invest: viz ? `${formatRwfShort(investTotal || null)} RWF` : undefined,
+      irr: liveOrUndefined(latestKpiActual(viz?.kpis, "irr"), (v) => `${v}%`),
+      revenue: liveOrUndefined(latestKpiActual(viz?.kpis, "annual_revenue"), (v) => `${formatRwfShort(v)} RWF`),
+      income: liveOrUndefined(latestKpiActual(viz?.kpis, "income_per_youth_monthly"), (v) => `${formatRwfShort(v)} RWF`),
+    };
+  }, [viz]);
+
   const funderEntries = useMemo(() => {
     const contributions = flagship?.fundingContributions ?? [];
     const withNames = contributions.filter((c) => c.name?.trim());
@@ -211,7 +259,17 @@ export function SingleFlagshipDetails({
     () => flagshipDetailQuantitiesByChain.filter((row) => Number(row.year) <= Number(quantityYear)),
     [quantityYear],
   );
+  const investmentPieFills = [CHART.accent, CHART.warning, CHART.success, CHART.danger];
   const investmentChartData = useMemo(() => {
+    // Prefer live investment-by-source (3.11); fall back to the dummy split.
+    if (viz?.investmentBySource && viz.investmentBySource.length > 0) {
+      return viz.investmentBySource.map((row, idx) => ({
+        name: row.name,
+        value: row.value ?? 0,
+        fill: investmentPieFills[idx % investmentPieFills.length],
+      }));
+    }
+
     const multipliers: Record<string, number> = {
       "2020": 0.7,
       "2021": 0.82,
@@ -227,7 +285,7 @@ export function SingleFlagshipDetails({
       ...row,
       value: Math.round(row.value * factor),
     }));
-  }, [investmentYear]);
+  }, [investmentYear, viz]);
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -245,16 +303,16 @@ export function SingleFlagshipDetails({
         {/* Left: 2×2 KPI block — height follows the gender cards on lg */}
         <div className="lg:col-span-2 grid grid-cols-2 gap-3 lg:min-h-0 auto-rows-fr">
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("invest")} className="h-full min-h-0" />
+            <KpiStatCard k={findKpi("invest")} statOverride={liveKpiStat.invest} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("irr")} className="h-full min-h-0" />
+            <KpiStatCard k={findKpi("irr")} statOverride={liveKpiStat.irr} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("revenue")} className="h-full min-h-0" />
+            <KpiStatCard k={findKpi("revenue")} statOverride={liveKpiStat.revenue} className="h-full min-h-0" />
           </div>
           <div className="min-h-0 flex flex-col">
-            <KpiStatCard k={findKpi("income")} className="h-full min-h-0" />
+            <KpiStatCard k={findKpi("income")} statOverride={liveKpiStat.income} className="h-full min-h-0" />
           </div>
         </div>
         <div className="lg:col-span-1 min-h-[240px] lg:min-h-0 flex flex-col">

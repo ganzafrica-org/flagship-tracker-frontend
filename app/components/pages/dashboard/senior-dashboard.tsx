@@ -26,6 +26,7 @@ import { Dropdown } from "@heroui/react";
 import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import { individualsQueryOptions } from "~/lib/queries/individuals";
+import { seniorDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { CHART } from "~/data/dummy-flagship-detail";
 import {
@@ -88,10 +89,18 @@ function YearFilter({
 // Investment progress row
 // ---------------------------------------------------------------------------
 
-function InvestmentProgressList() {
+interface ProgressRow {
+  id: string;
+  flagship: string;
+  targetLabel: string;
+  value: number;
+  status: "percentage" | "planning";
+}
+
+function InvestmentProgressList({ rows }: { rows: ProgressRow[] }) {
   return (
     <div className="flex flex-col">
-      {investmentProgress.map((item, index) => (
+      {rows.map((item, index) => (
         <div key={item.id}>
           {index > 0 && <Separator />}
           <div className="flex items-center justify-between gap-4 py-3">
@@ -119,6 +128,7 @@ function InvestmentProgressList() {
 export default function SeniorDashboard() {
   const flagshipsQuery = useQuery(flagshipsQueryOptions);
   const individualsQuery = useQuery(individualsQueryOptions);
+  const vizQuery = useQuery(seniorDashboardQueryOptions());
   const isLoading = flagshipsQuery.isLoading || individualsQuery.isLoading;
 
   const lastYear = SENIOR_DASHBOARD_YEARS[SENIOR_DASHBOARD_YEARS.length - 1];
@@ -127,12 +137,16 @@ export default function SeniorDashboard() {
 
   const flagships = flagshipsQuery.data ?? [];
   const individuals = individualsQuery.data ?? [];
+  const viz = vizQuery.data;
 
   const dashboardStats = useMemo(() => {
-    const totalFlagships = flagships.length || seniorDashboardStats.totalFlagships;
+    // Prefer the materialized-view totals from the visualizations API.
+    const totalFlagships =
+      viz?.cards.totalFlagships ?? (flagships.length || seniorDashboardStats.totalFlagships);
     const totalJobsCreated =
-      flagships.reduce((sum, f) => sum + Math.max(0, f.jobsCreated ?? 0), 0) ||
-      seniorDashboardStats.totalJobsCreated;
+      viz?.cards.totalJobsCreated ??
+      (flagships.reduce((sum, f) => sum + Math.max(0, f.jobsCreated ?? 0), 0) ||
+        seniorDashboardStats.totalJobsCreated);
 
     const uniqueInvestors = new Set<string>();
     for (const flagship of flagships) {
@@ -151,18 +165,38 @@ export default function SeniorDashboard() {
       for (const name of funderNames) uniqueInvestors.add(name.toLowerCase());
     }
 
-    const totalInvestors = uniqueInvestors.size || seniorDashboardStats.totalInvestors;
+    const totalInvestors =
+      viz?.cards.totalInvestors ?? (uniqueInvestors.size || seniorDashboardStats.totalInvestors);
     const totalIndividualsRegistered = individuals.length || seniorDashboardStats.totalYouthRegistered;
+    const totalCooperativesEngaged =
+      viz?.cards.totalCooperativesEngaged ?? seniorDashboardStats.totalCooperativesEngaged;
 
     return {
       totalFlagships,
       totalJobsCreated,
       totalInvestors,
       totalIndividualsRegistered,
-      totalCooperativesEngaged: seniorDashboardStats.totalCooperativesEngaged,
+      totalCooperativesEngaged,
       totalInvestment: seniorDashboardStats.totalInvestment,
     };
-  }, [flagships, individuals]);
+  }, [flagships, individuals, viz]);
+
+  // 1.11 — investment progress from the visualizations API (fallback to dummy).
+  const progressRows = useMemo<ProgressRow[]>(() => {
+    if (viz?.investmentProgress && viz.investmentProgress.length > 0) {
+      return viz.investmentProgress.map((p) => ({
+        id: String(p.flagshipId),
+        flagship: p.flagshipCode,
+        targetLabel:
+          p.budgetTotalRwf != null
+            ? `${(p.budgetTotalRwf / 1_000_000_000).toFixed(1)}B RWF`
+            : "—",
+        value: p.progressPercent ?? 0,
+        status: p.progressPercent != null ? "percentage" : "planning",
+      }));
+    }
+    return investmentProgress;
+  }, [viz]);
 
   const genderData = useMemo(() => {
     if (individuals.length === 0) return youthEmploymentByYear[genderYear];
@@ -424,7 +458,7 @@ export default function SeniorDashboard() {
             <Card.Title>Investment Progress</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <InvestmentProgressList />
+            <InvestmentProgressList rows={progressRows} />
           </Card.Content>
         </Card>
       </div>
