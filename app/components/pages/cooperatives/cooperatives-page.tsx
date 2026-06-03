@@ -100,7 +100,9 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
           ) : null}
 
           <TableComponent
-            tableSectionTitle={isLoading ? "Loading…" : "List of Cooperatives"}
+            tableSectionTitle="List of Cooperatives"
+            loading={isLoading}
+            emptyMessage="No cooperatives yet"
             rows={rows}
             searchKeys={["cooperativeName", "cooperativeCode", "groupType", "district"]}
             filterByTab={() => true}

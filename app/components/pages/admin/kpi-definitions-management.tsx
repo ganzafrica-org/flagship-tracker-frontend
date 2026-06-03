@@ -84,7 +84,9 @@ export default function KpiDefinitionsManagement() {
       </div>
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "KPI Definitions"}
+        tableSectionTitle="KPI Definitions"
+        loading={isLoading}
+        emptyMessage="No KPI definitions yet"
         rows={rows}
         searchKeys={["flagshipCode", "indicatorName", "indicatorTier"]}
         statusColumnKey="status"

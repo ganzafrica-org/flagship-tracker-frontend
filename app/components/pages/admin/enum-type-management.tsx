@@ -148,7 +148,9 @@ export default function EnumTypeManagement({
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : title}
+        tableSectionTitle={title}
+        loading={isLoading}
+        emptyMessage="No types yet"
         rows={rows}
         searchKeys={["value", "label"]}
         statusColumnKey="status"

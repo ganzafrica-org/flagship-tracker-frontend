@@ -61,7 +61,9 @@ export default function AgenciesManagement() {
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "Implementing Agencies"}
+        tableSectionTitle="Implementing Agencies"
+        loading={isLoading}
+        emptyMessage="No agencies yet"
         rows={rows}
         searchKeys={["agencyName", "agencyType"]}
         statusColumnKey="status"

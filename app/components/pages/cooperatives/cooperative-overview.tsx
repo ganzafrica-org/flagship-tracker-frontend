@@ -23,6 +23,7 @@ import {
 } from "@tabler/icons-react";
 
 import { StatCard } from "~/components/stat-card";
+import { StatCardSkeleton } from "~/components/app-skeleton";
 import AppSelect from "~/components/app-select";
 import { CHART } from "~/data/dummy-flagship-detail";
 import { COOP_BAR_COLORS } from "~/data/dummy-cooperatives";
@@ -40,7 +41,7 @@ export default function CooperativeOverview() {
   const [flagshipFilter, setFlagshipFilter] = useState("");
 
   const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
-  const { data } = useQuery(
+  const { data, isLoading } = useQuery(
     cooperativesDashboardQueryOptions(flagshipFilter || undefined),
   );
 
@@ -97,6 +98,10 @@ export default function CooperativeOverview() {
 
       {/* KPI cards — C.1 to C.5 */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {isLoading ? (
+          Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)
+        ) : (
+        <>
         <StatCard
           color="var(--accent)"
           icon={<IconBuildingCommunity size={20} />}
@@ -127,6 +132,8 @@ export default function CooperativeOverview() {
           stat={stats?.totalFemaleMembers != null ? stats.totalFemaleMembers.toLocaleString() : "—"}
           label="Female Members"
         />
+        </>
+        )}
       </div>
 
       {/* Charts 2×2 */}

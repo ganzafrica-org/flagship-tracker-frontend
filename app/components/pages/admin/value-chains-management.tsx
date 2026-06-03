@@ -55,7 +55,9 @@ export default function ValueChainsManagement() {
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "Value Chains"}
+        tableSectionTitle="Value Chains"
+        loading={isLoading}
+        emptyMessage="No value chains yet"
         rows={rows}
         searchKeys={["cluster", "valueChain"]}
         statusColumnKey="status"

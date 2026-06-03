@@ -140,7 +140,9 @@ export default function UsersManagementPage() {
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "Users"}
+        tableSectionTitle="Users"
+        loading={isLoading}
+        emptyMessage="No users yet"
         rows={rows}
         searchKeys={["fullName", "email", "role"]}
         statusColumnKey="status"

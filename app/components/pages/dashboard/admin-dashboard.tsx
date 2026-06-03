@@ -1,4 +1,4 @@
-import { Card, Skeleton } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -24,6 +24,7 @@ import {
 import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import TableComponent from "~/components/table-component";
+import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
 import { dashboardQueryOptions, recentUsersQueryOptions } from "~/lib/queries/dashboard";
 
 function renderPieLabel(props: PieLabelRenderProps) {
@@ -50,8 +51,9 @@ function renderPieLabel(props: PieLabelRenderProps) {
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { data: stats, isLoading } = useQuery(dashboardQueryOptions);
-  const { data: recentUsers = [] } = useQuery(recentUsersQueryOptions(10));
+  // Two independent queries — each section shows its own skeleton until it resolves.
+  const { data: stats, isLoading: statsLoading } = useQuery(dashboardQueryOptions);
+  const { data: recentUsers = [], isLoading: recentLoading } = useQuery(recentUsersQueryOptions(10));
 
   const recentUserRows = recentUsers.map((user) => ({
     id: user.id,
@@ -67,10 +69,8 @@ export default function AdminDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
-          ))
+        {statsLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
         ) : (
           <>
             <StatCard
@@ -114,8 +114,8 @@ export default function AdminDashboard() {
             <Card.Title>Active vs Inactive Users</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {isLoading ? (
-              <Skeleton className="h-52 rounded-lg" />
+            {statsLoading ? (
+              <ChartSkeleton height="h-52" />
             ) : (
               <ResponsiveContainer width="100%" height={220} minWidth={0}>
                 <PieChart>
@@ -148,8 +148,8 @@ export default function AdminDashboard() {
             <Card.Title>Users by Role</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {isLoading ? (
-              <Skeleton className="h-52 rounded-lg" />
+            {statsLoading ? (
+              <ChartSkeleton height="h-52" />
             ) : (
               <ResponsiveContainer width="100%" height={220} minWidth={0}>
                 <BarChart data={stats?.usersByRole} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
@@ -173,6 +173,8 @@ export default function AdminDashboard() {
         tableSectionTitle="Recent Users"
         tableAriaLabel="Recent users table"
         rows={recentUserRows}
+        loading={recentLoading}
+        emptyMessage="No users yet"
         searchKeys={["fullName", "email", "role"]}
         columns={[
           { key: "id", label: "#" },

@@ -61,7 +61,9 @@ export default function FundersManagement() {
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "Funders"}
+        tableSectionTitle="Funders"
+        loading={isLoading}
+        emptyMessage="No funders yet"
         rows={rows}
         searchKeys={["funderName", "funderType"]}
         statusColumnKey="status"

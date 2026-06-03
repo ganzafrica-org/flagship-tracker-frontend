@@ -1,10 +1,11 @@
 
 import { useMemo, useState } from "react";
 import type React from "react";
-import { Button, Card, Chip, Label, ListBox, Pagination, SearchField, Select, Table } from "@heroui/react";
+import { Button, Card, Chip, Label, ListBox, Pagination, SearchField, Select, Spinner, Table } from "@heroui/react";
 import { IconChevronsRight, IconChevronsLeft, IconX } from '@tabler/icons-react';
 
 import ActionDropdown from "~/components/action-dropdown";
+import AppSkeleton from "~/components/app-skeleton";
 import { dummyManageReports, dummyUserTabs } from "~/data/dummy-data";
 
 const ITEMS_PER_PAGE = 7;
@@ -55,6 +56,10 @@ interface TableComponentProps {
   actions?: ((row: TableRowData) => TableActionItem[]) | undefined;
   multiSelectFilters?: MultiSelectFilterDef[];
   newestFirst?: boolean;
+  /** When true, render skeleton rows inside the body instead of data. */
+  loading?: boolean;
+  /** Message shown in the body when there are no rows and not loading. */
+  emptyMessage?: string;
 }
 
 export default function TableComponent({
@@ -95,6 +100,8 @@ export default function TableComponent({
   ],
   multiSelectFilters = [],
   newestFirst = true,
+  loading = false,
+  emptyMessage = "No records found",
 }: TableComponentProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -161,6 +168,7 @@ export default function TableComponent({
         <div className="flex items-center justify-between gap-3 mx-5">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <h1 className="text-xl font-semibold shrink-0">{tableSectionTitle}</h1>
+            {loading ? <Spinner size="sm" /> : null}
 
             {multiSelectFilters.map((filter) => {
               const selected = getSelection(filter.key);
@@ -173,11 +181,21 @@ export default function TableComponent({
               return (
                 <Select
                   key={filter.key}
-                  selectionMode="multiple"
-                  selectedKeys={selected}
-                  onSelectionChange={(keys) => setSelection(filter.key, new Set(Array.from(keys).map(String)))}
                   className="w-52"
                   placeholder={filter.placeholder}
+                  {...({
+                    selectionMode: "multiple",
+                    selectedKeys: selected,
+                    onSelectionChange: (keys: "all" | Set<string | number>) =>
+                      setSelection(
+                        filter.key,
+                        keys === "all"
+                          ? new Set(filter.options.map((o) => o.id))
+                          : new Set(Array.from(keys).map(String)),
+                      ),
+                    // HeroUI's Select wrapper under-types multi-select props; the
+                    // runtime (react-aria) accepts them, so we pass them through.
+                  } as unknown as Record<string, unknown>)}
                 >
                   <Label className="sr-only">{filter.placeholder}</Label>
                   <Select.Trigger className="h-9 border border-default-300 rounded-full px-3 text-sm w-full flex items-center gap-2">
@@ -252,7 +270,27 @@ export default function TableComponent({
                   ))}
                 </Table.Header>
                 <Table.Body>
-                  {paginatedRows.map((row, rowIndex) => (
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, r) => (
+                      <Table.Row key={`sk-${r}`}>
+                        {columns.map((column) => (
+                          <Table.Cell key={`sk-${r}-${column.key}`}>
+                            <AppSkeleton className="h-4 w-full" />
+                          </Table.Cell>
+                        ))}
+                      </Table.Row>
+                    ))
+                  ) : paginatedRows.length === 0 ? (
+                    <Table.Row>
+                      <Table.Cell colSpan={columns.length}>
+                        <div className="flex flex-col items-center justify-center gap-1 py-10 text-center">
+                          <span className="text-sm font-medium text-(--foreground)">{emptyMessage}</span>
+                          <span className="text-xs text-(--muted)">Try adjusting your search or filters.</span>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  ) : (
+                  paginatedRows.map((row, rowIndex) => (
                     <Table.Row key={String(row.id)}>
                       {columns.map((column) => {
                         if (column.key === "action") {
@@ -285,7 +323,8 @@ export default function TableComponent({
                         return <Table.Cell key={`${row.id}-${column.key}`}>{String(row[column.key] ?? "")}</Table.Cell>;
                       })}
                     </Table.Row>
-                  ))}
+                  ))
+                  )}
                 </Table.Body>
               </Table.Content>
             </Table.ScrollContainer>

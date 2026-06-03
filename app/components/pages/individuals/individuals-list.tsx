@@ -520,6 +520,8 @@ export default function IndividualsList({
         <TableComponent
           tableSectionTitle="Individuals List"
           tableAriaLabel="Individuals table"
+          loading={isLoading}
+          emptyMessage="No individuals yet"
           columns={readOnly ? COLUMNS_READONLY : COLUMNS}
           rows={filteredRows}
           searchPlaceholder="Search by name, sex, category, location…"

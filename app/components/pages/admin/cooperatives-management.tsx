@@ -77,7 +77,9 @@ export default function CooperativesManagement() {
       ) : null}
 
       <TableComponent
-        tableSectionTitle={isLoading ? "Loading…" : "Cooperatives"}
+        tableSectionTitle="Cooperatives"
+        loading={isLoading}
+        emptyMessage="No cooperatives yet"
         rows={rows}
         searchKeys={["cooperativeName", "cooperativeCode", "primaryValueChain", "district"]}
         columns={[
