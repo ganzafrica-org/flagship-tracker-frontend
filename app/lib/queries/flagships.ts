@@ -133,6 +133,8 @@ export interface FlagshipListItem {
   id: number;
   status: FlagshipStatus;
   title: string;
+  code: string;
+  cluster: string;
   jobsCreated: number;
   totalBudget: string;
   numberOfFunders: number;
@@ -142,6 +144,8 @@ export interface FlagshipListItem {
   dateLabel: string;
   accentColor: string;
   funderNames: string[];
+  /** Rich funder rows (name + currency/amount/description) for the card popover. */
+  funderContributions: FundingContribution[];
   viewMoreLabel?: string;
 }
 
@@ -198,6 +202,8 @@ export function mapFlagshipToListItem(
     id: detail.flagshipId,
     status: detail.status,
     title: detail.flagshipName,
+    code: detail.flagshipCode,
+    cluster: detail.flagshipCluster,
     jobsCreated: detail.jobsCreated ?? 0,
     totalBudget:
       detail.budgetTotalRwf != null && detail.budgetTotalRwf > 0
@@ -210,6 +216,7 @@ export function mapFlagshipToListItem(
     dateLabel: formatDateLabel(detail.createdAt),
     accentColor: getFlagshipCardAccent(cardIndex),
     funderNames,
+    funderContributions: detail.fundingContributions ?? [],
   };
 }
 
