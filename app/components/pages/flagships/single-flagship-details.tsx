@@ -748,7 +748,7 @@ export function SingleFlagshipDetails({
       >
         <Card>
           <Card.Header>
-            <Card.Title>Team Managing the Flagship</Card.Title>
+            <Card.Title>Funders</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             {(viz?.team ?? []).length === 0 ? (
