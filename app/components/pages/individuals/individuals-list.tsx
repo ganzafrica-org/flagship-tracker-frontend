@@ -355,10 +355,7 @@ export default function IndividualsList({
 
       {viewMode === "overview" ? (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <VizRefreshButton />
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 justify-center items-end">
             <AppSelect
               name="overviewProvince"
               label="Province"
@@ -390,6 +387,7 @@ export default function IndividualsList({
               selectedKey={selectedFlagship}
               onSelectionChange={setSelectedFlagship}
             />
+            <VizRefreshButton />
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">

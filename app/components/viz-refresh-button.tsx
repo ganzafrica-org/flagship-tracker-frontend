@@ -16,7 +16,7 @@ export default function VizRefreshButton() {
   const mutation = useMutation({
     mutationFn: refreshVisualizations,
     onSuccess: () => {
-      toast.success("Dashboards refreshed");
+      toast.success("Data Refreshed");
       queryClient.invalidateQueries({ queryKey: ["viz"] });
     },
     onError: (err) =>
@@ -26,7 +26,7 @@ export default function VizRefreshButton() {
   return (
     <Button
       variant="outline"
-      className="!rounded-3xl"
+      className="!rounded-3xl bg-accent text-white"
       onPress={() => mutation.mutate()}
       isPending={mutation.isPending}
     >
