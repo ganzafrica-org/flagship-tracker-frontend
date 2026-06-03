@@ -125,10 +125,10 @@ function FlagshipListCard({
         </Chip>
       </div>
 
-      {/* Title — clamped, full name in tooltip */}
+      {/* Title — always reserve 2 lines so stats/progress align across cards */}
       <Tooltip>
         <Tooltip.Trigger className="mt-3 block text-left">
-          <h3 className="line-clamp-2 text-[16px] font-semibold leading-snug text-(--foreground)">
+          <h3 className="line-clamp-2 min-h-[2.75rem] text-[16px] font-semibold leading-snug text-(--foreground)">
             {item.title}
           </h3>
         </Tooltip.Trigger>
