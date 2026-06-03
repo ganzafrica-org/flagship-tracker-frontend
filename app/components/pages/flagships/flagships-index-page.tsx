@@ -4,7 +4,8 @@ import { useNavigate } from "react-router";
 import { IconHomeFilled, IconLayoutGrid, IconTable } from "@tabler/icons-react";
 import { Button, Spinner } from "@heroui/react";
 
-import FlagshipsList, { type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
+import FlagshipsList, { FunderAvatars, type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
+import AppProgressBar from "~/components/app-progress-bar";
 import { ContentTab } from "~/components/content-tab";
 import { PageTitleCard } from "~/components/page-title-card";
 import TableComponent from "~/components/table-component";
@@ -18,16 +19,24 @@ import {
   mapFlagshipToListItem,
   FLAGSHIP_STATUS_TAB_ITEMS,
   type FlagshipStatusTab,
+  type FundingContribution,
 } from "~/lib/queries/flagships";
+
+function tableProgressColor(status: string): "accent" | "success" | "warning" | "danger" {
+  if (status === "active") return "success";
+  if (status === "suspended") return "danger";
+  if (status === "planning") return "warning";
+  return "accent";
+}
 
 const FLAGSHIP_TABLE_COLUMNS = [
   { key: "id", label: "#" },
   { key: "projectName", label: "Project Name" },
   { key: "totalBudget", label: "Total Budget" },
   { key: "jobsCreated", label: "Jobs Created" },
-  { key: "numberOfFunders", label: "Number of Funders" },
+  { key: "funders", label: "Funders" },
   { key: "valueChain", label: "Value Chain" },
-  { key: "progress", label: "Progress" },
+  { key: "progress", label: "Progress", width: "160px" },
   { key: "action", label: "Action" },
 ] as const;
 
@@ -166,12 +175,27 @@ export default function FlagshipsIndexPage({
         <TableComponent
           tableSectionTitle="List of Flagships"
           tableAriaLabel="Flagships table"
-          rows={flagshipRows}
+          rows={flagshipRows as unknown as Record<string, unknown>[] & { id: number }[]}
+          loading={isLoading}
+          emptyMessage="No flagships yet"
           searchKeys={["projectName", "valueChain"]}
           columns={[...FLAGSHIP_TABLE_COLUMNS]}
           minTableWidthClassName="min-w-[1100px]"
           filterByTab={() => true}
-          actions={tableActions}
+          actions={tableActions as never}
+          cellRenderers={{
+            funders: (row) => (
+              <FunderAvatars funders={(row.funderContributions as FundingContribution[]) ?? []} />
+            ),
+            progress: (row) => (
+              <div className="w-32">
+                <AppProgressBar
+                  value={Number(row.progressValue ?? 0)}
+                  color={tableProgressColor(String(row.status))}
+                />
+              </div>
+            ),
+          }}
         />
       )}
     </div>

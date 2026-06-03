@@ -9,8 +9,17 @@ import {
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 
-import type { FlagshipListItem, FlagshipStatus } from "~/lib/queries/flagships";
+import type { FlagshipListItem, FlagshipStatus, FundingContribution } from "~/lib/queries/flagships";
 import AppAvatar, { AppAvatarGroup } from "~/components/app-avatar";
+import AppProgressBar from "~/components/app-progress-bar";
+
+/** Map flagship status to a progress-bar color. */
+function statusToProgressColor(status: FlagshipStatus): "accent" | "success" | "warning" | "danger" {
+  if (status === "active") return "success";
+  if (status === "suspended") return "danger";
+  if (status === "planning") return "warning";
+  return "accent";
+}
 
 export type FlagshipCardItem = FlagshipListItem & { icon?: ReactNode };
 
@@ -22,7 +31,7 @@ interface FlagshipsListProps {
 }
 
 const CARD_CLASS =
-  "group relative !rounded-2xl bg-(--surface) p-5 min-h-[300px] h-full shadow-none border border-(--separator) flex flex-col transition-shadow hover:shadow-md";
+  "group relative !rounded-4xl bg-(--surface) p-5 min-h-[300px] h-full shadow-none border border-(--separator) flex flex-col transition-shadow hover:shadow-md";
 
 const STATUS_COLOR: Record<FlagshipStatus, "success" | "warning" | "danger" | "default"> = {
   active: "success",
@@ -42,8 +51,7 @@ function StatRow({ icon, label, value }: { icon: ReactNode; label: string; value
 }
 
 /** Funder avatar stack + popover with the full contribution details. */
-function FunderAvatars({ item }: { item: FlagshipCardItem }) {
-  const funders = item.funderContributions ?? [];
+export function FunderAvatars({ funders }: { funders: FundingContribution[] }) {
   if (funders.length === 0) {
     return <span className="text-[12px] text-(--muted)">No funders recorded</span>;
   }
@@ -134,43 +142,31 @@ function FlagshipListCard({
         <StatRow icon={<IconBriefcase size={15} />} label="Jobs created" value={item.jobsCreated.toLocaleString()} />
         <StatRow icon={<IconCoin size={15} />} label="Total budget" value={item.totalBudget} />
         <StatRow icon={<IconPlant2 size={15} />} label="Value chain" value={item.valueChain} />
-        <StatRow icon={<IconUsersGroup size={15} />} label="Funders" value={item.numberOfFunders} />
       </div>
 
-      {/* Progress */}
-      <div className="mt-3">
-        <div className="mb-1 flex items-center justify-between text-[12px] text-(--muted)">
-          <span>Progress</span>
-          <span className="font-medium text-(--foreground)">{item.progress}%</span>
-        </div>
-        <div className="h-2 rounded-full bg-(--default)">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${Math.max(0, Math.min(100, item.progress))}%`,
-              backgroundColor: item.accentColor,
-            }}
-          />
-        </div>
+      {/* Progress — its own row with clear spacing */}
+      <div className="mt-4">
+        <AppProgressBar value={item.progress} color={statusToProgressColor(item.status)} showLabel />
       </div>
 
-      {/* Footer: funders + date + view more */}
+      {/* Footer — funders (left) and date (right), balanced on one line */}
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-        <FunderAvatars item={item} />
-        <button
-          type="button"
-          onClick={() => onViewMore?.(item)}
-          className="text-[13px] font-medium hover:underline shrink-0"
-          style={{ color: item.accentColor }}
-        >
-          {item.viewMoreLabel ?? "View More"}
-        </button>
+        <FunderAvatars funders={item.funderContributions ?? []} />
+        <span className="inline-flex items-center gap-1 text-[11px] text-(--muted) shrink-0">
+          <IconCalendar size={13} />
+          {item.dateLabel}
+        </span>
       </div>
 
-      <span className="mt-2 inline-flex items-center gap-1 text-[11px] text-(--muted)">
-        <IconCalendar size={13} />
-        {item.dateLabel}
-      </span>
+      {/* Action — separated, full-width */}
+      <button
+        type="button"
+        onClick={() => onViewMore?.(item)}
+        className="mt-3 w-full rounded-lg border border-(--separator) py-2 text-[13px] font-medium transition-colors hover:bg-(--default)"
+        style={{ color: item.accentColor }}
+      >
+        {item.viewMoreLabel ?? "View More"}
+      </button>
     </Card>
   );
 }

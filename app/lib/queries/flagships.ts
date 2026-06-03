@@ -311,6 +311,11 @@ export interface FlagshipTableRow {
   numberOfFunders: number;
   valueChain: string;
   progress: string;
+  /** Numeric progress for the progress-bar renderer. */
+  progressValue: number;
+  /** Rich funder rows for the avatar-group renderer. */
+  funderContributions: FundingContribution[];
+  status: FlagshipStatus;
 }
 
 export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): FlagshipTableRow[] {
@@ -325,6 +330,9 @@ export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): Fla
       numberOfFunders: card.numberOfFunders,
       valueChain: card.valueChain,
       progress: `${card.progress}%`,
+      progressValue: card.progress,
+      funderContributions: card.funderContributions,
+      status: card.status,
     };
   });
 }

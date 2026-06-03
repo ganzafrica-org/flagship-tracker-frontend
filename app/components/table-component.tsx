@@ -60,6 +60,8 @@ interface TableComponentProps {
   loading?: boolean;
   /** Message shown in the body when there are no rows and not loading. */
   emptyMessage?: string;
+  /** Custom cell renderers keyed by column key (overrides default text rendering). */
+  cellRenderers?: Record<string, (row: TableRowData) => React.ReactNode>;
 }
 
 export default function TableComponent({
@@ -102,6 +104,7 @@ export default function TableComponent({
   newestFirst = true,
   loading = false,
   emptyMessage = "No records found",
+  cellRenderers,
 }: TableComponentProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -305,6 +308,14 @@ export default function TableComponent({
                           return (
                             <Table.Cell key={`${row.id}-serial`}>
                               {start + rowIndex + 1}
+                            </Table.Cell>
+                          );
+                        }
+
+                        if (cellRenderers && cellRenderers[column.key]) {
+                          return (
+                            <Table.Cell key={`${row.id}-${column.key}`}>
+                              {cellRenderers[column.key](row)}
                             </Table.Cell>
                           );
                         }
