@@ -33,9 +33,11 @@ import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
 import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
+import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
 import { PageTitleCard } from "~/components/page-title-card";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import TableComponent from "~/components/table-component";
+import { Provinces, Districts } from "rwanda";
 
 const CATEGORY_LABELS: Record<string, string> = {
   student: "Student",
@@ -114,6 +116,16 @@ function normalize(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
+/** Safely call a `rwanda` package lookup, returning a string[] (empty on error). */
+function safeRwanda(lookup: () => unknown): string[] {
+  try {
+    const result = lookup();
+    return Array.isArray(result) ? result.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function IndividualsList({
   addPath,
   updatePath,
@@ -175,31 +187,32 @@ export default function IndividualsList({
     [individuals],
   );
 
+  // Provinces/districts come from the Rwanda package (full official list),
+  // not just the values present in the current data.
   const provinceOptions = useMemo(() => {
-    const provinces = Array.from(new Set(rows.map((r) => normalize(r.province)).filter(Boolean))).sort();
+    const provinces = safeRwanda(() => Provinces());
     return [{ value: "all", label: "All Provinces" }, ...provinces.map((v) => ({ value: v, label: v }))];
-  }, [rows]);
+  }, []);
 
   const districtOptions = useMemo(() => {
-    const districts = Array.from(
-      new Set(
-        rows
-          .filter((r) => selectedProvince === "all" || r.province === selectedProvince)
-          .map((r) => normalize(r.district))
-          .filter(Boolean),
-      ),
-    ).sort();
+    const districts =
+      selectedProvince === "all" ? [] : safeRwanda(() => Districts({ provinces: selectedProvince }));
     return [{ value: "all", label: "All Districts" }, ...districts.map((v) => ({ value: v, label: v }))];
-  }, [rows, selectedProvince]);
+  }, [selectedProvince]);
 
-  const flagshipOptions = useMemo(() => {
-    const names = Array.from(
-      new Set(
-        individuals.flatMap((item) => item.flagshipNames.map((name) => normalize(name))).filter(Boolean),
-      ),
-    ).sort();
-    return [{ value: "all", label: "All Flagships" }, ...names.map((name) => ({ value: name, label: name }))];
-  }, [individuals]);
+  // Flagship filter is fed by the real flagships endpoint. The value is the
+  // flagship NAME so it matches the names individuals carry.
+  const { data: flagshipApiOptions = [] } = useQuery(flagshipOptionsQueryOptions());
+  const flagshipOptions = useMemo(
+    () => [
+      { value: "all", label: "All Flagships" },
+      ...flagshipApiOptions.map((f) => {
+        const name = f.label.includes(" — ") ? f.label.split(" — ").slice(1).join(" — ") : f.label;
+        return { value: name, label: f.label };
+      }),
+    ],
+    [flagshipApiOptions],
+  );
 
   const categoryViewOptions = [
     { value: "all", label: "All Individuals" },
