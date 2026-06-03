@@ -10,7 +10,15 @@ import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { fundersQueryOptions, type Funder } from "~/lib/queries/lookups";
 
-export default function FundersManagement() {
+interface FundersManagementProps {
+  basePath?: string;
+  readOnly?: boolean;
+}
+
+export default function FundersManagement({
+  basePath = "/admin",
+  readOnly = false,
+}: FundersManagementProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(fundersQueryOptions());
@@ -43,14 +51,16 @@ export default function FundersManagement() {
       <PageTitleCard
         title="Funders"
         actionSlot={
-          <div className="flex gap-3">
-            <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/funders/types")}>
-              Manage Types
-            </Button>
-            <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/funders/add")}>
-              Add Funder
-            </Button>
-          </div>
+          readOnly ? undefined : (
+            <div className="flex gap-3">
+              <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders/types`)}>
+                Manage Types
+              </Button>
+              <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders/add`)}>
+                Add Funder
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -77,11 +87,15 @@ export default function FundersManagement() {
         ]}
         minTableWidthClassName="min-w-[700px]"
         filterByTab={() => true}
-        actions={(row) => [
-          { label: "View Details", onClick: () => navigate(`/admin/funders/add?editId=${row.id}&mode=view`) },
-          { label: "Update", onClick: () => navigate(`/admin/funders/add?editId=${row.id}`) },
-          { label: "Delete", onClick: () => setToDelete(data.find((f) => f.id === row.id) ?? null), color: "danger" },
-        ]}
+        actions={(row) =>
+          readOnly
+            ? [{ label: "View Details", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}&mode=view`) }]
+            : [
+                { label: "View Details", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}&mode=view`) },
+                { label: "Update", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}`) },
+                { label: "Delete", onClick: () => setToDelete(data.find((f) => f.id === row.id) ?? null), color: "danger" },
+              ]
+        }
       />
 
       <AppAlertDialog

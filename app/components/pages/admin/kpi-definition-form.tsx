@@ -31,7 +31,7 @@ const EMPTY: FormState = {
   active: true,
 };
 
-export default function KpiDefinitionForm() {
+export default function KpiDefinitionForm({ basePath = "/admin" }: { basePath?: string } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
@@ -69,7 +69,7 @@ export default function KpiDefinitionForm() {
     onSuccess: () => {
       toast.success(isEdit ? "KPI definition updated" : "KPI definition created");
       queryClient.invalidateQueries({ queryKey: ["kpi-definitions"] });
-      navigate("/admin/kpis");
+      navigate(`${basePath}/kpis`);
     },
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
@@ -170,7 +170,7 @@ export default function KpiDefinitionForm() {
         ) : null}
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/kpis")}>
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/kpis`)}>
             {isView ? "Back" : "Cancel"}
           </Button>
           {!isView ? (

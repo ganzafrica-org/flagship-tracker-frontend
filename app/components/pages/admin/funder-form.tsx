@@ -22,7 +22,7 @@ interface FormState {
 
 const EMPTY: FormState = { funderName: "", funderType: "", active: true };
 
-export default function FunderForm() {
+export default function FunderForm({ basePath = "/admin" }: { basePath?: string } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
@@ -49,7 +49,7 @@ export default function FunderForm() {
     onSuccess: () => {
       toast.success(isEdit ? "Funder updated" : "Funder created");
       queryClient.invalidateQueries({ queryKey: ["funders"] });
-      navigate("/admin/funders");
+      navigate(`${basePath}/funders`);
     },
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
@@ -111,7 +111,7 @@ export default function FunderForm() {
         ) : null}
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/funders")}>
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders`)}>
             {isView ? "Back" : "Cancel"}
           </Button>
           {!isView ? (

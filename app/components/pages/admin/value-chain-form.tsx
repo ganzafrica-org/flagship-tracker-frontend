@@ -22,7 +22,7 @@ interface FormState {
 
 const EMPTY: FormState = { cluster: "", valueChain: "", active: true };
 
-export default function ValueChainForm() {
+export default function ValueChainForm({ basePath = "/admin" }: { basePath?: string } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
@@ -54,7 +54,7 @@ export default function ValueChainForm() {
     onSuccess: () => {
       toast.success(isEdit ? "Value chain updated" : "Value chain created");
       queryClient.invalidateQueries({ queryKey: ["value-chains"] });
-      navigate("/admin/value-chains");
+      navigate(`${basePath}/value-chains`);
     },
     onError: (err) => {
       setApiError(err instanceof ApiError ? err.message : "Something went wrong");
@@ -120,7 +120,7 @@ export default function ValueChainForm() {
         ) : null}
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/value-chains")}>
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/value-chains`)}>
             {isView ? "Back" : "Cancel"}
           </Button>
           {!isView ? (

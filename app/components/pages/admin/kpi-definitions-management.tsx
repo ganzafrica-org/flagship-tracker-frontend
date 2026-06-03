@@ -14,7 +14,15 @@ import {
   type KpiDefinition,
 } from "~/lib/queries/lookups";
 
-export default function KpiDefinitionsManagement() {
+interface KpiDefinitionsManagementProps {
+  basePath?: string;
+  readOnly?: boolean;
+}
+
+export default function KpiDefinitionsManagement({
+  basePath = "/admin",
+  readOnly = false,
+}: KpiDefinitionsManagementProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -62,8 +70,8 @@ export default function KpiDefinitionsManagement() {
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="KPI Definitions"
-        actionLabel="Add KPI Definition"
-        onActionPress={() => navigate("/admin/kpis/add")}
+        actionLabel={readOnly ? undefined : "Add KPI Definition"}
+        onActionPress={readOnly ? undefined : () => navigate(`${basePath}/kpis/add`)}
       />
 
       {isError ? (
@@ -102,11 +110,15 @@ export default function KpiDefinitionsManagement() {
         ]}
         minTableWidthClassName="min-w-[900px]"
         filterByTab={() => true}
-        actions={(row) => [
-          { label: "View Details", onClick: () => navigate(`/admin/kpis/add?editId=${row.id}&mode=view`) },
-          { label: "Update", onClick: () => navigate(`/admin/kpis/add?editId=${row.id}`) },
-          { label: "Delete", onClick: () => setToDelete(data.find((k) => k.id === row.id) ?? null), color: "danger" },
-        ]}
+        actions={(row) =>
+          readOnly
+            ? [{ label: "View Details", onClick: () => navigate(`${basePath}/kpis/add?editId=${row.id}&mode=view`) }]
+            : [
+                { label: "View Details", onClick: () => navigate(`${basePath}/kpis/add?editId=${row.id}&mode=view`) },
+                { label: "Update", onClick: () => navigate(`${basePath}/kpis/add?editId=${row.id}`) },
+                { label: "Delete", onClick: () => setToDelete(data.find((k) => k.id === row.id) ?? null), color: "danger" },
+              ]
+        }
       />
 
       <AppAlertDialog

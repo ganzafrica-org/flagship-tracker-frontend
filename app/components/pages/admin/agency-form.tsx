@@ -22,7 +22,7 @@ interface FormState {
 
 const EMPTY: FormState = { agencyName: "", agencyType: "", active: true };
 
-export default function AgencyForm() {
+export default function AgencyForm({ basePath = "/admin" }: { basePath?: string } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
@@ -51,7 +51,7 @@ export default function AgencyForm() {
     onSuccess: () => {
       toast.success(isEdit ? "Agency updated" : "Agency created");
       queryClient.invalidateQueries({ queryKey: ["implementing-agencies"] });
-      navigate("/admin/agencies");
+      navigate(`${basePath}/agencies`);
     },
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
@@ -113,7 +113,7 @@ export default function AgencyForm() {
         ) : null}
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/agencies")}>
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/agencies`)}>
             {isView ? "Back" : "Cancel"}
           </Button>
           {!isView ? (

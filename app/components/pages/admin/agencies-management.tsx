@@ -10,7 +10,15 @@ import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { agenciesQueryOptions, type Agency } from "~/lib/queries/lookups";
 
-export default function AgenciesManagement() {
+interface AgenciesManagementProps {
+  basePath?: string;
+  readOnly?: boolean;
+}
+
+export default function AgenciesManagement({
+  basePath = "/admin",
+  readOnly = false,
+}: AgenciesManagementProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(agenciesQueryOptions());
@@ -43,14 +51,16 @@ export default function AgenciesManagement() {
       <PageTitleCard
         title="Implementing Agencies"
         actionSlot={
-          <div className="flex gap-3">
-            <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/agencies/types")}>
-              Manage Types
-            </Button>
-            <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/agencies/add")}>
-              Add Agency
-            </Button>
-          </div>
+          readOnly ? undefined : (
+            <div className="flex gap-3">
+              <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/agencies/types`)}>
+                Manage Types
+              </Button>
+              <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/agencies/add`)}>
+                Add Agency
+              </Button>
+            </div>
+          )
         }
       />
 
@@ -77,11 +87,15 @@ export default function AgenciesManagement() {
         ]}
         minTableWidthClassName="min-w-[700px]"
         filterByTab={() => true}
-        actions={(row) => [
-          { label: "View Details", onClick: () => navigate(`/admin/agencies/add?editId=${row.id}&mode=view`) },
-          { label: "Update", onClick: () => navigate(`/admin/agencies/add?editId=${row.id}`) },
-          { label: "Delete", onClick: () => setToDelete(data.find((a) => a.id === row.id) ?? null), color: "danger" },
-        ]}
+        actions={(row) =>
+          readOnly
+            ? [{ label: "View Details", onClick: () => navigate(`${basePath}/agencies/add?editId=${row.id}&mode=view`) }]
+            : [
+                { label: "View Details", onClick: () => navigate(`${basePath}/agencies/add?editId=${row.id}&mode=view`) },
+                { label: "Update", onClick: () => navigate(`${basePath}/agencies/add?editId=${row.id}`) },
+                { label: "Delete", onClick: () => setToDelete(data.find((a) => a.id === row.id) ?? null), color: "danger" },
+              ]
+        }
       />
 
       <AppAlertDialog

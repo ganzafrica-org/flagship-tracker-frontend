@@ -117,6 +117,30 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconBuildingCommunity size={20} />,
     },
     {
+      id: "value-chains",
+      label: "Value Chains",
+      href: "/senior/value-chains",
+      icon: <IconPlant2 size={20} />,
+    },
+    {
+      id: "kpis",
+      label: "KPIs",
+      href: "/senior/kpis",
+      icon: <IconTargetArrow size={20} />,
+    },
+    {
+      id: "agencies",
+      label: "Agencies",
+      href: "/senior/agencies",
+      icon: <IconBuildingBank size={20} />,
+    },
+    {
+      id: "funders",
+      label: "Funders",
+      href: "/senior/funders",
+      icon: <IconCoin size={20} />,
+    },
+    {
       id: "reports",
       label: "Reports",
       href: "/senior/reports",
@@ -147,6 +171,30 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Individuals",
       href: "/me/individuals",
       icon: <IconIdBadge2 size={20} />,
+    },
+    {
+      id: "value-chains",
+      label: "Value Chains",
+      href: "/me/value-chains",
+      icon: <IconPlant2 size={20} />,
+    },
+    {
+      id: "kpis",
+      label: "KPIs",
+      href: "/me/kpis",
+      icon: <IconTargetArrow size={20} />,
+    },
+    {
+      id: "agencies",
+      label: "Agencies",
+      href: "/me/agencies",
+      icon: <IconBuildingBank size={20} />,
+    },
+    {
+      id: "funders",
+      label: "Funders",
+      href: "/me/funders",
+      icon: <IconCoin size={20} />,
     },
     {
       id: "reports",

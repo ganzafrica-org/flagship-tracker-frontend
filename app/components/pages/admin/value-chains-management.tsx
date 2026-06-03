@@ -10,7 +10,15 @@ import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { valueChainsQueryOptions, type ValueChain } from "~/lib/queries/lookups";
 
-export default function ValueChainsManagement() {
+interface ValueChainsManagementProps {
+  basePath?: string;
+  readOnly?: boolean;
+}
+
+export default function ValueChainsManagement({
+  basePath = "/admin",
+  readOnly = false,
+}: ValueChainsManagementProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(valueChainsQueryOptions());
@@ -44,8 +52,8 @@ export default function ValueChainsManagement() {
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="Value Chains"
-        actionLabel="Add Value Chain"
-        onActionPress={() => navigate("/admin/value-chains/add")}
+        actionLabel={readOnly ? undefined : "Add Value Chain"}
+        onActionPress={readOnly ? undefined : () => navigate(`${basePath}/value-chains/add`)}
       />
 
       {isError ? (
@@ -71,21 +79,30 @@ export default function ValueChainsManagement() {
         ]}
         minTableWidthClassName="min-w-[700px]"
         filterByTab={() => true}
-        actions={(row) => [
-          {
-            label: "View Details",
-            onClick: () => navigate(`/admin/value-chains/add?editId=${row.id}&mode=view`),
-          },
-          {
-            label: "Update",
-            onClick: () => navigate(`/admin/value-chains/add?editId=${row.id}`),
-          },
-          {
-            label: "Delete",
-            onClick: () => setToDelete(data.find((v) => v.id === row.id) ?? null),
-            color: "danger",
-          },
-        ]}
+        actions={(row) =>
+          readOnly
+            ? [
+                {
+                  label: "View Details",
+                  onClick: () => navigate(`${basePath}/value-chains/add?editId=${row.id}&mode=view`),
+                },
+              ]
+            : [
+                {
+                  label: "View Details",
+                  onClick: () => navigate(`${basePath}/value-chains/add?editId=${row.id}&mode=view`),
+                },
+                {
+                  label: "Update",
+                  onClick: () => navigate(`${basePath}/value-chains/add?editId=${row.id}`),
+                },
+                {
+                  label: "Delete",
+                  onClick: () => setToDelete(data.find((v) => v.id === row.id) ?? null),
+                  color: "danger",
+                },
+              ]
+        }
       />
 
       <AppAlertDialog
