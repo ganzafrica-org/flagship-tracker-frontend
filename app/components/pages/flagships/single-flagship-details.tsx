@@ -1,4 +1,4 @@
-import { Card, Dropdown } from "@heroui/react";
+import { Button, Card, Dropdown } from "@heroui/react";
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
@@ -26,6 +26,7 @@ import {
 import type { PieLabelRenderProps } from "recharts";
 
 import { PageTitleCard } from "~/components/page-title-card";
+import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
 import {
   CHART,
@@ -441,8 +442,14 @@ export function SingleFlagshipDetails({
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title={intro.displayTitle}
-        actionLabel="Generate Report"
-        onActionPress={onViewSummaryPress}
+        actionSlot={
+          <div className="flex items-center gap-3">
+            <VizRefreshButton />
+            <Button variant="primary" className="!rounded-3xl" onPress={onViewSummaryPress}>
+              Generate Report
+            </Button>
+          </div>
+        }
       />
 
       {/* KPI cards (3.2, 3.3, 3.6, 3.7, 3.9) */}

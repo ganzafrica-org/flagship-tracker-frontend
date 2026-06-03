@@ -1,6 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 
+/** Refresh all analytics materialized views on the server. */
+export const refreshVisualizations = () => api.post<void>("/api/visualizations/refresh");
+
 // ─── Senior dashboard (1.1–1.11) ────────────────────────────────────────────────
 
 export interface SeniorDashboard {

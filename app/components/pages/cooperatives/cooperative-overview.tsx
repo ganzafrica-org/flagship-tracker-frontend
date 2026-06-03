@@ -25,6 +25,7 @@ import {
 import { StatCard } from "~/components/stat-card";
 import { StatCardSkeleton } from "~/components/app-skeleton";
 import AppSelect from "~/components/app-select";
+import VizRefreshButton from "~/components/viz-refresh-button";
 import { CHART } from "~/data/dummy-flagship-detail";
 import { COOP_BAR_COLORS } from "~/data/dummy-cooperatives";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
@@ -84,16 +85,19 @@ export default function CooperativeOverview() {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      {/* Flagship filter */}
-      <div className="flex items-center gap-3 max-w-xs">
-        <AppSelect
-          name="flagshipFilter"
-          label="Filter by Flagship"
-          placeholder="All Flagships"
-          selectedKey={flagshipFilter}
-          onSelectionChange={setFlagshipFilter}
-          options={flagshipFilterOptions}
-        />
+      {/* Flagship filter + refresh */}
+      <div className="flex items-end justify-between gap-3">
+        <div className="max-w-xs flex-1">
+          <AppSelect
+            name="flagshipFilter"
+            label="Filter by Flagship"
+            placeholder="All Flagships"
+            selectedKey={flagshipFilter}
+            onSelectionChange={setFlagshipFilter}
+            options={flagshipFilterOptions}
+          />
+        </div>
+        <VizRefreshButton />
       </div>
 
       {/* KPI cards — C.1 to C.5 */}

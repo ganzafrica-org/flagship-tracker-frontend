@@ -34,6 +34,7 @@ import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
 import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { PageTitleCard } from "~/components/page-title-card";
+import VizRefreshButton from "~/components/viz-refresh-button";
 import TableComponent from "~/components/table-component";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -338,6 +339,9 @@ export default function IndividualsList({
 
       {viewMode === "overview" ? (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <VizRefreshButton />
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <AppSelect
               name="overviewProvince"

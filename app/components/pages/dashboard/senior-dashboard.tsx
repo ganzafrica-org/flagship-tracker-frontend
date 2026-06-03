@@ -24,6 +24,7 @@ import {
 import { Dropdown } from "@heroui/react";
 
 import { PageTitleCard } from "~/components/page-title-card";
+import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
 import { individualsQueryOptions } from "~/lib/queries/individuals";
 import { seniorDashboardQueryOptions } from "~/lib/queries/visualizations";
@@ -298,7 +299,7 @@ export default function SeniorDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
-      <PageTitleCard title="Dashboard Overview" />
+      <PageTitleCard title="Dashboard Overview" actionSlot={<VizRefreshButton />} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
