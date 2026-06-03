@@ -34,6 +34,7 @@ import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
 import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
+import { useUrlState } from "~/lib/use-url-state";
 import { PageTitleCard } from "~/components/page-title-card";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import TableComponent from "~/components/table-component";
@@ -136,10 +137,12 @@ export default function IndividualsList({
   const queryClient = useQueryClient();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("overview");
-  const [selectedProvince, setSelectedProvince] = useState("all");
-  const [selectedDistrict, setSelectedDistrict] = useState("all");
-  const [selectedFlagship, setSelectedFlagship] = useState("all");
-  const [selectedCategoryMode, setSelectedCategoryMode] = useState<CategoryMode>("all");
+  // Filters live in the URL so the view is shareable.
+  const [selectedProvince, setSelectedProvince] = useUrlState("province", "all");
+  const [selectedDistrict, setSelectedDistrict] = useUrlState("district", "all");
+  const [selectedFlagship, setSelectedFlagship] = useUrlState("flagship", "all");
+  const [selectedCategoryModeRaw, setSelectedCategoryMode] = useUrlState("view", "all");
+  const selectedCategoryMode = selectedCategoryModeRaw as CategoryMode;
   const { data: individuals = [], isLoading, isError, error } = useQuery(individualsQueryOptions);
 
   // Overview charts are served by the visualizations API (server-side dedup +

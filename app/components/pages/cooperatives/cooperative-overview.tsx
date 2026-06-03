@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useUrlState } from "~/lib/use-url-state";
 import { Card } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -39,7 +39,7 @@ const PROPORTION_FILLS = [CHART.accent, CHART.warning];
 
 export default function CooperativeOverview() {
   // "" = all flagships (server-side filter via ?flagship=<code>).
-  const [flagshipFilter, setFlagshipFilter] = useState("");
+  const [flagshipFilter, setFlagshipFilter] = useUrlState("flagship");
 
   const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
   const { data, isLoading } = useQuery(

@@ -1,4 +1,4 @@
-import { useMemo, useState, Suspense, lazy } from "react";
+import { useMemo, Suspense, lazy } from "react";
 import { Card, Separator, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -25,6 +25,7 @@ import { Dropdown } from "@heroui/react";
 
 import { PageTitleCard } from "~/components/page-title-card";
 import VizRefreshButton from "~/components/viz-refresh-button";
+import { useUrlState } from "~/lib/use-url-state";
 import { StatCard } from "~/components/stat-card";
 import { individualsQueryOptions } from "~/lib/queries/individuals";
 import { seniorDashboardQueryOptions } from "~/lib/queries/visualizations";
@@ -133,8 +134,10 @@ export default function SeniorDashboard() {
   const isLoading = flagshipsQuery.isLoading || individualsQuery.isLoading;
 
   const lastYear = SENIOR_DASHBOARD_YEARS[SENIOR_DASHBOARD_YEARS.length - 1];
-  const [genderYear, setGenderYear] = useState<SeniorDashboardYear>(lastYear);
-  const [jobsCreatedYear, setJobsCreatedYear] = useState<SeniorDashboardYear>(lastYear);
+  const [genderYearRaw, setGenderYear] = useUrlState("genderYear", lastYear);
+  const [jobsCreatedYearRaw, setJobsCreatedYear] = useUrlState("jobsYear", lastYear);
+  const genderYear = genderYearRaw as SeniorDashboardYear;
+  const jobsCreatedYear = jobsCreatedYearRaw as SeniorDashboardYear;
 
   const flagships = flagshipsQuery.data ?? [];
   const individuals = individualsQuery.data ?? [];
