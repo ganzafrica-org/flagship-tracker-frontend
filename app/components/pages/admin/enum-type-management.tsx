@@ -44,7 +44,8 @@ export default function EnumTypeManagement({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   // active=false → include inactive too so admins see everything they manage.
-  const { data = [], isLoading, isError, error } = useQuery(enumValuesQueryOptions(enumGroup, false));
+  // undefined = fetch all types (active + inactive) for management.
+  const { data = [], isLoading, isError, error } = useQuery(enumValuesQueryOptions(enumGroup, undefined));
 
   const [editing, setEditing] = useState<EnumValue | null>(null);
   const [modalOpen, setModalOpen] = useState(false);

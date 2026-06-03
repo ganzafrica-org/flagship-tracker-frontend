@@ -54,11 +54,19 @@ export type EnumGroup =
   | "funder_type"
   | "agency_type";
 
-export const enumValuesQueryOptions = (enumGroup: EnumGroup, active = true) =>
+/**
+ * @param active true = active only (default, for dropdowns); undefined = all
+ *   (active + inactive, for the Manage Types admin list).
+ */
+export const enumValuesQueryOptions = (enumGroup: EnumGroup, active: boolean | undefined = true) =>
   queryOptions({
-    queryKey: ["enum-values", enumGroup, active],
+    queryKey: ["enum-values", enumGroup, active ?? "all"],
     queryFn: ({ signal }) =>
-      api.get<EnumValue[]>("/api/lookups/enum-values/by-group", { enumGroup, active }, signal),
+      api.get<EnumValue[]>(
+        "/api/lookups/enum-values/by-group",
+        active === undefined ? { enumGroup } : { enumGroup, active },
+        signal,
+      ),
   });
 
 // Enum-value CRUD (admin-managed type lists, e.g. funder_type / agency_type)
