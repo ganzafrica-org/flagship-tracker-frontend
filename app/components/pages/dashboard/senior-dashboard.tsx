@@ -1,4 +1,4 @@
-import { useMemo, useState, Suspense, lazy } from "react";
+import { useMemo, Suspense, lazy } from "react";
 import { Card, Separator, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -17,29 +17,18 @@ import {
 import {
   IconBriefcase,
   IconBuildingCommunity,
-  IconCaretDownFilled,
   IconFlag,
   IconUsers,
 } from "@tabler/icons-react";
-import { Dropdown } from "@heroui/react";
 
 import { PageTitleCard } from "~/components/page-title-card";
+import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
-import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { individualsQueryOptions } from "~/lib/queries/individuals";
+import { seniorDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { CHART } from "~/data/dummy-flagship-detail";
-import {
-  FLAGSHIP_BAR_COLORS,
-  SENIOR_DASHBOARD_YEARS,
-  investmentDisaggregation,
-  investmentProgress,
-  jobsPerFlagshipByYear,
-  jobsCreatedByFlagshipForYear,
-  seniorDashboardStats,
-  youthEmploymentByYear,
-} from "~/data/dummy-senior-dashboard";
-import type { SeniorDashboardYear } from "~/data/dummy-senior-dashboard";
+import { FLAGSHIP_BAR_COLORS } from "~/data/dummy-senior-dashboard";
 
 const RwandaMap = lazy(() => import("~/components/pages/dashboard/rwanda-map"));
 
@@ -47,52 +36,35 @@ const RwandaMap = lazy(() => import("~/components/pages/dashboard/rwanda-map"));
 // Year filter dropdown (reusable within this page)
 // ---------------------------------------------------------------------------
 
-function YearFilter({
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  value: SeniorDashboardYear;
-  onChange: (year: SeniorDashboardYear) => void;
-  ariaLabel: string;
-}) {
+/** Shown in place of a chart when there is no data to plot. */
+function EmptyChart({ height = 280 }: { height?: number }) {
   return (
-    <Dropdown>
-      <Dropdown.Trigger
-        className="flex min-w-[88px] items-center justify-between gap-2 rounded-xl border border-(--separator) bg-(--surface) px-3 py-1.5 text-sm text-(--muted) hover:bg-(--default)"
-        aria-label={ariaLabel}
-      >
-        <span>{value}</span>
-        <IconCaretDownFilled size={14} className="shrink-0 text-(--muted)" />
-      </Dropdown.Trigger>
-      <Dropdown.Popover placement="bottom end">
-        <Dropdown.Menu
-          aria-label={ariaLabel}
-          selectionMode="single"
-          selectedKeys={[value]}
-          disallowEmptySelection
-          onAction={(key) => onChange(key as SeniorDashboardYear)}
-        >
-          {SENIOR_DASHBOARD_YEARS.map((year) => (
-            <Dropdown.Item key={year} id={year} textValue={year}>
-              {year}
-            </Dropdown.Item>
-          ))}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+    <div
+      className="flex flex-col items-center justify-center gap-1 text-center"
+      style={{ height }}
+    >
+      <span className="text-sm font-medium text-(--foreground)">No data yet</span>
+      <span className="text-xs text-(--muted)">Data will appear once records are added.</span>
+    </div>
   );
 }
-
 
 // ---------------------------------------------------------------------------
 // Investment progress row
 // ---------------------------------------------------------------------------
 
-function InvestmentProgressList() {
+interface ProgressRow {
+  id: string;
+  flagship: string;
+  targetLabel: string;
+  value: number;
+  status: "percentage" | "planning";
+}
+
+function InvestmentProgressList({ rows }: { rows: ProgressRow[] }) {
   return (
     <div className="flex flex-col">
-      {investmentProgress.map((item, index) => (
+      {rows.map((item, index) => (
         <div key={item.id}>
           {index > 0 && <Separator />}
           <div className="flex items-center justify-between gap-4 py-3">
@@ -118,113 +90,83 @@ function InvestmentProgressList() {
 // ---------------------------------------------------------------------------
 
 export default function SeniorDashboard() {
-  const { isLoading } = useQuery(dashboardQueryOptions);
   const flagshipsQuery = useQuery(flagshipsQueryOptions);
   const individualsQuery = useQuery(individualsQueryOptions);
-
-  const lastYear = SENIOR_DASHBOARD_YEARS[SENIOR_DASHBOARD_YEARS.length - 1];
-  const [genderYear, setGenderYear] = useState<SeniorDashboardYear>(lastYear);
-  const [jobsCreatedYear, setJobsCreatedYear] = useState<SeniorDashboardYear>(lastYear);
+  const vizQuery = useQuery(seniorDashboardQueryOptions());
+  const isLoading = flagshipsQuery.isLoading || individualsQuery.isLoading;
 
   const flagships = flagshipsQuery.data ?? [];
   const individuals = individualsQuery.data ?? [];
+  const viz = vizQuery.data;
 
+  // All values come from the visualizations API (materialized views). When there
+  // is no underlying data the cards show 0 / "—" and the charts render empty —
+  // never fabricated placeholder numbers.
   const dashboardStats = useMemo(() => {
-    const totalFlagships = flagships.length || seniorDashboardStats.totalFlagships;
-    const totalJobsCreated =
-      flagships.reduce((sum, f) => sum + Math.max(0, f.jobsCreated ?? 0), 0) ||
-      seniorDashboardStats.totalJobsCreated;
-
-    const uniqueInvestors = new Set<string>();
-    for (const flagship of flagships) {
-      for (const inv of flagship.investments ?? []) {
-        const investor = (inv.investorName ?? "").trim();
-        if (investor) uniqueInvestors.add(investor.toLowerCase());
-      }
-      for (const contribution of flagship.fundingContributions ?? []) {
-        const name = (contribution.name ?? "").trim();
-        if (name) uniqueInvestors.add(name.toLowerCase());
-      }
-      const funderNames = (flagship.funders ?? "")
-        .split(",")
-        .map((name) => name.trim())
-        .filter(Boolean);
-      for (const name of funderNames) uniqueInvestors.add(name.toLowerCase());
-    }
-
-    const totalInvestors = uniqueInvestors.size || seniorDashboardStats.totalInvestors;
-    const totalIndividualsRegistered = individuals.length || seniorDashboardStats.totalYouthRegistered;
-
+    const totalInvestmentRwf = viz?.cards.totalInvestmentRwf ?? null;
     return {
-      totalFlagships,
-      totalJobsCreated,
-      totalInvestors,
-      totalIndividualsRegistered,
-      totalCooperativesEngaged: seniorDashboardStats.totalCooperativesEngaged,
-      totalInvestment: seniorDashboardStats.totalInvestment,
+      totalFlagships: viz?.cards.totalFlagships ?? 0,
+      totalJobsCreated: viz?.cards.totalJobsCreated ?? 0,
+      totalInvestors: viz?.cards.totalInvestors ?? 0,
+      totalIndividualsRegistered: individuals.length,
+      totalCooperativesEngaged: viz?.cards.totalCooperativesEngaged ?? 0,
+      totalInvestment:
+        totalInvestmentRwf != null
+          ? `${(totalInvestmentRwf / 1_000_000_000).toFixed(1)}B RWF`
+          : "—",
     };
-  }, [flagships, individuals]);
+  }, [individuals, viz]);
 
+  // 1.11 — investment progress (real data, empty when none).
+  const progressRows = useMemo<ProgressRow[]>(() => {
+    return (viz?.investmentProgress ?? []).map((p) => ({
+      id: String(p.flagshipId),
+      flagship: p.flagshipCode,
+      targetLabel:
+        p.budgetTotalRwf != null
+          ? `${(p.budgetTotalRwf / 1_000_000_000).toFixed(1)}B RWF`
+          : "—",
+      value: p.progressPercent ?? 0,
+      status: p.progressPercent != null ? "percentage" : "planning",
+    }));
+  }, [viz]);
+
+  // 1.6 — youth vs non-youth, computed from real individuals (empty when none).
   const genderData = useMemo(() => {
-    if (individuals.length === 0) return youthEmploymentByYear[genderYear];
-
-    const cutoffYear = Number(genderYear);
     let youth = 0;
     let nonYouth = 0;
-
     for (const individual of individuals) {
-      const createdYear = Number((individual.createdAt ?? "").slice(0, 4));
-      if (Number.isFinite(createdYear) && createdYear > cutoffYear) continue;
-
-      const category = (individual.youthCategory ?? "").toLowerCase();
-      if (category.includes("non")) nonYouth += 1;
-      else youth += 1;
+      if (individual.youthCategory) youth += 1;
+      else nonYouth += 1;
     }
-
-    const total = youth + nonYouth;
-    if (total === 0) return youthEmploymentByYear[genderYear];
-
+    if (youth + nonYouth === 0) return [];
     return [
       { name: "Youth", value: youth, fill: CHART.accent },
       { name: "Non-Youth", value: nonYouth, fill: CHART.warning },
     ];
-  }, [genderYear, individuals]);
+  }, [individuals]);
 
-  const jobsCreatedData = useMemo(() => {
-    if (flagships.length === 0) return jobsCreatedByFlagshipForYear(jobsCreatedYear);
-    return flagships.map((item) => ({
-      flagship: item.flagshipCode || item.flagshipName,
-      jobs: Math.max(0, item.jobsCreated ?? 0),
-    }));
-  }, [flagships, jobsCreatedYear]);
+  // 1.8 — jobs created by flagship (materialized view; empty when none).
+  const jobsCreatedData = useMemo(
+    () =>
+      (viz?.jobsByFlagship ?? []).map((item) => ({
+        flagship: item.flagshipCode || item.flagshipName,
+        jobs: Math.max(0, item.jobs ?? 0),
+      })),
+    [viz],
+  );
 
-  const jobsForYouthData = jobsPerFlagshipByYear[jobsCreatedYear];
-
+  // 1.9 — investment disaggregation by source (materialized view; empty when none).
   const investmentSplitData = useMemo(() => {
-    if (flagships.length === 0) return investmentDisaggregation;
-
-    const sourceTotals = new Map<string, number>();
-    let totalAmount = 0;
-
-    for (const flagship of flagships) {
-      for (const inv of flagship.investments ?? []) {
-        const source = (inv.sourceType ?? "other").trim() || "other";
-        const amount = Number(inv.amountRwf ?? inv.amount ?? 0);
-        if (!Number.isFinite(amount) || amount <= 0) continue;
-        sourceTotals.set(source, (sourceTotals.get(source) ?? 0) + amount);
-        totalAmount += amount;
-      }
-    }
-
-    if (totalAmount <= 0 || sourceTotals.size === 0) return investmentDisaggregation;
-
-    const entries = Array.from(sourceTotals.entries()).sort((a, b) => b[1] - a[1]);
-    return entries.map(([source, amount], index) => ({
-      name: source.charAt(0).toUpperCase() + source.slice(1),
-      value: Math.round((amount / totalAmount) * 100),
+    const rows = viz?.investmentBySource ?? [];
+    const total = rows.reduce((s, r) => s + (r.value ?? 0), 0);
+    if (total <= 0) return [];
+    return rows.map((r, index) => ({
+      name: r.name.charAt(0).toUpperCase() + r.name.slice(1),
+      value: Math.round(((r.value ?? 0) / total) * 100),
       fill: FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length],
     }));
-  }, [flagships]);
+  }, [viz]);
 
   if (isLoading) {
     return (
@@ -247,7 +189,7 @@ export default function SeniorDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
-      <PageTitleCard title="Dashboard Overview" />
+      <PageTitleCard title="Dashboard Overview" actionSlot={<VizRefreshButton />} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -287,11 +229,11 @@ export default function SeniorDashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 1 — Donut: Youth vs non-youth participation */}
         <Card>
-          <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <Card.Header>
             <Card.Title>Youth vs Non-Youth Participation</Card.Title>
-            <YearFilter value={genderYear} onChange={setGenderYear} ariaLabel="Gender year filter" />
           </Card.Header>
           <Card.Content className="p-4 pt-2">
+            {genderData.length === 0 ? <EmptyChart /> : (
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <Pie
@@ -314,16 +256,17 @@ export default function SeniorDashboard() {
                 <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
 
         {/* 2 — Column: Jobs Created by Flagships */}
         <Card>
-          <Card.Header className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <Card.Header>
             <Card.Title>Jobs Created by Flagships</Card.Title>
-            <YearFilter value={jobsCreatedYear} onChange={setJobsCreatedYear} ariaLabel="Jobs created year filter" />
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {jobsCreatedData.length === 0 ? <EmptyChart height={240} /> : (
             <ResponsiveContainer width="100%" height={240} minWidth={0}>
               <BarChart data={jobsCreatedData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -337,37 +280,17 @@ export default function SeniorDashboard() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
 
-        {/* 3 — Column: Number of jobs for youth per flagship */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Number of jobs for youth per flagship</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            <ResponsiveContainer width="100%" height={240} minWidth={0}>
-              <BarChart data={jobsForYouthData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
-                <Bar dataKey="jobs" name="Youth Jobs" radius={[4, 4, 0, 0]}>
-                  {jobsForYouthData.map((entry, index) => (
-                    <Cell key={entry.flagship} fill={FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card.Content>
-        </Card>
-
-        {/* 4 — Pie: Disaggregation of Total Investment */}
+        {/* Pie: Disaggregation of Total Investment */}
         <Card>
           <Card.Header>
             <Card.Title>Disaggregation of Total Investment</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {investmentSplitData.length === 0 ? <EmptyChart /> : (
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
                 <Pie
@@ -397,9 +320,10 @@ export default function SeniorDashboard() {
                 />
               </PieChart>
             </ResponsiveContainer>
+            )}
             <p className="pt-2 text-sm text-(--foreground) text-center">
               <span className="font-semibold">{dashboardStats.totalInvestment}</span>{" "}
-              (RWF) investment in total
+              investment in total
             </p>
           </Card.Content>
         </Card>
@@ -414,7 +338,13 @@ export default function SeniorDashboard() {
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             <Suspense fallback={<Skeleton className="h-[380px] rounded-xl" />}>
-              <RwandaMap />
+              <RwandaMap
+                locations={(viz?.locations ?? []).map((l) => ({
+                  name: l.flagshipCode || l.flagshipName,
+                  district: l.district,
+                  province: l.province,
+                }))}
+              />
             </Suspense>
           </Card.Content>
         </Card>
@@ -425,7 +355,11 @@ export default function SeniorDashboard() {
             <Card.Title>Investment Progress</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            <InvestmentProgressList />
+            {progressRows.length === 0 ? (
+              <p className="py-8 text-center text-sm text-(--muted)">No investment data yet.</p>
+            ) : (
+              <InvestmentProgressList rows={progressRows} />
+            )}
           </Card.Content>
         </Card>
       </div>

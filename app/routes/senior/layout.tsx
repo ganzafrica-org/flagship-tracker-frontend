@@ -3,7 +3,6 @@ import { Outlet, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
 import { queryClient } from "~/lib/query-client";
-import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";
 import Navbar from "~/components/navigation/navbar";
@@ -13,7 +12,6 @@ import AuthLoading from "~/components/auth/auth-loading";
 
 export async function clientLoader() {
   if (!hasValidSession()) return null;
-  queryClient.prefetchQuery(dashboardQueryOptions);
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
   return null;

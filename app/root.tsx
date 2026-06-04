@@ -48,7 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Toast.Provider />
+      <Toast.Provider placement="top" />
       <TopProgressBar />
       <Outlet />
     </QueryClientProvider>

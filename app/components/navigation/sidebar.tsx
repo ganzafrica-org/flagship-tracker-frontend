@@ -8,6 +8,10 @@ import {
   IconCirclePlus,
   IconBuildingCommunity,
   IconIdBadge2,
+  IconPlant2,
+  IconTargetArrow,
+  IconBuildingBank,
+  IconCoin,
 } from "@tabler/icons-react";
 
 type UserRole = "admin" | "senior" | "me";
@@ -51,6 +55,36 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconIdBadge2 size={20} />,
     },
     {
+      id: "value-chains",
+      label: "Value Chains",
+      href: "/admin/value-chains",
+      icon: <IconPlant2 size={20} />,
+    },
+    {
+      id: "kpis",
+      label: "KPIs",
+      href: "/admin/kpis",
+      icon: <IconTargetArrow size={20} />,
+    },
+    {
+      id: "agencies",
+      label: "Agencies",
+      href: "/admin/agencies",
+      icon: <IconBuildingBank size={20} />,
+    },
+    {
+      id: "funders",
+      label: "Funders",
+      href: "/admin/funders",
+      icon: <IconCoin size={20} />,
+    },
+    {
+      id: "cooperatives",
+      label: "Cooperatives",
+      href: "/admin/cooperatives",
+      icon: <IconBuildingCommunity size={20} />,
+    },
+    {
       id: "reports",
       label: "Reports",
       href: "/admin/reports",
@@ -75,6 +109,36 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Individuals",
       href: "/senior/individuals",
       icon: <IconIdBadge2 size={20} />,
+    },
+    {
+      id: "cooperatives",
+      label: "Cooperatives",
+      href: "/senior/cooperatives",
+      icon: <IconBuildingCommunity size={20} />,
+    },
+    {
+      id: "value-chains",
+      label: "Value Chains",
+      href: "/senior/value-chains",
+      icon: <IconPlant2 size={20} />,
+    },
+    {
+      id: "kpis",
+      label: "KPIs",
+      href: "/senior/kpis",
+      icon: <IconTargetArrow size={20} />,
+    },
+    {
+      id: "agencies",
+      label: "Agencies",
+      href: "/senior/agencies",
+      icon: <IconBuildingBank size={20} />,
+    },
+    {
+      id: "funders",
+      label: "Funders",
+      href: "/senior/funders",
+      icon: <IconCoin size={20} />,
     },
     {
       id: "reports",
@@ -109,6 +173,30 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconIdBadge2 size={20} />,
     },
     {
+      id: "value-chains",
+      label: "Value Chains",
+      href: "/me/value-chains",
+      icon: <IconPlant2 size={20} />,
+    },
+    {
+      id: "kpis",
+      label: "KPIs",
+      href: "/me/kpis",
+      icon: <IconTargetArrow size={20} />,
+    },
+    {
+      id: "agencies",
+      label: "Agencies",
+      href: "/me/agencies",
+      icon: <IconBuildingBank size={20} />,
+    },
+    {
+      id: "funders",
+      label: "Funders",
+      href: "/me/funders",
+      icon: <IconCoin size={20} />,
+    },
+    {
       id: "reports",
       label: "Report",
       href: "/me/reports",
@@ -119,7 +207,19 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
 
 export default function Sidebar({ role, isOpen }: SidebarProps) {
   const items = SIDEBAR_ITEMS[role];
-  const exactMatchIds = new Set(["flagships", "cooperatives", "reports", "users", "dashboard", "individuals"]);
+  
+  const exactMatchIds = new Set([
+    "flagships",
+    "cooperatives",
+    "reports",
+    "users",
+    "dashboard",
+    "individuals",
+    "value-chains",
+    "kpis",
+    "agencies",
+    "funders",
+  ]);
 
   return (
     <aside
