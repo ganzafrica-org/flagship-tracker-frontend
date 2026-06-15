@@ -28,6 +28,9 @@ import {
   individualQueryOptions,
   individualsQueryOptions,
   updateIndividual,
+  type IndividualCooperativeRelation,
+  type IndividualFlagshipRelation,
+  type UpdateIndividualRequest,
 } from "~/lib/queries/individuals";
 import { useIndividualsFormLookups } from "~/lib/queries/lookups";
 import { useFlagshipSelectOptions } from "~/lib/queries/flagships";
@@ -87,14 +90,6 @@ const VALUE_CHAIN_STAGE_OPTIONS = [
   { value: "processing", label: "Processing" },
   { value: "distribution", label: "Distribution" },
   { value: "retail", label: "Retail" },
-];
-
-const DUMMY_COOPERATIVES = [
-  { value: "coop-1", label: "Inkingi Cooperative" },
-  { value: "coop-2", label: "Amahoro Farmers Group" },
-  { value: "coop-3", label: "Twisungane Cooperative" },
-  { value: "coop-4", label: "Urumuri Agri Coop" },
-  { value: "coop-5", label: "Koperative Nyaruguru" },
 ];
 
 const EMPLOYMENT_TYPE_OPTIONS = [
@@ -217,8 +212,164 @@ function parseOptionalInt(value: string): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function parsePositiveInt(value: string): number | undefined {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
 function dateValueToIso(value: DateValue | null): string | undefined {
   return value ? value.toString() : undefined;
+}
+
+function isoToDateValue(iso: string | null | undefined): DateValue | null {
+  if (!iso) return null;
+  return parseDate(iso.slice(0, 10));
+}
+
+function flagshipRelationToEntry(relation: IndividualFlagshipRelation): FlagshipEntry {
+  return {
+    id: crypto.randomUUID(),
+    flagshipId: String(relation.flagshipId),
+    participationType: relation.participationType ?? "",
+    startDate: isoToDateValue(relation.startDate),
+    endDate: isoToDateValue(relation.endDate),
+    notes: relation.notes ?? "",
+  };
+}
+
+function cooperativeRelationToEntry(relation: IndividualCooperativeRelation): CooperativeEntry {
+  return {
+    id: crypto.randomUUID(),
+    cooperativeId: String(relation.cooperativeId),
+    role: relation.role ?? "",
+    joinDate: isoToDateValue(relation.joinDate),
+    endDate: isoToDateValue(relation.endDate),
+  };
+}
+
+function buildFlagshipsPayload(entries: FlagshipEntry[]): IndividualFlagshipRelation[] {
+  return entries.flatMap((entry) => {
+    const flagshipId = parsePositiveInt(entry.flagshipId);
+    if (flagshipId == null) return [];
+    return [{
+      flagshipId,
+      participationType: entry.participationType || undefined,
+      startDate: dateValueToIso(entry.startDate),
+      endDate: dateValueToIso(entry.endDate),
+      active: true,
+      notes: entry.notes || undefined,
+    }];
+  });
+}
+
+function buildCooperativesPayload(entries: CooperativeEntry[]): IndividualCooperativeRelation[] {
+  return entries.flatMap((entry) => {
+    const cooperativeId = parsePositiveInt(entry.cooperativeId);
+    if (cooperativeId == null) return [];
+    return [{
+      cooperativeId,
+      role: entry.role || undefined,
+      joinDate: dateValueToIso(entry.joinDate),
+      endDate: dateValueToIso(entry.endDate),
+      active: true,
+    }];
+  });
+}
+
+function yearFromDateValue(value: DateValue | null): number | undefined {
+  if (!value) return undefined;
+  return parseOptionalInt(value.toString().slice(0, 4));
+}
+
+function buildRelationsPayload(
+  basic: BasicInfoFields,
+  entries: {
+    flagshipEntries: FlagshipEntry[];
+    cooperativeEntries: CooperativeEntry[];
+    valueChainEntries: ValueChainEntry[];
+    employmentEntries: EmploymentEntry[];
+    landEntries: LandEntry[];
+    productionEntries: ProductionEntry[];
+    interventionEntries: InterventionEntry[];
+    constraintEntries: ConstraintEntry[];
+  },
+): UpdateIndividualRequest {
+  const fallbackLocation = basic.location;
+
+  return {
+    flagships: buildFlagshipsPayload(entries.flagshipEntries),
+    cooperatives: buildCooperativesPayload(entries.cooperativeEntries),
+    valueChains: entries.valueChainEntries.map((entry) => ({
+      cluster: entry.cluster,
+      valueChain: entry.valueChain,
+      valueChainStage: entry.valueChainStage || undefined,
+      primary: entry.isPrimary,
+      details: entry.details || undefined,
+      year: parseOptionalInt(entry.year),
+    })),
+    employments: entries.employmentEntries.map((entry) => ({
+      flagshipId: parsePositiveInt(entry.flagshipId),
+      cooperativeId: parsePositiveInt(entry.cooperativeId),
+      employmentType: entry.employmentType || undefined,
+      employmentStatus: entry.employmentStatus || undefined,
+      employerName: entry.employerName || undefined,
+      employerType: entry.employerType || undefined,
+      jobTitle: entry.jobTitle || undefined,
+      incomeRangeRwf: entry.incomeRange || undefined,
+      primaryJob: entry.isPrimaryJob,
+      startDate: dateValueToIso(entry.startDate),
+      endDate: dateValueToIso(entry.endDate),
+    })),
+    landAccess: entries.landEntries.map((entry) => ({
+      landSizeHa: parseOptionalNumber(entry.landSizeHa),
+      landUseType: entry.landUseType,
+      ownershipStatus: entry.ownershipStatus,
+      province: entry.province || fallbackLocation.province,
+      district: entry.district || fallbackLocation.district,
+      sector: entry.sector || fallbackLocation.sector,
+      hasLandTitle: entry.hasLandTitle ? entry.hasLandTitle === "true" : undefined,
+      year: parseOptionalInt(entry.year),
+    })),
+    productionRecords: entries.productionEntries.map((entry) => ({
+      flagshipId: parsePositiveInt(entry.flagshipId),
+      cooperativeId: parsePositiveInt(entry.cooperativeId),
+      product: entry.product,
+      valueChain: entry.valueChain || undefined,
+      season: entry.season || undefined,
+      year: parseOptionalInt(entry.year),
+      quantityProduced: parseOptionalNumber(entry.quantityProduced),
+      quantitySold: parseOptionalNumber(entry.quantitySold),
+      unit: entry.unit || undefined,
+      revenueRwf: parseOptionalNumber(entry.revenueRwf),
+      marketChannel: entry.marketChannel || undefined,
+      notes: entry.notes || undefined,
+    })),
+    interventions: entries.interventionEntries.map((entry) => ({
+      flagshipId: parsePositiveInt(entry.flagshipId),
+      cooperativeId: parsePositiveInt(entry.cooperativeId),
+      interventionType: entry.interventionType,
+      description: entry.description || undefined,
+      deliveryDate: dateValueToIso(entry.deliveryDate),
+      year: yearFromDateValue(entry.deliveryDate) ?? new Date().getFullYear(),
+      valueRwf: parseOptionalNumber(entry.valueRwf),
+      deliveryLocation: entry.deliveryLocation || undefined,
+      notes: entry.notes || undefined,
+    })),
+    constraintFeedback: entries.constraintEntries.flatMap((entry) => {
+      const flagshipId = parsePositiveInt(entry.flagshipId);
+      if (flagshipId == null) return [];
+      return [{
+        flagshipId,
+        cooperativeId: parsePositiveInt(entry.cooperativeId),
+        constraintType: entry.constraintType || undefined,
+        severity: entry.severity || undefined,
+        description: entry.description || undefined,
+        reportedDate: dateValueToIso(entry.reportedDate),
+        year: yearFromDateValue(entry.reportedDate) ?? new Date().getFullYear(),
+        location: entry.location || undefined,
+      }];
+    }),
+  };
 }
 
 const STEPS: StepConfig[] = [
@@ -380,6 +531,8 @@ function validateBasicInfo(f: BasicInfoFields): BasicInfoErrors {
   if (!f.sex) e.sex = "Sex is required";
   if (!f.registrationSource) e.registrationSource = "Registration source is required";
   if (!f.location.province) e.province = "Province is required";
+  if (f.location.province && !f.location.district) e.province = "District is required";
+  if (f.location.district && !f.location.sector) e.province = "Sector is required";
   return e;
 }
 
@@ -485,6 +638,10 @@ function FlagshipStep({ entries, onAdd, onRemove }: { entries: FlagshipEntry[]; 
   function handleSave() {
     const errs = validateFlagshipEntry(draft);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (entries.some((e) => e.flagshipId === draft.flagshipId)) {
+      setErrors({ flagshipId: "This flagship is already added" });
+      return;
+    }
     onAdd(draft);
     setModalOpen(false);
   }
@@ -593,12 +750,16 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
   function handleSave() {
     const errs = validateCooperativeEntry(draft);
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (entries.some((e) => e.cooperativeId === draft.cooperativeId)) {
+      setErrors({ cooperativeId: "This cooperative is already added" });
+      return;
+    }
     onAdd(draft);
     setModalOpen(false);
   }
 
   const coopLabel = (id: string) =>
-    pickOptions(cooperativeOptions, DUMMY_COOPERATIVES).find((c) => c.value === id)?.label ?? id;
+    cooperativeOptions.find((c) => c.value === id)?.label ?? id;
 
   return (
     <div className="space-y-4">
@@ -637,7 +798,7 @@ function CooperativeStep({ entries, onAdd, onRemove }: { entries: CooperativeEnt
                 name="cooperativeId"
                 label="Cooperative *"
                 placeholder="Select cooperative"
-                options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)}
+                options={cooperativeOptions}
                 selectedKey={draft.cooperativeId}
                 onSelectionChange={(v) => { setDraft((d) => ({ ...d, cooperativeId: v })); setErrors((e) => ({ ...e, cooperativeId: undefined })); }}
                 errorMessage={errors.cooperativeId}
@@ -873,7 +1034,7 @@ function EmploymentStep({ entries, onAdd, onRemove }: { entries: EmploymentEntry
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={cooperativeOptions} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppDate name="startDate" label="Start Date" value={draft.startDate} onChange={(v) => setDraft((d) => ({ ...d, startDate: v }))} />
@@ -1040,7 +1201,7 @@ function ProductionStep({ entries, onAdd, onRemove }: { entries: ProductionEntry
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={cooperativeOptions} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <AppTextarea name="notes" label="Notes" placeholder="Additional context..." value={draft.notes} onChange={(v) => setDraft((d) => ({ ...d, notes: v }))} rows={3} />
             </Modal.Body>
@@ -1105,7 +1266,7 @@ function InterventionStep({ entries, onAdd, onRemove }: { entries: InterventionE
               <AppSelect name="interventionType" label="Intervention Type *" placeholder="Select type" options={pickOptions(interventionTypeOptions, INTERVENTION_TYPE_OPTIONS)} selectedKey={draft.interventionType} onSelectionChange={(v) => { setDraft((d) => ({ ...d, interventionType: v })); setErrors((er) => ({ ...er, interventionType: undefined })); }} errorMessage={errors.interventionType} isRequired />
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect name="flagshipId" label="Flagship" placeholder="Select flagship" options={flagshipOptions} selectedKey={draft.flagshipId} onSelectionChange={(v) => setDraft((d) => ({ ...d, flagshipId: v }))} />
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={cooperativeOptions} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <AppDate name="deliveryDate" label="Delivery Date" value={draft.deliveryDate} onChange={(v) => setDraft((d) => ({ ...d, deliveryDate: v }))} />
@@ -1179,7 +1340,7 @@ function ConstraintStep({ entries, onAdd, onRemove }: { entries: ConstraintEntry
                 <AppSelect name="severity" label="Severity" placeholder="Select severity" options={pickOptions(severityOptions, SEVERITY_OPTIONS)} selectedKey={draft.severity} onSelectionChange={(v) => setDraft((d) => ({ ...d, severity: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={pickOptions(cooperativeOptions, DUMMY_COOPERATIVES)} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
+                <AppSelect name="cooperativeId" label="Cooperative" placeholder="Select cooperative" options={cooperativeOptions} selectedKey={draft.cooperativeId} onSelectionChange={(v) => setDraft((d) => ({ ...d, cooperativeId: v }))} />
                 <AppDate name="reportedDate" label="Reported Date" value={draft.reportedDate} onChange={(v) => setDraft((d) => ({ ...d, reportedDate: v }))} />
               </div>
               <AppTextField name="location" label="Location" placeholder="Where the constraint was observed" value={draft.location} onChange={(v) => setDraft((d) => ({ ...d, location: v }))} />
@@ -1275,6 +1436,14 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
 
   useEffect(() => {
     setPrefilled(false);
+    setFlagshipEntries([]);
+    setCooperativeEntries([]);
+    setValueChainEntries([]);
+    setEmploymentEntries([]);
+    setLandEntries([]);
+    setProductionEntries([]);
+    setInterventionEntries([]);
+    setConstraintEntries([]);
   }, [editId]);
 
   useEffect(() => {
@@ -1304,11 +1473,182 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       latitude: existingIndividual.latitude == null ? "" : String(existingIndividual.latitude),
       longitude: existingIndividual.longitude == null ? "" : String(existingIndividual.longitude),
     }));
+    setFlagshipEntries((existingIndividual.flagships ?? []).map(flagshipRelationToEntry));
+    setCooperativeEntries((existingIndividual.cooperatives ?? []).map(cooperativeRelationToEntry));
+    setValueChainEntries(
+      (existingIndividual.valueChains ?? []).map((row) => {
+        const entry = row as {
+          cluster?: string;
+          valueChain?: string;
+          valueChainStage?: string;
+          primary?: boolean;
+          details?: string;
+          year?: number;
+        };
+        return {
+          id: crypto.randomUUID(),
+          cluster: entry.cluster ?? "",
+          valueChain: entry.valueChain ?? "",
+          valueChainStage: entry.valueChainStage ?? "",
+          isPrimary: entry.primary ?? false,
+          details: entry.details ?? "",
+          year: entry.year == null ? "" : String(entry.year),
+        };
+      }),
+    );
+    setEmploymentEntries(
+      (existingIndividual.employments ?? []).map((row) => {
+        const entry = row as {
+          flagshipId?: number;
+          cooperativeId?: number;
+          employmentType?: string;
+          employmentStatus?: string;
+          employerName?: string;
+          employerType?: string;
+          jobTitle?: string;
+          incomeRangeRwf?: string;
+          primaryJob?: boolean;
+          startDate?: string;
+          endDate?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          flagshipId: entry.flagshipId == null ? "" : String(entry.flagshipId),
+          cooperativeId: entry.cooperativeId == null ? "" : String(entry.cooperativeId),
+          employmentType: entry.employmentType ?? "",
+          employmentStatus: entry.employmentStatus ?? "",
+          employerName: entry.employerName ?? "",
+          employerType: entry.employerType ?? "",
+          jobTitle: entry.jobTitle ?? "",
+          incomeRange: entry.incomeRangeRwf ?? "",
+          isPrimaryJob: entry.primaryJob ?? false,
+          startDate: isoToDateValue(entry.startDate),
+          endDate: isoToDateValue(entry.endDate),
+        };
+      }),
+    );
+    setLandEntries(
+      (existingIndividual.landAccess ?? []).map((row) => {
+        const entry = row as {
+          landUseType?: string;
+          ownershipStatus?: string;
+          province?: string;
+          district?: string;
+          sector?: string;
+          landSizeHa?: number;
+          hasLandTitle?: boolean;
+          year?: number;
+        };
+        return {
+          id: crypto.randomUUID(),
+          landSizeHa: entry.landSizeHa == null ? "" : String(entry.landSizeHa),
+          landUseType: entry.landUseType ?? "",
+          ownershipStatus: entry.ownershipStatus ?? "",
+          province: entry.province ?? "",
+          district: entry.district ?? "",
+          sector: entry.sector ?? "",
+          hasLandTitle: entry.hasLandTitle == null ? "" : String(entry.hasLandTitle),
+          year: entry.year == null ? "" : String(entry.year),
+        };
+      }),
+    );
+    setProductionEntries(
+      (existingIndividual.productionRecords ?? []).map((row) => {
+        const entry = row as {
+          flagshipId?: number;
+          cooperativeId?: number;
+          product?: string;
+          valueChain?: string;
+          season?: string;
+          year?: number;
+          quantityProduced?: number;
+          quantitySold?: number;
+          unit?: string;
+          revenueRwf?: number;
+          marketChannel?: string;
+          notes?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          flagshipId: entry.flagshipId == null ? "" : String(entry.flagshipId),
+          cooperativeId: entry.cooperativeId == null ? "" : String(entry.cooperativeId),
+          product: entry.product ?? "",
+          valueChain: entry.valueChain ?? "",
+          season: entry.season ?? "",
+          year: entry.year == null ? "" : String(entry.year),
+          quantityProduced: entry.quantityProduced == null ? "" : String(entry.quantityProduced),
+          quantitySold: entry.quantitySold == null ? "" : String(entry.quantitySold),
+          unit: entry.unit ?? "",
+          revenueRwf: entry.revenueRwf == null ? "" : String(entry.revenueRwf),
+          marketChannel: entry.marketChannel ?? "",
+          notes: entry.notes ?? "",
+        };
+      }),
+    );
+    setInterventionEntries(
+      (existingIndividual.interventions ?? []).map((row) => {
+        const entry = row as {
+          flagshipId?: number;
+          cooperativeId?: number;
+          interventionType?: string;
+          description?: string;
+          deliveryDate?: string;
+          valueRwf?: number;
+          deliveryLocation?: string;
+          notes?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          flagshipId: entry.flagshipId == null ? "" : String(entry.flagshipId),
+          cooperativeId: entry.cooperativeId == null ? "" : String(entry.cooperativeId),
+          interventionType: entry.interventionType ?? "",
+          description: entry.description ?? "",
+          deliveryDate: isoToDateValue(entry.deliveryDate),
+          valueRwf: entry.valueRwf == null ? "" : String(entry.valueRwf),
+          deliveryLocation: entry.deliveryLocation ?? "",
+          notes: entry.notes ?? "",
+        };
+      }),
+    );
+    setConstraintEntries(
+      (existingIndividual.constraintFeedback ?? []).map((row) => {
+        const entry = row as {
+          flagshipId?: number;
+          cooperativeId?: number;
+          constraintType?: string;
+          severity?: string;
+          description?: string;
+          reportedDate?: string;
+          location?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          flagshipId: entry.flagshipId == null ? "" : String(entry.flagshipId),
+          cooperativeId: entry.cooperativeId == null ? "" : String(entry.cooperativeId),
+          constraintType: entry.constraintType ?? "",
+          severity: entry.severity ?? "",
+          description: entry.description ?? "",
+          reportedDate: isoToDateValue(entry.reportedDate),
+          location: entry.location ?? "",
+        };
+      }),
+    );
     setPrefilled(true);
   }, [isUpdateMode, existingIndividual, prefilled]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const entryState = {
+        flagshipEntries,
+        cooperativeEntries,
+        valueChainEntries,
+        employmentEntries,
+        landEntries,
+        productionEntries,
+        interventionEntries,
+        constraintEntries,
+      };
+      const relations = buildRelationsPayload(basic, entryState);
       const payload = {
         nationalId: basic.nationalId || undefined,
         phoneNumber: basic.phoneNumber.trim(),
@@ -1323,135 +1663,26 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
         province: basic.location.province,
         district: basic.location.district,
         sector: basic.location.sector,
-        cell: basic.location.cell,
-        village: basic.location.village,
+        cell: basic.location.cell || "",
+        village: basic.location.village || "",
         latitude: basic.latitude ? parseOptionalNumber(basic.latitude) : undefined,
         longitude: basic.longitude ? parseOptionalNumber(basic.longitude) : undefined,
       };
+
       if (isUpdateMode) {
-        return updateIndividual(editId, {
-          ...payload,
-          ...(flagshipEntries.length > 0
-            ? {
-                flagships: flagshipEntries.map((entry) => ({
-                  flagshipId: Number(entry.flagshipId),
-                  participationType: entry.participationType || undefined,
-                  startDate: dateValueToIso(entry.startDate),
-                  endDate: dateValueToIso(entry.endDate),
-                  active: true,
-                  notes: entry.notes || undefined,
-                })),
-              }
-            : {}),
-          ...(cooperativeEntries.length > 0
-            ? {
-                cooperatives: cooperativeEntries.map((entry) => ({
-                  cooperativeId: Number(entry.cooperativeId),
-                  role: entry.role || undefined,
-                  joinDate: dateValueToIso(entry.joinDate),
-                  endDate: dateValueToIso(entry.endDate),
-                  active: true,
-                })),
-              }
-            : {}),
-          ...(valueChainEntries.length > 0
-            ? {
-                valueChains: valueChainEntries.map((entry) => ({
-                  cluster: entry.cluster,
-                  valueChain: entry.valueChain,
-                  valueChainStage: entry.valueChainStage || undefined,
-                  primary: entry.isPrimary,
-                  details: entry.details || undefined,
-                  year: parseOptionalInt(entry.year),
-                })),
-              }
-            : {}),
-          ...(employmentEntries.length > 0
-            ? {
-                employments: employmentEntries.map((entry) => ({
-                  flagshipId: parseOptionalInt(entry.flagshipId),
-                  cooperativeId: parseOptionalInt(entry.cooperativeId),
-                  employmentType: entry.employmentType || undefined,
-                  employmentStatus: entry.employmentStatus || undefined,
-                  employerName: entry.employerName || undefined,
-                  employerType: entry.employerType || undefined,
-                  jobTitle: entry.jobTitle || undefined,
-                  incomeRangeRwf: entry.incomeRange || undefined,
-                  primaryJob: entry.isPrimaryJob,
-                  startDate: dateValueToIso(entry.startDate),
-                  endDate: dateValueToIso(entry.endDate),
-                })),
-              }
-            : {}),
-          ...(landEntries.length > 0
-            ? {
-                landAccess: landEntries.map((entry) => ({
-                  landSizeHa: parseOptionalNumber(entry.landSizeHa),
-                  landUseType: entry.landUseType || undefined,
-                  ownershipStatus: entry.ownershipStatus || undefined,
-                  province: entry.province || undefined,
-                  district: entry.district || undefined,
-                  sector: entry.sector || undefined,
-                  hasLandTitle: entry.hasLandTitle ? entry.hasLandTitle === "true" : undefined,
-                  year: parseOptionalInt(entry.year),
-                })),
-              }
-            : {}),
-          ...(productionEntries.length > 0
-            ? {
-                productionRecords: productionEntries.map((entry) => ({
-                  flagshipId: parseOptionalInt(entry.flagshipId),
-                  cooperativeId: parseOptionalInt(entry.cooperativeId),
-                  product: entry.product || undefined,
-                  valueChain: entry.valueChain || undefined,
-                  season: entry.season || undefined,
-                  year: parseOptionalInt(entry.year),
-                  quantityProduced: parseOptionalNumber(entry.quantityProduced),
-                  quantitySold: parseOptionalNumber(entry.quantitySold),
-                  unit: entry.unit || undefined,
-                  revenueRwf: parseOptionalNumber(entry.revenueRwf),
-                  marketChannel: entry.marketChannel || undefined,
-                  notes: entry.notes || undefined,
-                })),
-              }
-            : {}),
-          ...(interventionEntries.length > 0
-            ? {
-                interventions: interventionEntries.map((entry) => ({
-                  flagshipId: parseOptionalInt(entry.flagshipId),
-                  cooperativeId: parseOptionalInt(entry.cooperativeId),
-                  interventionType: entry.interventionType || undefined,
-                  description: entry.description || undefined,
-                  deliveryDate: dateValueToIso(entry.deliveryDate),
-                  year: entry.deliveryDate ? parseOptionalInt(entry.deliveryDate.toString().slice(0, 4)) : undefined,
-                  valueRwf: parseOptionalNumber(entry.valueRwf),
-                  location: entry.deliveryLocation || undefined,
-                  notes: entry.notes || undefined,
-                })),
-              }
-            : {}),
-          ...(constraintEntries.length > 0
-            ? {
-                constraintFeedback: constraintEntries.map((entry) => ({
-                  flagshipId: parseOptionalInt(entry.flagshipId),
-                  cooperativeId: parseOptionalInt(entry.cooperativeId),
-                  constraintType: entry.constraintType || undefined,
-                  severity: entry.severity || undefined,
-                  description: entry.description || undefined,
-                  reportedDate: dateValueToIso(entry.reportedDate),
-                  year: entry.reportedDate ? parseOptionalInt(entry.reportedDate.toString().slice(0, 4)) : undefined,
-                  location: entry.location || undefined,
-                })),
-              }
-            : {}),
-        });
+        return updateIndividual(editId, { ...payload, ...relations });
       }
-      return createIndividual(payload);
+
+      return createIndividual({ ...payload, ...relations });
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
-      if (isUpdateMode) navigate(backPath, { viewTransition: true });
-      else setSubmitted(true);
+      if (isUpdateMode) {
+        void queryClient.invalidateQueries({ queryKey: ["individuals", editId] });
+        navigate(backPath, { viewTransition: true });
+      } else {
+        setSubmitted(true);
+      }
     },
     onError: (error: Error) => {
       if (error instanceof ApiError) {
@@ -1468,6 +1699,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
     setBasicErrors((prev) => {
       const next = { ...prev };
       delete next[key as keyof BasicInfoErrors];
+      if (key === "location") delete next.province;
       return next;
     });
   }, []);
@@ -1659,6 +1891,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
               <div className="w-full mt-4 space-y-2">
                 <label className="mb-1 block text-sm font-semibold text-neutral-800">
                   Location <span className="text-red-500">*</span>
+                  <span className="ml-1 text-xs font-normal text-(--muted-foreground)">(province, district, and sector required)</span>
                 </label>
                 {basicErrors.province && (
                   <p className="text-xs text-red-500">{basicErrors.province}</p>

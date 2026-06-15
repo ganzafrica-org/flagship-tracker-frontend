@@ -31,6 +31,24 @@ export interface ImportResult {
   errors: string[];
 }
 
+export async function fetchAllUsers(signal?: AbortSignal): Promise<User[]> {
+  const all: User[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await api.get<UserPageResponse>("/api/users", { cursor }, signal);
+    all.push(...page.content);
+    cursor = page.hasNext && page.nextCursor ? page.nextCursor : undefined;
+  } while (cursor);
+
+  return all;
+}
+
+export const usersListQueryOptions = queryOptions({
+  queryKey: ["users", "all"],
+  queryFn: ({ signal }) => fetchAllUsers(signal),
+});
+
 export const usersQueryOptions = (params?: { cursor?: string; search?: string; role?: string }) =>
   queryOptions({
     queryKey: ["users", params ?? {}],

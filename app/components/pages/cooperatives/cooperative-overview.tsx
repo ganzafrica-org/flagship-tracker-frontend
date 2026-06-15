@@ -33,6 +33,18 @@ import { cooperativesDashboardQueryOptions } from "~/lib/queries/visualizations"
 
 const PROPORTION_FILLS = [CHART.accent, CHART.warning];
 
+function ChartEmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex h-[240px] items-center justify-center px-6 text-center text-sm text-(--muted-foreground)">
+      {message}
+    </div>
+  );
+}
+
+function hasChartData<T>(rows: T[]) {
+  return rows.length > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -73,6 +85,11 @@ export default function CooperativeOverview() {
     flagship: r.flagshipCode,
     cooperatives: r.cooperatives,
   }));
+
+  const hasLinkedCooperatives = (stats?.linkedToFlagships ?? 0) > 0;
+  const flagshipChartEmptyMessage = hasLinkedCooperatives
+    ? "No data for the selected flagship filter."
+    : "No cooperatives are linked to flagships yet. Link a cooperative on step 2 when adding or editing.";
 
   // Options use the flagship CODE as the value (the API filters by code).
   const flagshipFilterOptions = [
@@ -148,6 +165,9 @@ export default function CooperativeOverview() {
             <Card.Title>Flagship vs Non-Flagship Proportion</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {(stats?.totalCooperatives ?? 0) === 0 ? (
+              <ChartEmptyState message="No cooperatives in the system yet." />
+            ) : (
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <Pie
@@ -170,6 +190,7 @@ export default function CooperativeOverview() {
                 <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
               </PieChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
 
@@ -179,6 +200,9 @@ export default function CooperativeOverview() {
             <Card.Title>Cooperative Members by Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {!hasChartData(filteredMembers) ? (
+              <ChartEmptyState message={flagshipChartEmptyMessage} />
+            ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
               <BarChart data={filteredMembers} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -192,6 +216,7 @@ export default function CooperativeOverview() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
 
@@ -201,6 +226,9 @@ export default function CooperativeOverview() {
             <Card.Title>Engagement Type per Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {!hasChartData(filteredEngagement) ? (
+              <ChartEmptyState message={flagshipChartEmptyMessage} />
+            ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
               <BarChart data={filteredEngagement} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -213,6 +241,7 @@ export default function CooperativeOverview() {
                 <Bar dataKey="service_provider" name="Service Provider" stackId="a" fill={CHART.success} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
 
@@ -222,6 +251,9 @@ export default function CooperativeOverview() {
             <Card.Title>Female &amp; Youth Members Share (%)</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {!hasChartData(filteredInclusion) ? (
+              <ChartEmptyState message={flagshipChartEmptyMessage} />
+            ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
               <BarChart data={filteredInclusion} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -233,6 +265,7 @@ export default function CooperativeOverview() {
                 <Bar dataKey="youthShare" name="Youth Share" fill={CHART.accent} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            )}
           </Card.Content>
         </Card>
       </div>
@@ -243,6 +276,9 @@ export default function CooperativeOverview() {
           <Card.Title>Cooperatives Enrolled per Flagship</Card.Title>
         </Card.Header>
         <Card.Content className="p-4 pt-0">
+          {!hasChartData(filteredPerFlagship) ? (
+            <ChartEmptyState message={flagshipChartEmptyMessage} />
+          ) : (
           <ResponsiveContainer width="100%" height={240} minWidth={0}>
             <BarChart data={filteredPerFlagship} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -256,6 +292,7 @@ export default function CooperativeOverview() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          )}
         </Card.Content>
       </Card>
     </div>

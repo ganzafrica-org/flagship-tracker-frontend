@@ -12,7 +12,7 @@ import { IconEye, IconMessageCircle, IconDownload } from "@tabler/icons-react";
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
 
 export default function AdminReports() {
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "planning" | "inactive">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "auto-generated" | "created-reports">("all");
   const [selectedReport, setSelectedReport] = useState<ReportDownloadRow | null>(null);
   const [modalType, setModalType] = useState<ReportDialogMode>(null);
 
@@ -30,16 +30,11 @@ export default function AdminReports() {
     []
   );
 
-  const filteredRows = useMemo(
-    () =>
-      rows.filter((row) => {
-        if (activeTab === "all") return true;
-        if (activeTab === "active") return row.origin === "Auto-Generated";
-        if (activeTab === "planning") return row.origin === "Created Reports";
-        return false;
-      }),
-    [activeTab, rows]
-  );
+  const filteredRows = useMemo(() => {
+    if (activeTab === "all") return rows;
+    if (activeTab === "auto-generated") return rows.filter((r) => r.origin === "Auto-Generated");
+    return rows.filter((r) => r.origin === "Created Reports");
+  }, [activeTab, rows]);
 
   const openModal = (type: Exclude<ReportDialogMode, null>, row: ReportDownloadRow) => {
     setSelectedReport(row);
@@ -57,16 +52,15 @@ export default function AdminReports() {
       <ContentTab
         items={[
           { id: "all", label: "All" },
-          { id: "active", label: "Active" },
-          { id: "planning", label: "Planning" },
-          { id: "inactive", label: "Inactive" },
+          { id: "auto-generated", label: "Auto-Generated" },
+          { id: "created-reports", label: "Created Reports" },
         ]}
         activeId={activeTab}
-        onChange={(id) => setActiveTab(id as "all" | "active" | "planning" | "inactive")}
+        onChange={(id) => setActiveTab(id as "all" | "auto-generated" | "created-reports")}
       />
       <TableComponent
         rows={filteredRows}
-        searchKeys={["name", "type"]}
+        searchKeys={["name", "type", "period", "createdBy"]}
         filterByTab={() => true}
         columns={[
           { key: "id", label: "#" },

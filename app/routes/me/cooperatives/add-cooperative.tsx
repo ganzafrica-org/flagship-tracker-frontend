@@ -13,11 +13,11 @@ import { Stepper, type StepConfig } from "~/components/stepper";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { enumValuesQueryOptions } from "~/lib/queries/lookups";
-import { cooperativeQueryOptions, flagshipOptionsQueryOptions, type CooperativeRequest } from "~/lib/queries/cooperatives";
+import { cooperativeQueryOptions, flagshipOptionsQueryOptions, buildCooperativeFlagshipsPayload, isoToDateValue, type CooperativeDetail, type CooperativeRequest, type CooperativeUpdateRequest } from "~/lib/queries/cooperatives";
 
 const STEPS: StepConfig[] = [
   { id: "cooperative-details", label: "Cooperative Details" },
-  { id: "flagship-link", label: "Cooperative-Flagship Link" },
+  { id: "flagship-link", label: "Cooperative-Flagship Link", optional: true },
 ];
 
 const DEFAULT_LOCATION: RwandaLocationValue = {
@@ -43,7 +43,9 @@ export default function MeAddCooperativePage() {
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const editId = params.get("editId");
-  const isEdit = Boolean(editId);
+  const isView = params.get("mode") === "view";
+  const isEdit = Boolean(editId) && !isView;
+  const returnTo = params.get("returnTo") || "/me/cooperatives";
 
   const [currentStep, setCurrentStep] = useState(0);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -74,11 +76,17 @@ export default function MeAddCooperativePage() {
   const { data: regStatuses = [] } = useQuery(enumValuesQueryOptions("registration_status"));
   const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
 
-  // Load existing cooperative when editing
+  // Load existing cooperative when editing or viewing
   const { data: detail } = useQuery({
     ...cooperativeQueryOptions(editId ?? ""),
-    enabled: isEdit,
+    enabled: Boolean(editId),
   });
+
+  useEffect(() => {
+    if ((isEdit || isView) && editId) {
+      setCreatedId(Number(editId));
+    }
+  }, [isEdit, isView, editId]);
 
   useEffect(() => {
     if (!detail) return;
@@ -98,6 +106,14 @@ export default function MeAddCooperativePage() {
       cell: "",
       village: "",
     });
+
+    const flagshipLink = detail.flagships?.[0];
+    if (flagshipLink) {
+      setFlagshipId(String(flagshipLink.flagshipId));
+      setEngagementType(flagshipLink.engagementType ?? "");
+      setEngagementStartDate(isoToDateValue(flagshipLink.startDate));
+      setEngagementEndDate(isoToDateValue(flagshipLink.endDate));
+    }
   }, [detail]);
 
   function toNum(v: string): number | undefined {
@@ -124,18 +140,21 @@ export default function MeAddCooperativePage() {
   }
 
   const step0Mutation = useMutation({
-    mutationFn: (body: CooperativeRequest) =>
-      isEdit
-        ? api.patch<{ cooperativeId: number }>(`/api/cooperatives/${editId}`, body)
-        : api.post<{ cooperativeId: number }>("/api/cooperatives", body),
+    mutationFn: (body: CooperativeRequest) => {
+      const cooperativeId = createdId ?? (isEdit ? Number(editId) : null);
+      if (isEdit && cooperativeId) {
+        return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
+      }
+      return api.post<CooperativeDetail>("/api/cooperatives", body);
+    },
     onSuccess: (res) => {
       setApiError(null);
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
-      if (isEdit && editId) {
-        queryClient.invalidateQueries({ queryKey: ["cooperative", String(editId)] });
-        setCreatedId(Number(editId));
-      } else {
-        setCreatedId(res.cooperativeId);
+      queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+      const cooperativeId = res.cooperativeId ?? createdId ?? (isEdit ? Number(editId) : null);
+      if (cooperativeId) {
+        setCreatedId(cooperativeId);
+        queryClient.invalidateQueries({ queryKey: ["cooperative", String(cooperativeId)] });
       }
       setCurrentStep(1);
     },
@@ -143,21 +162,29 @@ export default function MeAddCooperativePage() {
   });
 
   const step1Mutation = useMutation({
-    mutationFn: (flagships: Array<{ flagshipId: number; engagementType?: string; startDate?: string; endDate?: string }>) => {
-      const id = createdId ?? (isEdit ? Number(editId) : null);
-      if (!id) throw new Error("No cooperative ID");
-      return api.patch<void>(`/api/cooperatives/${id}`, { flagships });
+    mutationFn: (body: CooperativeUpdateRequest) => {
+      const cooperativeId = createdId ?? (isEdit ? Number(editId) : null);
+      if (!cooperativeId) throw new Error("No cooperative ID");
+      return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
-      navigate("/me/cooperatives");
+      queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+      if (res.cooperativeId) {
+        queryClient.invalidateQueries({ queryKey: ["cooperative", String(res.cooperativeId)] });
+      }
+      navigate(returnTo);
     },
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
 
   function goNext() {
     setApiError(null);
+    if (isView) {
+      setCurrentStep(1);
+      return;
+    }
     if (!cooperativeName.trim()) {
       setApiError("Cooperative name is required");
       return;
@@ -170,25 +197,39 @@ export default function MeAddCooperativePage() {
   }
 
   function handleSkipStep1() {
+    if (isView) {
+      navigate(returnTo);
+      return;
+    }
     toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
     queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
-    navigate("/me/cooperatives");
+    queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+    navigate(returnTo);
   }
 
   function handleSubmit() {
     setApiError(null);
-    if (!flagshipId) {
+    if (isView) {
+      if (currentStep < STEPS.length - 1) {
+        setCurrentStep((step) => step + 1);
+        return;
+      }
+      navigate(returnTo);
+      return;
+    }
+    const flagships = buildCooperativeFlagshipsPayload({
+      flagshipId,
+      engagementType,
+      startDate: engagementStartDate,
+      endDate: engagementEndDate,
+    });
+
+    if (flagships.length === 0) {
       handleSkipStep1();
       return;
     }
-    step1Mutation.mutate([
-      {
-        flagshipId: Number(flagshipId),
-        engagementType: engagementType || undefined,
-        startDate: engagementStartDate ? engagementStartDate.toString() : undefined,
-        endDate: engagementEndDate ? engagementEndDate.toString() : undefined,
-      },
-    ]);
+
+    step1Mutation.mutate({ flagships });
   }
 
   const stepHasValue =
@@ -196,11 +237,12 @@ export default function MeAddCooperativePage() {
       ? !!(cooperativeName || cooperativeCode || groupType || location.province)
       : !!(flagshipId || engagementType || engagementStartDate);
 
-  const isPending = step0Mutation.isPending || step1Mutation.isPending;
+  const isPending = !isView && (step0Mutation.isPending || step1Mutation.isPending);
+  const pageTitle = isView ? "Cooperative Details" : isEdit ? "Edit Cooperative" : "Cooperatives Management";
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
-      <PageTitleCard title="Cooperatives Management" />
+      <PageTitleCard title={pageTitle} />
 
       {apiError ? <AppAlert status="danger" message={apiError} /> : null}
 
@@ -208,7 +250,7 @@ export default function MeAddCooperativePage() {
         steps={STEPS}
         currentStep={currentStep}
         onBack={() => {
-          if (currentStep === 0) navigate("/me/cooperatives", { viewTransition: true });
+          if (currentStep === 0) navigate(returnTo, { viewTransition: true });
           else setCurrentStep((s) => s - 1);
         }}
         onNext={goNext}
@@ -216,6 +258,7 @@ export default function MeAddCooperativePage() {
         onSubmit={handleSubmit}
         stepHasValue={stepHasValue}
         isSubmitting={isPending}
+        submitLabel={isView ? (currentStep < STEPS.length - 1 ? "Next" : "Close") : undefined}
       >
         <Form className="w-full" onSubmit={(e) => { e.preventDefault(); }}>
           <Fieldset className="w-full border-none p-0">
@@ -230,6 +273,7 @@ export default function MeAddCooperativePage() {
                     value={cooperativeName}
                     onChange={setCooperativeName}
                     isRequired
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="cooperativeCode"
@@ -238,6 +282,7 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={cooperativeCode}
                     onChange={setCooperativeCode}
+                    isDisabled={isView}
                   />
                   <AppSelect
                     name="groupType"
@@ -248,6 +293,7 @@ export default function MeAddCooperativePage() {
                     onSelectionChange={setGroupType}
                     options={groupTypes.map((g) => ({ label: g.label, value: g.value }))}
                     isRequired
+                    isDisabled={isView}
                   />
                   <AppSelect
                     name="registrationStatus"
@@ -257,6 +303,7 @@ export default function MeAddCooperativePage() {
                     selectedKey={registrationStatus}
                     onSelectionChange={setRegistrationStatus}
                     options={regStatuses.map((r) => ({ label: r.label, value: r.value }))}
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="primaryValueChain"
@@ -265,6 +312,7 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={primaryValueChain}
                     onChange={setPrimaryValueChain}
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="cluster"
@@ -273,6 +321,7 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={cluster}
                     onChange={setCluster}
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="totalMembers"
@@ -284,6 +333,7 @@ export default function MeAddCooperativePage() {
                     onChange={setTotalMembers}
                     min={0}
                     step={1}
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="femaleMembers"
@@ -295,6 +345,7 @@ export default function MeAddCooperativePage() {
                     onChange={setFemaleMembers}
                     min={0}
                     step={1}
+                    isDisabled={isView}
                   />
                   <AppTextField
                     name="youthMembers"
@@ -306,10 +357,11 @@ export default function MeAddCooperativePage() {
                     onChange={setYouthMembers}
                     min={0}
                     step={1}
+                    isDisabled={isView}
                   />
                   <div className="sm:col-span-10">
                     <span className="mb-2 block text-sm font-medium text-(--foreground)">Location</span>
-                    <RwandaLocationSelector value={location} onChange={setLocation} />
+                    <RwandaLocationSelector value={location} onChange={setLocation} disabled={isView} />
                   </div>
                 </>
               ) : null}
@@ -324,6 +376,7 @@ export default function MeAddCooperativePage() {
                     selectedKey={flagshipId}
                     onSelectionChange={setFlagshipId}
                     options={flagshipOptions}
+                    isDisabled={isView}
                   />
                   <AppSelect
                     name="engagementType"
@@ -333,6 +386,7 @@ export default function MeAddCooperativePage() {
                     selectedKey={engagementType}
                     onSelectionChange={setEngagementType}
                     options={ENGAGEMENT_TYPE_OPTIONS}
+                    isDisabled={isView}
                   />
                   <AppDate
                     name="engagementStartDate"
@@ -340,6 +394,7 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={engagementStartDate}
                     onChange={setEngagementStartDate}
+                    isDisabled={isView}
                   />
                   <AppDate
                     name="engagementEndDate"
@@ -347,6 +402,7 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={engagementEndDate}
                     onChange={setEngagementEndDate}
+                    isDisabled={isView}
                   />
                 </>
               ) : null}

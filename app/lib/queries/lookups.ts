@@ -267,23 +267,36 @@ export const flagshipCodesQueryOptions = () =>
 // ─── Cooperatives lookup ──────────────────────────────────────────────────────
 
 export interface CooperativeLookup {
-  cooperativeId?: number;
-  id?: number;
-  cooperativeName?: string;
-  name?: string;
+  cooperativeId: number;
+  cooperativeName: string;
+}
+
+interface CooperativePageResponse {
+  content: CooperativeLookup[];
+  nextCursor: string | null;
+  hasNext: boolean;
+}
+
+async function fetchAllCooperatives(signal?: AbortSignal): Promise<CooperativeLookup[]> {
+  const all: CooperativeLookup[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const page = await api.get<CooperativePageResponse>(
+      "/api/cooperatives",
+      { cursor },
+      signal,
+    );
+    all.push(...page.content);
+    cursor = page.hasNext && page.nextCursor ? page.nextCursor : undefined;
+  } while (cursor);
+
+  return all;
 }
 
 export const cooperativesLookupQueryOptions = queryOptions({
   queryKey: ["lookups", "cooperatives"],
-  queryFn: async ({ signal }) => {
-    const raw = await api.get<CooperativeLookup[] | { content?: CooperativeLookup[] }>(
-      "/api/cooperatives",
-      undefined,
-      signal,
-    );
-    if (Array.isArray(raw)) return raw;
-    return raw.content ?? [];
-  },
+  queryFn: ({ signal }) => fetchAllCooperatives(signal),
 });
 
 // ─── Composite hooks ──────────────────────────────────────────────────────────
@@ -438,13 +451,10 @@ export function useIndividualsFormLookups() {
 
   const cooperativeOptions = useMemo(
     (): AppSelectOption[] =>
-      (cooperativesQuery.data ?? [])
-        .map((item) => {
-          const id    = item.cooperativeId ?? item.id;
-          const label = item.cooperativeName ?? item.name ?? String(id ?? "");
-          return { value: String(id ?? ""), label };
-        })
-        .filter((opt) => Boolean(opt.value)),
+      (cooperativesQuery.data ?? []).map((item) => ({
+        value: String(item.cooperativeId),
+        label: item.cooperativeName,
+      })),
     [cooperativesQuery.data],
   );
 

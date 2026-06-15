@@ -10,11 +10,11 @@ import AppAlertDialog from "~/components/app-alert-dialog";
 import CooperativeOverview from "~/components/pages/cooperatives/cooperative-overview";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
-import { cooperativesQueryOptions, type CooperativeSummary } from "~/lib/queries/cooperatives";
+import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_COLUMNS, COOPERATIVE_LIST_SEARCH_KEYS, type CooperativeSummary } from "~/lib/queries/cooperatives";
 
 const TABS = [
   { id: "overview", label: "Overview" },
-  { id: "list", label: "List" },
+  { id: "list", label: "Cooperative list" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -23,55 +23,45 @@ interface CooperativesPageProps {
   role: "me" | "senior";
 }
 
+function cooperativeFormPath(role: CooperativesPageProps["role"], cooperativeId: number, mode?: "view" | "edit") {
+  const base = role === "me" ? "/me/cooperatives/add-cooperative" : "/me/cooperatives/add-cooperative";
+  const returnTo = role === "me" ? "/me/cooperatives" : "/senior/cooperatives";
+  const params = new URLSearchParams({
+    editId: String(cooperativeId),
+    returnTo,
+  });
+  if (mode === "view") params.set("mode", "view");
+  return `${base}?${params.toString()}`;
+}
+
 export default function CooperativesPage({ role }: CooperativesPageProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [accumulated, setAccumulated] = useState<CooperativeSummary[]>([]);
   const [toDelete, setToDelete] = useState<CooperativeSummary | null>(null);
 
-  const { data, isLoading, isError, error, isFetching } = useQuery(cooperativesQueryOptions({ cursor }));
-
-  const all = useMemo(() => {
-    if (!data) return accumulated;
-    const merged = new Map<number, CooperativeSummary>();
-    for (const c of accumulated) merged.set(c.cooperativeId, c);
-    for (const c of data.content) merged.set(c.cooperativeId, c);
-    return Array.from(merged.values());
-  }, [data, accumulated]);
+  const { data: all = [], isLoading, isError, error } = useQuery({
+    ...cooperativesListQueryOptions,
+    enabled: activeTab === "list",
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete<void>(`/api/cooperatives/${id}`),
     onSuccess: (_res, id) => {
       toast.success("Cooperative deleted");
-      setAccumulated((prev) => prev.filter((c) => c.cooperativeId !== id));
+      queryClient.setQueryData(
+        cooperativesListQueryOptions.queryKey,
+        (prev: CooperativeSummary[] | undefined) =>
+          (prev ?? []).filter((c) => c.cooperativeId !== id),
+      );
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       setToDelete(null);
     },
     onError: (err) => toast.error(err instanceof ApiError ? err.message : "Failed to delete cooperative"),
   });
 
-  function loadMore() {
-    if (data?.content) setAccumulated(all);
-    if (data?.nextCursor) setCursor(data.nextCursor);
-  }
-
-  const rows = useMemo(
-    () =>
-      all.map((c) => ({
-        id: c.cooperativeId,
-        cooperativeName: c.cooperativeName,
-        cooperativeCode: c.cooperativeCode ?? "—",
-        groupType: c.groupType,
-        registrationStatus: c.registrationStatus ?? "—",
-        primaryValueChain: c.primaryValueChain ?? "—",
-        totalMembers: c.totalMembers ?? 0,
-        district: c.district ?? "—",
-      })),
-    [all],
-  );
+  const rows = useMemo(() => all.map(cooperativeToTableRow), [all]);
 
   const addPath = role === "me" ? "/me/cooperatives/add-cooperative" : undefined;
 
@@ -104,25 +94,28 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
             loading={isLoading}
             emptyMessage="No cooperatives yet"
             rows={rows}
-            searchKeys={["cooperativeName", "cooperativeCode", "groupType", "district"]}
+            searchPlaceholder="Search by name, code, value chain, location…"
+            searchKeys={[...COOPERATIVE_LIST_SEARCH_KEYS]}
             filterByTab={() => true}
-            columns={[
-              { key: "cooperativeName", label: "Cooperative Name" },
-              { key: "cooperativeCode", label: "Code" },
-              { key: "groupType", label: "Group Type" },
-              { key: "registrationStatus", label: "Registration Status" },
-              { key: "primaryValueChain", label: "Primary Value Chain" },
-              { key: "totalMembers", label: "Total Members" },
-              { key: "district", label: "District" },
-              { key: "action", label: "Action" },
-            ]}
+            columns={[...COOPERATIVE_LIST_COLUMNS]}
             minTableWidthClassName="min-w-[1100px]"
             actions={(row) => {
-              if (role === "senior") return [];
+              if (role === "senior") {
+                return [
+                  {
+                    label: "View Details",
+                    onClick: () => navigate(cooperativeFormPath(role, row.id, "view")),
+                  },
+                ];
+              }
               return [
                 {
+                  label: "View Details",
+                  onClick: () => navigate(cooperativeFormPath(role, row.id, "view")),
+                },
+                {
                   label: "Update",
-                  onClick: () => navigate(`/me/cooperatives/add-cooperative?editId=${String(row.id)}`),
+                  onClick: () => navigate(cooperativeFormPath(role, row.id, "edit")),
                 },
                 {
                   label: "Delete",
@@ -132,14 +125,6 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
               ];
             }}
           />
-
-          {data?.hasNext ? (
-            <div className="flex justify-center">
-              <Button variant="outline" className="!rounded-3xl" onPress={loadMore} isPending={isFetching}>
-                Load more
-              </Button>
-            </div>
-          ) : null}
 
           {role === "me" ? (
             <AppAlertDialog
