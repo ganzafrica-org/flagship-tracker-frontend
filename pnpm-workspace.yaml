@@ -1,0 +1,3 @@
+# Allow dependency build scripts (esbuild, core-js) to run during install.
+# pnpm 11 blocks these by default; our deps are trusted (first-party app).
+dangerouslyAllowAllBuilds: true

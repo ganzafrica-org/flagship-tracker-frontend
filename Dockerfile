@@ -1,22 +1,22 @@
-FROM node:20-alpine AS development-dependencies-env
-COPY . /app
+# Build the SPA (react-router with ssr:false -> static client build)
+FROM node:22-alpine AS build-env
 WORKDIR /app
-RUN npm ci
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --no-frozen-lockfile
+COPY . .
+RUN pnpm run build
 
-FROM node:20-alpine AS production-dependencies-env
-COPY ./package.json package-lock.json /app/
-WORKDIR /app
-RUN npm ci --omit=dev
-
-FROM node:20-alpine AS build-env
-COPY . /app/
-COPY --from=development-dependencies-env /app/node_modules /app/node_modules
-WORKDIR /app
-RUN npm run build
-
-FROM node:20-alpine
-COPY ./package.json package-lock.json /app/
-COPY --from=production-dependencies-env /app/node_modules /app/node_modules
-COPY --from=build-env /app/build /app/build
-WORKDIR /app
-CMD ["npm", "run", "start"]
+# Serve the static client build with nginx (SPA fallback to index.html)
+FROM nginx:alpine
+COPY --from=build-env /app/build/client /usr/share/nginx/html
+RUN printf 'server {\n\
+  listen 3000;\n\
+  root /usr/share/nginx/html;\n\
+  index index.html;\n\
+  location / {\n\
+    try_files $uri $uri/ /index.html;\n\
+  }\n\
+}\n' > /etc/nginx/conf.d/default.conf
+EXPOSE 3000
+CMD ["nginx", "-g", "daemon off;"]
