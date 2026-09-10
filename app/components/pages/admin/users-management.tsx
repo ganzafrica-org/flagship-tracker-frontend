@@ -10,7 +10,7 @@ import AppModal from "~/components/app-modal";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError } from "~/lib/api";
 import {
-  usersQueryOptions,
+  usersListQueryOptions,
   importUsersCsv,
   type ImportResult,
 } from "~/lib/queries/users";
@@ -102,19 +102,19 @@ function ImportUsersModal({
 
 export default function UsersManagementPage() {
   const navigate = useNavigate();
-  const { data: page, isLoading, isError, error } = useQuery(usersQueryOptions());
+  const { data: users = [], isLoading, isError, error } = useQuery(usersListQueryOptions);
   const [importOpen, setImportOpen] = useState(false);
 
   const rows = useMemo(
     () =>
-      (page?.content ?? []).map((u) => ({
+      users.map((u) => ({
         id: u.id,
         fullName: u.fullName,
         email: u.email,
         role: u.role,
         status: u.active ? "Active" : "Inactive",
       })),
-    [page],
+    [users],
   );
 
   return (

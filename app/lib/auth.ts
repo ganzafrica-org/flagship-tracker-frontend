@@ -48,6 +48,7 @@ export function getStoredUser(): AuthUser | null {
 export function storeUser(user: AuthUser) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+  window.dispatchEvent(new CustomEvent("flagship-user-updated"));
 }
 
 export function clearUser() {

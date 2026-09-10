@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import { Button, Card, Chip, Label, ListBox, Pagination, SearchField, Select, Spinner, Table } from "@heroui/react";
 import { IconChevronsRight, IconChevronsLeft, IconX } from '@tabler/icons-react';
@@ -39,6 +39,38 @@ type TableRowData = {
   id: RowValue;
   [key: string]: unknown;
 };
+
+function normalizeSearchTerm(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "target" in value) {
+    const target = (value as { target?: { value?: unknown } }).target;
+    if (target && typeof target.value === "string") return target.value;
+  }
+  return "";
+}
+
+function rowMatchesSearch(
+  row: TableRowData,
+  term: string,
+  searchKeys: string[],
+  columns: TableColumnDef[],
+): boolean {
+  if (!term) return true;
+
+  const keys =
+    searchKeys.length > 0
+      ? searchKeys
+      : columns.map((column) => column.key).filter((key) => key !== "action" && key !== "id");
+
+  return keys.some((key) => {
+    const raw = row[key];
+    if (raw == null) return false;
+    if (Array.isArray(raw)) {
+      return raw.map((item) => String(item)).join(" ").toLowerCase().includes(term);
+    }
+    return String(raw).toLowerCase().includes(term);
+  });
+}
 
 interface TableComponentProps {
   tableSectionTitle?: string;
@@ -124,10 +156,7 @@ export default function TableComponent({
     const term = search.trim().toLowerCase();
 
     return rows.filter((row) => {
-      const searchMatch =
-        term.length === 0 ||
-        searchKeys.some((key) => String(row[key] ?? "").toLowerCase().includes(term));
-
+      const searchMatch = rowMatchesSearch(row, term, searchKeys, columns);
       const tabMatch = filterByTab(row, selectedTab);
 
       const multiMatch = multiSelectFilters.every((filter) => {
@@ -138,7 +167,11 @@ export default function TableComponent({
 
       return searchMatch && tabMatch && multiMatch;
     });
-  }, [filterByTab, multiSelectFilters, multiSelections, rows, search, searchKeys, selectedTab]);
+  }, [columns, filterByTab, multiSelectFilters, multiSelections, rows, search, searchKeys, selectedTab]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil(filtered.length / itemsPerPage) || 1)));
+  }, [filtered.length, itemsPerPage]);
 
   const ordered = useMemo(() => {
     if (!newestFirst) return filtered;
@@ -207,7 +240,7 @@ export default function TableComponent({
                     </Select.Value>
                     <Select.Indicator />
                   </Select.Trigger>
-                  <Select.Popover className="w-64">
+                  <Select.Popover placement="bottom start" containerPadding={24} className="w-64">
                     <ListBox selectionMode="multiple">
                       {filter.options.map((opt) => (
                         <ListBox.Item key={opt.id} id={opt.id} textValue={opt.label}>
@@ -225,12 +258,28 @@ export default function TableComponent({
           <SearchField
             className="w-[30%]"
             value={search}
-            onChange={(val) => { setSearch(val); setPage(1); }}
+            onChange={(value) => {
+              setSearch(normalizeSearchTerm(value));
+              setPage(1);
+            }}
           >
             <SearchField.Group className="rounded-full border border-default-300" style={{ "--field-background": "var(--default)" } as React.CSSProperties}>
               <SearchField.SearchIcon />
-              <SearchField.Input placeholder={searchPlaceholder} className="py-2 text-sm outline-none" />
-              <SearchField.ClearButton />
+              <SearchField.Input
+                placeholder={searchPlaceholder}
+                className="py-2 text-sm outline-none"
+                value={search}
+                onChange={(value) => {
+                  setSearch(normalizeSearchTerm(value));
+                  setPage(1);
+                }}
+              />
+              <SearchField.ClearButton
+                onPress={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
+              />
             </SearchField.Group>
           </SearchField>
         </div>

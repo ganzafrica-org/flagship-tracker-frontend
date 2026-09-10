@@ -35,6 +35,14 @@ export interface IndividualFlagshipRelation {
   notes?: string | null;
 }
 
+export interface IndividualCooperativeRelation {
+  cooperativeId: number;
+  role?: string | null;
+  joinDate?: string | null;
+  endDate?: string | null;
+  active?: boolean | null;
+}
+
 export interface IndividualDetailResponse extends IndividualsPageItem {
   nationalId?: string | null;
   dateOfBirth?: string | null;
@@ -44,7 +52,7 @@ export interface IndividualDetailResponse extends IndividualsPageItem {
   latitude?: number | null;
   longitude?: number | null;
   flagships?: IndividualFlagshipRelation[];
-  cooperatives?: unknown[];
+  cooperatives?: IndividualCooperativeRelation[];
   valueChains?: unknown[];
   employments?: unknown[];
   landAccess?: unknown[];
@@ -72,11 +80,19 @@ export interface CreateIndividualRequest {
   village: string;
   latitude?: number;
   longitude?: number;
+  flagships?: IndividualFlagshipRelation[];
+  cooperatives?: IndividualCooperativeRelation[];
+  valueChains?: unknown[];
+  employments?: unknown[];
+  landAccess?: unknown[];
+  productionRecords?: unknown[];
+  interventions?: unknown[];
+  constraintFeedback?: unknown[];
 }
 
 export interface UpdateIndividualRequest extends Partial<CreateIndividualRequest> {
-  flagships?: unknown[];
-  cooperatives?: unknown[];
+  flagships?: IndividualFlagshipRelation[];
+  cooperatives?: IndividualCooperativeRelation[];
   valueChains?: unknown[];
   employments?: unknown[];
   landAccess?: unknown[];

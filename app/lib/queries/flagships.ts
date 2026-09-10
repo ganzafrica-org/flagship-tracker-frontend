@@ -310,6 +310,8 @@ export interface FlagshipTableRow {
   jobsCreated: number;
   numberOfFunders: number;
   valueChain: string;
+  code: string;
+  cluster: string;
   progress: string;
   /** Numeric progress for the progress-bar renderer. */
   progressValue: number;
@@ -329,10 +331,12 @@ export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): Fla
       jobsCreated: card.jobsCreated,
       numberOfFunders: card.numberOfFunders,
       valueChain: card.valueChain,
+      code: card.code,
+      cluster: card.cluster,
+      status: card.status,
       progress: `${card.progress}%`,
       progressValue: card.progress,
       funderContributions: card.funderContributions,
-      status: card.status,
     };
   });
 }

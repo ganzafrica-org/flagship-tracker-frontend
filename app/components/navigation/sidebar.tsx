@@ -37,22 +37,28 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconLayoutDashboard size={20} />,
     },
     {
-      id: "flagships",
-      label: "Flagships",
-      href: "/admin/flagships",
-      icon: <IconFlag size={20} />,
-    },
-    {
       id: "users",
       label: "Users",
       href: "/admin/users",
       icon: <IconUsers size={20} />,
     },
     {
+      id: "flagships",
+      label: "Flagships",
+      href: "/admin/flagships",
+      icon: <IconFlag size={20} />,
+    },
+    {
       id: "individuals",
       label: "Individuals",
       href: "/admin/individuals",
       icon: <IconIdBadge2 size={20} />,
+    },
+    {
+      id: "cooperatives",
+      label: "Cooperatives",
+      href: "/admin/cooperatives",
+      icon: <IconBuildingCommunity size={20} />,
     },
     {
       id: "value-chains",
@@ -77,12 +83,6 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Funders",
       href: "/admin/funders",
       icon: <IconCoin size={20} />,
-    },
-    {
-      id: "cooperatives",
-      label: "Cooperatives",
-      href: "/admin/cooperatives",
-      icon: <IconBuildingCommunity size={20} />,
     },
     {
       id: "reports",
@@ -161,16 +161,16 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       icon: <IconCirclePlus size={20} />,
     },
     {
-      id: "cooperatives",
-      label: "Cooperatives",
-      href: "/me/cooperatives",
-      icon: <IconBuildingCommunity size={20} />,
-    },
-    {
       id: "individuals",
       label: "Individuals",
       href: "/me/individuals",
       icon: <IconIdBadge2 size={20} />,
+    },
+    {
+      id: "cooperatives",
+      label: "Cooperatives",
+      href: "/me/cooperatives",
+      icon: <IconBuildingCommunity size={20} />,
     },
     {
       id: "value-chains",
@@ -198,7 +198,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
     },
     {
       id: "reports",
-      label: "Report",
+      label: "Reports",
       href: "/me/reports",
       icon: <IconChartBar size={20} />,
     }
