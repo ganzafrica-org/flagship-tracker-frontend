@@ -296,6 +296,16 @@ export function SingleFlagshipDetails({
     return Array.from(set).sort();
   }, [viz]);
 
+  const valueChainEntries = useMemo(() => {
+    const chains = new Set<string>();
+    const primary = flagship?.primaryValueChain?.trim();
+    if (primary) chains.add(primary);
+    for (const chain of valueChains) {
+      if (chain.trim()) chains.add(chain.trim());
+    }
+    return Array.from(chains).sort((a, b) => a.localeCompare(b));
+  }, [flagship?.primaryValueChain, valueChains]);
+
   const productionYears = useMemo(() => {
     const set = new Set<number>();
     for (const p of viz?.production ?? []) if (p.year != null) set.add(p.year);
@@ -748,32 +758,25 @@ export function SingleFlagshipDetails({
       >
         <Card>
           <Card.Header>
-            <Card.Title>Funders</Card.Title>
+            <Card.Title>Value Chain</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {(viz?.team ?? []).length === 0 ? (
-              <p className="text-sm text-(--muted)">No team members recorded for this flagship.</p>
+            {valueChainEntries.length === 0 ? (
+              <p className="text-sm text-(--muted)">No value chain recorded for this flagship.</p>
             ) : (
-              <ul className="m-0 list-none divide-y divide-(--separator) p-0">
-                {viz!.team.map((member) => (
-                  <li key={member.individualId} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold leading-snug text-(--foreground)">
-                        {member.firstName} {member.lastName}
-                      </p>
-                      {member.phoneNumber ? (
-                        <p className="text-xs text-(--muted)">{member.phoneNumber}</p>
-                      ) : null}
-                    </div>
-                    <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium"
-                      style={{
-                        backgroundColor: member.active ? "var(--success-icon-bg)" : "var(--default)",
-                        color: member.active ? "var(--success)" : "var(--muted)",
-                      }}
-                    >
-                      {member.active ? "Active" : "Inactive"}
-                    </span>
+              <ul className="m-0 list-none space-y-2 p-0">
+                {valueChainEntries.map((chain, index) => (
+                  <li
+                    key={chain}
+                    className="rounded-xl px-3 py-2.5"
+                    style={{ backgroundColor: getHighlightRowBackground(
+                      FUNDER_ROW_TONES[index % FUNDER_ROW_TONES.length],
+                    ) }}
+                  >
+                    <p className="text-sm font-semibold leading-snug text-(--foreground)">{chain}</p>
+                    {index === 0 && flagship?.primaryValueChain?.trim() === chain ? (
+                      <p className="mt-1 text-xs leading-snug text-(--muted)">Primary value chain</p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

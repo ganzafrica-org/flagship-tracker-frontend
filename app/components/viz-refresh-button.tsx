@@ -10,7 +10,7 @@ import { refreshVisualizations } from "~/lib/queries/visualizations";
  * Refreshes the analytics materialized views on the server, then invalidates the
  * cached visualization queries so the page refetches the fresh data.
  */
-export default function VizRefreshButton() {
+export default function VizRefreshButton({ className }: { className?: string }) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -26,7 +26,7 @@ export default function VizRefreshButton() {
   return (
     <Button
       variant="outline"
-      className="!rounded-3xl bg-accent text-white"
+      className={`!rounded-3xl bg-accent text-white ${className ?? ""}`}
       onPress={() => mutation.mutate()}
       isPending={mutation.isPending}
     >

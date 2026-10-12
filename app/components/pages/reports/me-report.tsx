@@ -60,7 +60,7 @@ export default function MeReports() {
       <TableComponent
         tableSectionTitle="List of Reports"
         rows={filteredRows}
-        searchKeys={["name", "type"]}
+        searchKeys={["name", "type", "period", "createdBy"]}
         filterByTab={() => true}
         columns={[
           { key: "id", label: "#" },

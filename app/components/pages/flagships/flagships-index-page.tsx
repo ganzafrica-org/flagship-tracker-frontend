@@ -94,18 +94,18 @@ export default function FlagshipsIndexPage({
 
   const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships), [filteredFlagships]);
 
-  function handleDelete(row: { id: number; projectName: string }) {
+  function handleDelete(row: { flagshipId: number; projectName: string }) {
     const confirmed = window.confirm(
       `Delete flagship "${row.projectName}"? This cannot be undone.`,
     );
     if (!confirmed) return;
-    deleteMutation.mutate(Number(row.id));
+    deleteMutation.mutate(row.flagshipId);
   }
 
-  const tableActions = (row: { id: number; projectName: string }) => [
+  const tableActions = (row: { id: number; flagshipId: number; projectName: string }) => [
     {
       label: "View Details",
-      onClick: () => navigate(`${basePath}/${row.id}`, { viewTransition: true }),
+      onClick: () => navigate(`${basePath}/${row.flagshipId}`, { viewTransition: true }),
     },
     ...(addFlagshipPath
       ? [
@@ -113,7 +113,7 @@ export default function FlagshipsIndexPage({
             label: "Update",
             onClick: () =>
               navigate(
-                `${addFlagshipPath}?editId=${encodeURIComponent(String(row.id))}&returnTo=${encodeURIComponent(basePath)}`,
+                `${addFlagshipPath}?editId=${encodeURIComponent(String(row.flagshipId))}&returnTo=${encodeURIComponent(basePath)}`,
                 { viewTransition: true },
               ),
           },
@@ -178,7 +178,8 @@ export default function FlagshipsIndexPage({
           rows={flagshipRows as unknown as Record<string, unknown>[] & { id: number }[]}
           loading={isLoading}
           emptyMessage="No flagships yet"
-          searchKeys={["projectName", "valueChain"]}
+          searchPlaceholder="Search by project, code, cluster, value chain, status…"
+          searchKeys={["projectName", "valueChain", "code", "cluster", "status"]}
           columns={[...FLAGSHIP_TABLE_COLUMNS]}
           minTableWidthClassName="min-w-[1100px]"
           filterByTab={() => true}

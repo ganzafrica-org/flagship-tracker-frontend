@@ -49,6 +49,15 @@ export default function MeLayout() {
     setReady(true);
   }, [navigate]);
 
+  useEffect(() => {
+    function syncUserName() {
+      const user = getStoredUser();
+      if (user) setUserName(user.fullName);
+    }
+    window.addEventListener("flagship-user-updated", syncUserName);
+    return () => window.removeEventListener("flagship-user-updated", syncUserName);
+  }, []);
+
   async function handleLogout() {
     await logout().catch(() => {});
     clearUser();

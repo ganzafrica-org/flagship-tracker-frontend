@@ -30,6 +30,21 @@ function safeLookup(lookup: () => unknown): string[] {
   }
 }
 
+/** The rwanda package's Sectors() returns sectors for every district in a province. */
+function sectorsForDistrict(province: string, district: string): string[] {
+  const candidates = safeLookup(() => Sectors({ province, district }));
+  const unique = [...new Set(candidates)];
+  return unique
+    .filter((sector) => {
+      try {
+        return Array.isArray(Cells({ province, district, sector }));
+      } catch {
+        return false;
+      }
+    })
+    .sort((a, b) => a.localeCompare(b));
+}
+
 interface LocationComboBoxProps {
   label: string;
   placeholder: string;
@@ -44,7 +59,7 @@ function LocationComboBox({ label, placeholder, options, value, onChange, disabl
     <ComboBox
       className="w-full"
       selectedKey={value || null}
-      onSelectionChange={(key) => onChange(key as string)}
+      onSelectionChange={(key) => onChange(key == null ? "" : String(key))}
       isDisabled={disabled}
       variant="secondary"
     >
@@ -72,7 +87,7 @@ export function RwandaLocationSelector({ value, onChange, className, disabled = 
   const districts = value.province ? safeLookup(() => Districts({ provinces: value.province })) : [];
   const sectors =
     value.province && value.district
-      ? safeLookup(() => Sectors({ province: value.province, district: value.district }))
+      ? sectorsForDistrict(value.province, value.district)
       : [];
   const cells =
     value.province && value.district && value.sector
@@ -86,23 +101,23 @@ export function RwandaLocationSelector({ value, onChange, className, disabled = 
       : [];
 
   useEffect(() => {
-    if (value.province && !provinces.includes(value.province)) {
+    if (value.province && provinces.length > 0 && !provinces.includes(value.province)) {
       onChange({ province: "", district: "", sector: "", cell: "", village: "" });
       return;
     }
-    if (value.district && !districts.includes(value.district)) {
+    if (value.district && districts.length > 0 && !districts.includes(value.district)) {
       onChange({ ...value, district: "", sector: "", cell: "", village: "" });
       return;
     }
-    if (value.sector && !sectors.includes(value.sector)) {
+    if (value.sector && sectors.length > 0 && !sectors.includes(value.sector)) {
       onChange({ ...value, sector: "", cell: "", village: "" });
       return;
     }
-    if (value.cell && !cells.includes(value.cell)) {
+    if (value.cell && cells.length > 0 && !cells.includes(value.cell)) {
       onChange({ ...value, cell: "", village: "" });
       return;
     }
-    if (value.village && !villages.includes(value.village)) {
+    if (value.village && villages.length > 0 && !villages.includes(value.village)) {
       onChange({ ...value, village: "" });
     }
   }, [value, provinces, districts, sectors, cells, villages, onChange]);
@@ -123,8 +138,8 @@ export function RwandaLocationSelector({ value, onChange, className, disabled = 
       <LocationComboBox label="Province" placeholder="Province" options={provinces} value={value.province} onChange={(v) => update("province", v)} disabled={disabled} />
       <LocationComboBox label="District" placeholder="District" options={districts} value={value.district} onChange={(v) => update("district", v)} disabled={disabled || !value.province} />
       <LocationComboBox label="Sector" placeholder="Sector" options={sectors} value={value.sector} onChange={(v) => update("sector", v)} disabled={disabled || !value.district} />
-      <LocationComboBox label="Cell" placeholder="Cell" options={cells} value={value.cell} onChange={(v) => update("cell", v)} disabled={disabled || !value.sector} />
-      <LocationComboBox label="Village" placeholder="Village" options={villages} value={value.village} onChange={(v) => update("village", v)} disabled={disabled || !value.cell} />
+      <LocationComboBox label="Cell (optional)" placeholder="Cell" options={cells} value={value.cell} onChange={(v) => update("cell", v)} disabled={disabled || !value.sector} />
+      <LocationComboBox label="Village (optional)" placeholder="Village" options={villages} value={value.village} onChange={(v) => update("village", v)} disabled={disabled || !value.cell} />
     </div>
   );
 }
