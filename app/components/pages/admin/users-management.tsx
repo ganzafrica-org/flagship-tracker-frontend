@@ -8,7 +8,10 @@ import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
 import AppModal from "~/components/app-modal";
 import AppAlert, { toast } from "~/components/app-alert";
+import RecordDetailsDialog from "~/components/record-details-dialog";
 import { ApiError } from "~/lib/api";
+import { useUserRecord } from "~/lib/record-details";
+import { useRecordDialog } from "~/lib/use-record-dialog";
 import {
   usersListQueryOptions,
   importUsersCsv,
@@ -104,6 +107,8 @@ export default function UsersManagementPage() {
   const navigate = useNavigate();
   const { data: users = [], isLoading, isError, error } = useQuery(usersListQueryOptions);
   const [importOpen, setImportOpen] = useState(false);
+  const view = useRecordDialog();
+  const record = useUserRecord(view.id);
 
   const rows = useMemo(
     () =>
@@ -160,9 +165,18 @@ export default function UsersManagementPage() {
         actions={(row) => [
           {
             label: "View Details",
-            onClick: () => navigate(`/admin/users/add-user?editId=${row.id}&mode=view`),
+            onClick: () => view.open(Number(row.id)),
           },
         ]}
+      />
+
+      {/* The backend has no user update endpoint, so there is no Edit here. */}
+      <RecordDetailsDialog
+        testId="user-details"
+        isOpen={view.id !== null}
+        onClose={view.close}
+        fallbackTitle="User Details"
+        {...record}
       />
 
       <ImportUsersModal isOpen={importOpen} onOpenChange={setImportOpen} />

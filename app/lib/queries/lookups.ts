@@ -147,6 +147,12 @@ export const fundersQueryOptions = (params?: { active?: boolean; funderType?: st
     queryFn: ({ signal }) => api.get<Funder[]>("/api/lookups/funders", params, signal),
   });
 
+export const funderQueryOptions = (id: number) =>
+  queryOptions({
+    queryKey: ["funders", "detail", id],
+    queryFn: ({ signal }) => api.get<Funder>(`/api/lookups/funders/${id}`, undefined, signal),
+  });
+
 export const fundersLookupQueryOptions = queryOptions({
   queryKey: ["lookups", "funders"],
   queryFn: ({ signal }) =>

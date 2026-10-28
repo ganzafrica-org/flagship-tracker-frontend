@@ -6,24 +6,42 @@ import { Button } from "@heroui/react";
 import TableComponent from "~/components/table-component";
 import { PageTitleCard } from "~/components/page-title-card";
 import AppAlertDialog from "~/components/app-alert-dialog";
+import FunderDialog from "~/components/pages/admin/funder-dialog";
+import RecordDetailsDialog from "~/components/record-details-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { fundersQueryOptions, type Funder } from "~/lib/queries/lookups";
+import { useFunderRecord } from "~/lib/record-details";
+import { useRecordDialog } from "~/lib/use-record-dialog";
 
 interface FundersManagementProps {
   basePath?: string;
   readOnly?: boolean;
+  /** Edit a funder in a dialog on this page instead of navigating to the form page. */
+  editInDialog?: boolean;
 }
 
 export default function FundersManagement({
   basePath = "/admin",
   readOnly = false,
+  editInDialog = false,
 }: FundersManagementProps = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(fundersQueryOptions());
 
   const [toDelete, setToDelete] = useState<Funder | null>(null);
+  const [editId, setEditId] = useState<number | null>(null);
+  // Resolved from the query data so the dialog shows the saved values after a refetch.
+  const editFunder = editId !== null ? (data.find((f) => f.id === editId) ?? null) : null;
+
+  const view = useRecordDialog();
+  const record = useFunderRecord(view.id);
+
+  function editFunderById(id: number) {
+    if (editInDialog) setEditId(id);
+    else navigate(`${basePath}/funders/add?editId=${id}`);
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete<void>(`/api/lookups/funders/${id}`),
@@ -72,6 +90,7 @@ export default function FundersManagement({
 
       <TableComponent
         tableSectionTitle="Funders"
+        exportConfig={{ title: "Funders", fileBase: "funders" }}
         loading={isLoading}
         emptyMessage="No funders yet"
         rows={rows}
@@ -89,14 +108,25 @@ export default function FundersManagement({
         filterByTab={() => true}
         actions={(row) =>
           readOnly
-            ? [{ label: "View Details", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}&mode=view`) }]
+            ? [{ label: "View Details", onClick: () => view.open(Number(row.id)) }]
             : [
-                { label: "View Details", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}&mode=view`) },
-                { label: "Update", onClick: () => navigate(`${basePath}/funders/add?editId=${row.id}`) },
+                { label: "View Details", onClick: () => view.open(Number(row.id)) },
+                { label: "Update", onClick: () => editFunderById(Number(row.id)) },
                 { label: "Delete", onClick: () => setToDelete(data.find((f) => f.id === row.id) ?? null), color: "danger" },
               ]
         }
       />
+
+      <RecordDetailsDialog
+        testId="funder-details"
+        isOpen={view.id !== null}
+        onClose={view.close}
+        fallbackTitle="Funder Details"
+        onEdit={readOnly || view.id === null ? undefined : () => editFunderById(view.id as number)}
+        {...record}
+      />
+
+      {editInDialog ? <FunderDialog funder={editFunder} onClose={() => setEditId(null)} /> : null}
 
       <AppAlertDialog
         isOpen={toDelete !== null}

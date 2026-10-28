@@ -10,6 +10,8 @@ export default function MeIndividualsPage() {
     <IndividualsList
       addPath="/me/individuals/add-individual"
       updatePath="/me/individuals/update"
+      hideDownload
+      showDraftTab
     />
   );
 }

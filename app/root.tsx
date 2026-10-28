@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -12,6 +13,7 @@ import { Toast } from "@heroui/react";
 import type { Route } from "./+types/root";
 import { queryClient } from "./lib/query-client";
 import { TopProgressBar } from "./components/top-progress-bar";
+import { registerOfflineServiceWorker } from "./lib/pwa-register.client";
 import "./app.css";
 
 export const links: Route.LinksFunction = () => [
@@ -46,6 +48,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useEffect(() => {
+    registerOfflineServiceWorker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Toast.Provider placement="top" />

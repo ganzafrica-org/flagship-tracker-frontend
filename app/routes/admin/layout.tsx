@@ -6,7 +6,7 @@ import { queryClient } from "~/lib/query-client";
 import { dashboardQueryOptions } from "~/lib/queries/dashboard";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";
-import { usersQueryOptions } from "~/lib/queries/users";
+import { usersListQueryOptions } from "~/lib/queries/users";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
 import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
@@ -17,7 +17,7 @@ export async function clientLoader() {
   queryClient.prefetchQuery(dashboardQueryOptions);
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
-  queryClient.prefetchQuery(usersQueryOptions());
+  queryClient.prefetchQuery(usersListQueryOptions);
   return null;
 }
 

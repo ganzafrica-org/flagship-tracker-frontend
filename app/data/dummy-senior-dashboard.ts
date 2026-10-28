@@ -12,7 +12,7 @@ import { CHART } from "~/data/dummy-flagship-detail";
 export const seniorDashboardStats = {
   totalFlagships: 12,
   totalJobsCreated: 34_820,
-  totalInvestors: 47,
+  totalFunders: 47,
   totalYouthRegistered: 52_460,
   totalCooperativesEngaged: 318,
   totalInvestment: "142.6B",

@@ -51,10 +51,72 @@ export interface CooperativeSummary {
   registrationStatus: string | null;
   primaryValueChain: string | null;
   totalMembers: number | null;
+  /** Optional: only present if the list endpoint returns member demographics. */
+  femaleMembers?: number | null;
+  youthMembers?: number | null;
   province: string | null;
   district: string | null;
   sector: string | null;
   createdAt: string;
+}
+
+/** Group types offered in the sidebar dropdown, in display order (`type` = value of ?type=). The unfiltered list is the parent link itself. */
+export const COOPERATIVE_TYPE_NAV = [
+  { type: "association", label: "Associations" },
+  { type: "company", label: "Companies" },
+  { type: "cooperative", label: "Cooperatives" },
+  { type: "farmer_group", label: "Farmer Groups" },
+] as const;
+
+/** Readable names for a `?type=` value; falls back to a humanised raw value. */
+export function cooperativeTypeNames(type: string): { plural: string; singular: string } {
+  const known: Record<string, { plural: string; singular: string }> = {
+    association: { plural: "Associations", singular: "Association" },
+    company: { plural: "Companies", singular: "Company" },
+    cooperative: { plural: "Cooperatives", singular: "Cooperative" },
+    farmer_group: { plural: "Farmer Groups", singular: "Farmer Group" },
+  };
+  if (known[type]) return known[type];
+  const human = type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Cooperative";
+  return { plural: human, singular: human };
+}
+
+/** Where the unfiltered-by-default list lives for a role; visiting without ?type= redirects here. */
+export const DEFAULT_COOPERATIVE_TYPE = "association";
+
+export const COOPERATIVE_SEARCH_PLACEHOLDER = "Search by name, value chain, location…";
+
+export interface CooperativeListFilters {
+  gender: string;
+  group: string;
+  valueChain: string;
+}
+
+export const EMPTY_COOPERATIVE_FILTERS: CooperativeListFilters = {
+  gender: "",
+  group: "",
+  valueChain: "",
+};
+
+export const COOPERATIVE_GENDER_OPTIONS = [
+  { label: "Female", value: "female" },
+  { label: "Male", value: "male" },
+  { label: "Youth", value: "youth" },
+];
+
+/** Males = total members − female members (never below 0). */
+export function maleMembers(total: number | null | undefined, female: number | null | undefined): number {
+  return Math.max(0, (total ?? 0) - (female ?? 0));
+}
+
+export function cooperativeMatchesFilters(c: CooperativeSummary, f: CooperativeListFilters): boolean {
+  if (f.group && c.groupType !== f.group) return false;
+  if (f.valueChain && c.primaryValueChain !== f.valueChain) return false;
+
+  if (f.gender === "female" && (c.femaleMembers ?? 0) <= 0) return false;
+  if (f.gender === "male" && maleMembers(c.totalMembers, c.femaleMembers) <= 0) return false;
+  if (f.gender === "youth" && (c.youthMembers ?? 0) <= 0) return false;
+  return true;
 }
 
 export function formatCooperativeLocation(
@@ -68,7 +130,6 @@ export function formatCooperativeLocation(
 export function cooperativeToTableRow(c: CooperativeSummary) {
   return {
     id: c.cooperativeId,
-    cooperativeCode: c.cooperativeCode ?? "—",
     cooperativeName: c.cooperativeName,
     primaryValueChain: c.primaryValueChain ?? "—",
     totalMembers: c.totalMembers ?? 0,
@@ -79,7 +140,7 @@ export function cooperativeToTableRow(c: CooperativeSummary) {
 }
 
 export const COOPERATIVE_LIST_COLUMNS = [
-  { key: "cooperativeCode", label: "Code", width: "110px" },
+  { key: "id", label: "#", width: "60px" },
   { key: "cooperativeName", label: "Cooperative Name" },
   { key: "primaryValueChain", label: "Primary Value Chain" },
   { key: "totalMembers", label: "Total Members", width: "120px" },
@@ -89,7 +150,6 @@ export const COOPERATIVE_LIST_COLUMNS = [
 
 export const COOPERATIVE_LIST_SEARCH_KEYS = [
   "cooperativeName",
-  "cooperativeCode",
   "primaryValueChain",
   "location",
   "province",
@@ -102,7 +162,7 @@ export interface CooperativePageResponse {
   hasNext: boolean;
 }
 
-/** Core fields shared by create + update (no nested flagships/members). */
+/** Core fields shared by create + update. */
 export interface CooperativeRequest {
   cooperativeName: string;
   cooperativeCode?: string;
@@ -116,7 +176,15 @@ export interface CooperativeRequest {
   province?: string;
   district?: string;
   sector?: string;
+  /** Optional flagship link, sent in the same create request (the backend links it in the same transaction). */
+  flagships?: CooperativeFlagshipRelation[];
 }
+
+export const ENGAGEMENT_TYPE_OPTIONS = [
+  { label: "Implementing Partner", value: "implementing_partner" },
+  { label: "Beneficiary Group", value: "beneficiary_group" },
+  { label: "Service Provider", value: "service_provider" },
+];
 
 export interface CooperativeFlagshipRelation {
   flagshipId: number;

@@ -1,42 +1,39 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { IconHomeFilled, IconLayoutGrid, IconTable } from "@tabler/icons-react";
 import { Button, Spinner } from "@heroui/react";
 
-import FlagshipsList, { FunderAvatars, type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
-import AppProgressBar from "~/components/app-progress-bar";
+import FlagshipsList, { FlagshipStatusBadge, FunderAvatars, type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
+import { TableExportMenu } from "~/components/export-menu";
 import { ContentTab } from "~/components/content-tab";
 import { PageTitleCard } from "~/components/page-title-card";
 import TableComponent from "~/components/table-component";
+import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
+import { useDraftCount } from "~/lib/offline-drafts/use-drafts";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
+import { flagshipSummaryQueryOptions } from "~/lib/queries/visualizations";
+import { buildFlagshipsExportData } from "~/lib/flagship-details";
 import {
   buildFlagshipTableRows,
   deleteFlagship,
   filterFlagshipsByStatusTab,
   flagshipsQueryOptions,
-  mapFlagshipToListItem,
+  mapFlagshipCard,
   FLAGSHIP_STATUS_TAB_ITEMS,
   type FlagshipStatusTab,
   type FundingContribution,
 } from "~/lib/queries/flagships";
 
-function tableProgressColor(status: string): "accent" | "success" | "warning" | "danger" {
-  if (status === "active") return "success";
-  if (status === "suspended") return "danger";
-  if (status === "planning") return "warning";
-  return "accent";
-}
-
 const FLAGSHIP_TABLE_COLUMNS = [
+  { key: "valueChain", label: "Value Chain" },
   { key: "id", label: "#" },
   { key: "projectName", label: "Project Name" },
   { key: "totalBudget", label: "Total Budget" },
   { key: "jobsCreated", label: "Jobs Created" },
   { key: "funders", label: "Funders" },
-  { key: "valueChain", label: "Value Chain" },
-  { key: "progress", label: "Progress", width: "160px" },
+  { key: "status", label: "Status", width: "130px" },
   { key: "action", label: "Action" },
 ] as const;
 
@@ -46,21 +43,32 @@ export interface FlagshipsIndexPageProps {
   basePath: string;
   addFlagshipPath?: string;
   actionLabel?: string;
+  /** M&E only: adds a "Draft" tab showing locally-saved offline flagship submissions. */
+  showDraftTab?: boolean;
 }
+
+type FlagshipViewTab = FlagshipStatusTab | "draft";
 
 export default function FlagshipsIndexPage({
   title,
   basePath,
   addFlagshipPath,
   actionLabel = "Add Flagship",
+  showDraftTab = false,
 }: FlagshipsIndexPageProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<FlagshipStatusTab>("all");
+  const [activeTab, setActiveTab] = useState<FlagshipViewTab>("all");
+  const draftCount = useDraftCount(showDraftTab ? "flagship" : undefined);
+  const tabItems = showDraftTab
+    ? [...FLAGSHIP_STATUS_TAB_ITEMS, { id: "draft" as const, label: draftCount ? `Draft (${draftCount})` : "Draft" }]
+    : FLAGSHIP_STATUS_TAB_ITEMS;
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [listError, setListError] = useState<string | null>(null);
 
   const { data: flagships = [], isLoading, isError, error } = useQuery(flagshipsQueryOptions);
+  // Card figures come from mv_flagship_summary; funders still come from the flagship list.
+  const { data: summaryRows = [], isLoading: summaryLoading } = useQuery(flagshipSummaryQueryOptions);
 
   const deleteMutation = useMutation({
     mutationFn: deleteFlagship,
@@ -77,22 +85,66 @@ export default function FlagshipsIndexPage({
 
   const filteredFlagships = useMemo(
     () =>
-      [...filterFlagshipsByStatusTab(flagships, activeTab)].sort(
+      [...filterFlagshipsByStatusTab(flagships, activeTab === "draft" ? "all" : activeTab)].sort(
         (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
       ),
     [activeTab, flagships],
   );
 
+  const summaryById = useMemo(() => new Map(summaryRows.map((r) => [r.flagshipId, r])), [summaryRows]);
+
   const flagshipCards: FlagshipCardItem[] = useMemo(
     () =>
       filteredFlagships.map((item, index) => ({
-        ...mapFlagshipToListItem(item, index),
+        ...mapFlagshipCard(item, index, summaryById.get(item.flagshipId)),
         icon: <IconHomeFilled size={18} />,
       })),
-    [filteredFlagships],
+    [filteredFlagships, summaryById],
   );
 
-  const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships), [filteredFlagships]);
+  // DEBUG: remove once flagship card data has been inspected
+  useEffect(() => {
+    if (isLoading) return;
+    console.log("[Flagships] raw API response:", flagships.length, "items", flagships);
+    console.table(
+      flagships.map((f) => ({
+        id: f.flagshipId,
+        name: f.flagshipName,
+        jobsCreated: f.jobsCreated,
+        budgetTotalRwf: f.budgetTotalRwf,
+        primaryValueChain: f.primaryValueChain,
+        progressPercent: f.progressPercent,
+        funders: f.funders,
+        fundingContributions: f.fundingContributions?.length ?? 0,
+      })),
+    );
+  }, [flagships, isLoading]);
+
+  useEffect(() => {
+    if (summaryLoading) return;
+    console.log("[Flagships] mv_flagship_summary rows:", summaryRows.length, "items", summaryRows);
+    console.table(summaryRows);
+  }, [summaryRows, summaryLoading]);
+
+  useEffect(() => {
+    if (flagshipCards.length === 0) return;
+    console.log(
+      "[Flagships] data rendered per card:",
+      flagshipCards.map((c) => ({
+        id: c.id,
+        title: c.title,
+        jobsCreated: c.jobsCreated,
+        totalBudget: c.totalBudget,
+        valueChain: c.valueChain,
+        progress: c.progress,
+        progressText: c.progressText,
+        numberOfFunders: c.numberOfFunders,
+        funderNames: c.funderNames,
+      })),
+    );
+  }, [flagshipCards]);
+
+  const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships, summaryById), [filteredFlagships, summaryById]);
 
   function handleDelete(row: { flagshipId: number; projectName: string }) {
     const confirmed = window.confirm(
@@ -138,10 +190,22 @@ export default function FlagshipsIndexPage({
         }
       />
       <ContentTab
-        items={FLAGSHIP_STATUS_TAB_ITEMS}
+        items={tabItems}
         activeId={activeTab}
-        onChange={(id) => setActiveTab(id as FlagshipStatusTab)}
+        onChange={(id) => setActiveTab(id as FlagshipViewTab)}
         endSlot={
+          activeTab === "draft" ? null : (
+          <div className="flex items-center gap-2">
+            {viewMode === "cards" ? (
+              <TableExportMenu
+                isDisabled={flagshipRows.length === 0}
+                getOptions={() => ({
+                  title: "List of Flagships",
+                  fileBase: "flagships",
+                  ...buildFlagshipsExportData(filteredFlagships),
+                })}
+              />
+            ) : null}
           <Button
             isIconOnly
             variant={viewMode === "table" ? "primary" : "outline"}
@@ -150,6 +214,8 @@ export default function FlagshipsIndexPage({
           >
             {viewMode === "table" ? <IconLayoutGrid size={18} /> : <IconTable size={18} />}
           </Button>
+          </div>
+          )
         }
       />
       {listError ? (
@@ -157,7 +223,9 @@ export default function FlagshipsIndexPage({
           {listError}
         </p>
       ) : null}
-      {isLoading ? (
+      {activeTab === "draft" ? (
+        <DraftsTabContent entityType="flagship" editPath={addFlagshipPath ?? "/me/flagships/add-flagship"} />
+      ) : isLoading || summaryLoading ? (
         <div className="flex justify-center py-16">
           <Spinner size="lg" />
         </div>
@@ -184,18 +252,16 @@ export default function FlagshipsIndexPage({
           minTableWidthClassName="min-w-[1100px]"
           filterByTab={() => true}
           actions={tableActions as never}
+          exportConfig={{
+            title: "List of Flagships",
+            fileBase: "flagships",
+            getExportData: () => Promise.resolve(buildFlagshipsExportData(filteredFlagships)),
+          }}
           cellRenderers={{
             funders: (row) => (
               <FunderAvatars funders={(row.funderContributions as FundingContribution[]) ?? []} />
             ),
-            progress: (row) => (
-              <div className="w-32">
-                <AppProgressBar
-                  value={Number(row.progressValue ?? 0)}
-                  color={tableProgressColor(String(row.status))}
-                />
-              </div>
-            ),
+            status: (row) => <FlagshipStatusBadge status={String(row.status ?? "")} />,
           }}
         />
       )}

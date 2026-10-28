@@ -8,6 +8,9 @@ import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
 import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
+import { toast } from "~/components/app-alert";
+import { useOnlineStatus } from "~/lib/offline-drafts/use-online-status";
+import { useDraftCount } from "~/lib/offline-drafts/use-drafts";
 
 export async function clientLoader() {
   if (!hasValidSession()) return null;
@@ -57,6 +60,18 @@ export default function MeLayout() {
     window.addEventListener("flagship-user-updated", syncUserName);
     return () => window.removeEventListener("flagship-user-updated", syncUserName);
   }, []);
+
+  const { justReconnected, clearJustReconnected } = useOnlineStatus();
+  const draftCount = useDraftCount();
+  useEffect(() => {
+    if (!justReconnected) return;
+    if (draftCount > 0) {
+      toast.info(
+        `You're back online. You have ${draftCount} draft submission(s) waiting — check the Draft tab on Flagships or Individuals to review.`,
+      );
+    }
+    clearJustReconnected();
+  }, [justReconnected, draftCount, clearJustReconnected]);
 
   async function handleLogout() {
     await logout().catch(() => {});

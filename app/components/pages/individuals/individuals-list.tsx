@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card } from "@heroui/react";
+import { Button, Card, Chip, Dropdown, Label } from "@heroui/react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -17,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import {
-  IconChartBar,
+  IconChevronDown,
   IconUserPlus,
   IconUsers,
   IconUserCircle,
@@ -28,12 +26,21 @@ import {
 
 import AppSelect from "~/components/app-select";
 import { ContentTab } from "~/components/content-tab";
+import { toast } from "~/components/app-alert";
+import ExportMenu from "~/components/export-menu";
+import RecordDetailsDialog from "~/components/record-details-dialog";
+import IndividualImportDialog from "~/components/pages/individuals/individual-import-dialog";
 import { StatCard } from "~/components/stat-card";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
-import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
+import { flagshipSummaryQueryOptions, individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
+import { buildIndividualsExportData, downloadIndividual, exportIndividual, useIndividualSections, youthStatusLabel } from "~/lib/individual-details";
+import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
+import { useDraftCount } from "~/lib/offline-drafts/use-drafts";
+import { useRecordDialog } from "~/lib/use-record-dialog";
+import type { ExportFormat } from "~/lib/export/table-export";
 import { useUrlState } from "~/lib/use-url-state";
 import { PageTitleCard } from "~/components/page-title-card";
 import VizRefreshButton from "~/components/viz-refresh-button";
@@ -49,59 +56,44 @@ import {
   provinceMatches,
 } from "~/lib/rwanda-locations";
 
-const CATEGORY_LABELS: Record<string, string> = {
-  student: "Student",
-  graduate: "Graduate",
-  neet: "NEET",
-  employed: "Employed",
-  self_employed: "Self-Employed",
-  other: "Other",
-};
-
 const COLUMNS = [
   { key: "id",         label: "#",        width: "50px"  },
   { key: "name",       label: "Name",     width: "180px" },
   { key: "sex",        label: "Sex",      width: "72px"  },
-  { key: "category",   label: "Category", width: "110px" },
+  { key: "youthStatus", label: "Youth Status", width: "130px" },
   { key: "flagship",   label: "Flagship", width: "320px" },
   { key: "location",   label: "Location", width: "150px" },
-  { key: "source",     label: "Source",   width: "100px" },
+  { key: "valueChain", label: "Value Chain", width: "220px" },
   { key: "action",     label: "Action",   width: "72px"  },
 ];
-
-const COLUMNS_READONLY = COLUMNS.filter((c) => c.key !== "action");
-
-const STATUS_COLOR_MAP: Record<string, "default" | "success" | "warning" | "danger" | "accent"> = {
-  flagship:  "accent",
-  "walk-in": "success",
-  referral:  "warning",
-  survey:    "default",
-};
 
 interface IndividualsListProps {
   addPath?: string;
   updatePath?: string;
   readOnly?: boolean;
   showHeader?: boolean;
+  /** M&E: row actions limited to View / Update / Delete — no downloads. */
+  hideDownload?: boolean;
+  /** M&E only: adds a "Draft" tab showing locally-saved offline individual submissions. */
+  showDraftTab?: boolean;
 }
 
-type ViewMode = "overview" | "list";
-type CategoryMode = "all" | "youth";
+type ViewMode = "overview" | "list" | "draft";
+type YouthStatusFilter = "all" | "youth" | "non_youth" | "unknown";
 
 type IndividualsTableRow = {
   id: number;
   name: string;
   sex: string;
-  category: string;
+  youthStatus: string;
   flagship: string;
   location: string;
-  source: string;
+  valueChain: string;
   province: string;
   district: string;
   sector: string;
   cell: string;
   flagshipFilterKey: string;
-  isYouth: boolean;
 };
 
 const OVERVIEW_TABS = [
@@ -162,16 +154,34 @@ function inferProvinceForDistrictFromData(
   return inferProvinceForDistrict(district);
 }
 
+/** individual.youth_status → filter/badge key; anything other than youth / non_youth is "unknown". */
+function youthStatusKey(value: string | null | undefined): Exclude<YouthStatusFilter, "all"> {
+  if (value === "youth") return "youth";
+  if (value === "non_youth") return "non_youth";
+  return "unknown";
+}
+
+const YOUTH_STATUS_BADGES: Record<Exclude<YouthStatusFilter, "all">, { label: string; color: "success" | "default" | "warning" }> = {
+  youth: { label: "Youth", color: "success" },
+  non_youth: { label: "Non-youth", color: "default" },
+  unknown: { label: "Unknown", color: "warning" },
+};
+
 function matchesIndividualFilters(
   ind: IndividualsPageItem,
   filters: {
-    categoryMode: CategoryMode;
+    youthStatus: YouthStatusFilter;
     province: string;
     district: string;
     flagship: string;
+    valueChain: string;
   },
 ): boolean {
-  if (filters.categoryMode === "youth" && !ind.youthCategory) return false;
+  if (filters.youthStatus !== "all" && youthStatusKey(ind.youthStatus) !== filters.youthStatus) return false;
+  if (filters.valueChain) {
+    const wanted = filters.valueChain.trim().toLowerCase();
+    if (!(ind.valueChainNames ?? []).some((vc) => vc.trim().toLowerCase() === wanted)) return false;
+  }
   if (!provinceMatches(ind.province, filters.province)) return false;
   if (!districtMatches(ind.district, filters.district)) return false;
   if (filters.flagship !== "all" && !(ind.flagshipNames ?? []).includes(filters.flagship)) {
@@ -185,17 +195,28 @@ function individualToTableRow(ind: IndividualsPageItem): IndividualsTableRow {
     id: ind.individualId,
     name: `${ind.firstName} ${ind.lastName}`,
     sex: ind.sex,
-    category: ind.youthCategory ? (CATEGORY_LABELS[ind.youthCategory] ?? ind.youthCategory) : "—",
+    youthStatus: youthStatusKey(ind.youthStatus),
     flagship: ind.flagshipNames?.length ? ind.flagshipNames.join(", ") : "—",
     location: [ind.district, ind.province].filter(Boolean).join(", "),
-    source: ind.registrationSource,
+    valueChain: ind.valueChainNames?.length ? ind.valueChainNames.join(", ") : "—",
     province: ind.province,
     district: ind.district,
     sector: ind.sector,
     cell: ind.cell,
     flagshipFilterKey: ind.flagshipNames?.join("||") ?? "",
-    isYouth: Boolean(ind.youthCategory),
   };
+}
+
+function ValueChainTooltip({ active, payload }: { active?: boolean; payload?: { payload: { name: string; value: number; stages?: { stage: string; count: number }[] } }[] }) {
+  if (!active || !payload?.length) return null;
+  const { name, value, stages = [] } = payload[0].payload;
+  const breakdown = stages.map((s) => `${s.stage.replace(/_/g, " ")} ${s.count}`).join(", ");
+  return (
+    <div className="rounded-lg border border-(--separator) bg-(--surface) px-3 py-2 text-sm shadow">
+      {name}: {value}
+      {breakdown ? ` (${breakdown})` : ""}
+    </div>
+  );
 }
 
 export default function IndividualsList({
@@ -203,18 +224,32 @@ export default function IndividualsList({
   updatePath,
   readOnly = false,
   showHeader = true,
+  hideDownload = false,
+  showDraftTab = false,
 }: IndividualsListProps) {
   const navigate = useNavigate();
+  const draftCount = useDraftCount(showDraftTab ? "individual" : undefined);
+  const overviewTabItems: { id: string; label: string }[] = showDraftTab
+    ? [...OVERVIEW_TABS, { id: "draft", label: draftCount ? `Draft (${draftCount})` : "Draft" }]
+    : [...OVERVIEW_TABS];
   const [, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const { pathname } = useLocation();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("overview");
+  const view = useRecordDialog();
+  const record = useIndividualSections(view.id);
+  const [importOpen, setImportOpen] = useState(false);
   // Filters live in the URL so the view is shareable.
   const [selectedProvince, setSelectedProvince] = useUrlState("province", "all");
   const [selectedDistrict, setSelectedDistrict] = useUrlState("district", "all");
   const [selectedFlagship, setSelectedFlagship] = useUrlState("flagship", "all");
-  const [selectedCategoryModeRaw, setSelectedCategoryMode] = useUrlState("view", "all");
-  const selectedCategoryMode = selectedCategoryModeRaw as CategoryMode;
+  const [selectedValueChain, setSelectedValueChain] = useUrlState("valueChain", "");
+  // Arriving with a value-chain filter (e.g. from the dashboard) opens the list.
+  const [viewMode, setViewMode] = useState<ViewMode>(selectedValueChain ? "list" : "overview");
+  const [selectedYouthStatusRaw, setSelectedYouthStatus] = useUrlState("youthStatus", "all");
+  const selectedYouthStatus = (["youth", "non_youth", "unknown"].includes(selectedYouthStatusRaw)
+    ? selectedYouthStatusRaw
+    : "all") as YouthStatusFilter;
   const resolvedProvince =
     selectedProvince === "all" ? "all" : (canonicalProvince(selectedProvince) ?? selectedProvince);
   const { data: individuals = [], isLoading, isError, error } = useQuery(individualsQueryOptions);
@@ -290,7 +325,8 @@ export default function IndividualsList({
     individualsDashboardQueryOptions({
       province: resolvedProvince === "all" ? undefined : resolvedProvince,
       district: selectedDistrict === "all" ? undefined : selectedDistrict,
-      view: selectedCategoryMode === "youth" ? "youth" : "all",
+      view: selectedYouthStatus === "youth" ? "youth" : "all",
+      flagship: selectedFlagship === "all" ? undefined : selectedFlagship,
     }),
   );
 
@@ -311,12 +347,13 @@ export default function IndividualsList({
 
   const activeFilters = useMemo(
     () => ({
-      categoryMode: selectedCategoryMode,
+      youthStatus: selectedYouthStatus,
       province: resolvedProvince,
       district: selectedDistrict,
       flagship: selectedFlagship,
+      valueChain: selectedValueChain,
     }),
-    [selectedCategoryMode, resolvedProvince, selectedDistrict, selectedFlagship],
+    [selectedYouthStatus, resolvedProvince, selectedDistrict, selectedFlagship, selectedValueChain],
   );
 
   const filteredIndividuals = useMemo(
@@ -398,9 +435,11 @@ export default function IndividualsList({
     [flagshipApiOptions, selectedFlagship],
   );
 
-  const categoryViewOptions = [
-    { value: "all", label: "All Individuals", displayLabel: "All Individuals" },
-    { value: "youth", label: "Youth Only", displayLabel: "Youth Only" },
+  const youthStatusOptions = [
+    { value: "all", label: "All", displayLabel: "All" },
+    { value: "youth", label: "Youth", displayLabel: "Youth" },
+    { value: "non_youth", label: "Non-youth", displayLabel: "Non-youth" },
+    { value: "unknown", label: "Unknown", displayLabel: "Unknown" },
   ];
 
   const filteredRows = rows;
@@ -408,10 +447,11 @@ export default function IndividualsList({
   const listEmptyMessage = useMemo(() => {
     const locationFiltered = resolvedProvince !== "all" || selectedDistrict !== "all";
     if (locationFiltered) return "No individuals found for the selected location";
+    if (selectedValueChain) return "No individuals found for the selected value chain";
     if (selectedFlagship !== "all") return "No individuals found for the selected flagship";
-    if (selectedCategoryMode === "youth") return "No youth individuals found";
+    if (selectedYouthStatus !== "all") return `No ${YOUTH_STATUS_BADGES[selectedYouthStatus].label.toLowerCase()} individuals found`;
     return "No individuals yet";
-  }, [selectedCategoryMode, selectedDistrict, selectedFlagship, resolvedProvince]);
+  }, [selectedYouthStatus, selectedDistrict, selectedFlagship, selectedValueChain, resolvedProvince]);
 
   // KPI cards use the same filtered individuals as the list so numbers always match.
   const kpis = useMemo(
@@ -419,20 +459,25 @@ export default function IndividualsList({
       totalIndividuals: filteredIndividuals.length,
       inFlagships: filteredIndividuals.filter((ind) => (ind.flagshipNames?.length ?? 0) > 0).length,
       outsideFlagships: filteredIndividuals.filter((ind) => (ind.flagshipNames?.length ?? 0) === 0).length,
-      females: filteredIndividuals.filter((ind) => ind.sex === "Female").length,
-      youth: filteredIndividuals.filter((ind) => Boolean(ind.youthCategory)).length,
+      // Total registered individuals who are youth — there's no youth disaggregation on the
+      // jobs_created KPI, so this comes from individual.youth_status, not mv_flagship_summary.
+      youthTotal: filteredIndividuals.filter((ind) => youthStatusKey(ind.youthStatus) === "youth").length,
     }),
     [filteredIndividuals],
   );
 
-  const flagshipVsNonFlagshipData = useMemo(() => {
-    const enrolled = filteredIndividuals.filter((ind) => (ind.flagshipNames?.length ?? 0) > 0).length;
-    const notEnrolled = filteredIndividuals.length - enrolled;
-    return [
-      { name: "Enrolled", value: enrolled, fill: "var(--accent)" },
-      { name: "Not Enrolled", value: notEnrolled, fill: "var(--warning)" },
-    ];
-  }, [filteredIndividuals]);
+  // Female jobs card comes from mv_flagship_summary (flagship-level, no location breakdown), so
+  // only the Flagship filter applies; Province / District / Youth Status do not. Nulls count as 0.
+  const { data: summaryRows } = useQuery(flagshipSummaryQueryOptions);
+  const jobs = useMemo(() => {
+    if (!summaryRows) return null;
+    const rows =
+      selectedFlagship === "all" ? summaryRows : summaryRows.filter((f) => f.flagshipName === selectedFlagship);
+    return {
+      female: Math.round(rows.reduce((sum, f) => sum + (f.jobsCreatedFemale ?? 0), 0)),
+      scope: selectedFlagship === "all" ? "across all flagships" : `in ${rows[0]?.flagshipCode ?? selectedFlagship}`,
+    };
+  }, [summaryRows, selectedFlagship]);
 
   const sexData = useMemo(() => {
     const counts = new Map<string, number>();
@@ -446,58 +491,55 @@ export default function IndividualsList({
     }));
   }, [filteredIndividuals]);
 
-  const youthCategoryData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ind of filteredIndividuals) {
-      if (!ind.youthCategory) continue;
-      const label = CATEGORY_LABELS[ind.youthCategory] ?? ind.youthCategory;
-      counts.set(label, (counts.get(label) ?? 0) + 1);
+  const [valueChainRank, setValueChainRank] = useState<"highest" | "lowest">("highest");
+  const valueChainData = useMemo(() => {
+    // 1. Combine stages: one entry per value chain (name matched ignoring case/spaces),
+    //    value = sum of its stage counts, stages = breakdown for the tooltip.
+    const combined = new Map<string, { name: string; value: number; stages: Map<string, number> }>();
+    for (const item of viz?.byValueChain ?? []) {
+      const key = item.name.trim().toLowerCase();
+      const entry = combined.get(key) ?? { name: item.name.trim(), value: 0, stages: new Map<string, number>() };
+      entry.value += item.value;
+      const stages = item.stages?.length ? item.stages : [];
+      for (const s of stages) entry.stages.set(s.stage, (entry.stages.get(s.stage) ?? 0) + s.count);
+      combined.set(key, entry);
     }
-    return Array.from(counts.entries()).map(([name, value], idx) => ({
-      name,
-      value,
-      fill: CHART_COLORS[idx % CHART_COLORS.length],
-    }));
-  }, [filteredIndividuals]);
-
-  const registeredOverTimeData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ind of filteredIndividuals) {
-      const date = new Date(ind.createdAt);
-      if (Number.isNaN(date.getTime())) continue;
-      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      counts.set(month, (counts.get(month) ?? 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, value]) => ({ month, value }));
-  }, [filteredIndividuals]);
-
-  const valueChainData = useMemo(
-    () =>
-      (viz?.byValueChain ?? []).map((item, idx) => ({
+    // 2. Then rank on the combined totals. Lowest 5 only considers chains with at least one individual.
+    return Array.from(combined.values())
+      .filter((item) => item.value > 0)
+      .sort((a, b) => (valueChainRank === "highest" ? b.value - a.value : a.value - b.value) || a.name.localeCompare(b.name))
+      .slice(0, 5)
+      .map((item, idx) => ({
         name: item.name,
         value: item.value,
-        fill: CHART_COLORS[idx % CHART_COLORS.length],
-      })),
-    [viz],
-  );
-
-  const enrolledPerFlagshipData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ind of filteredIndividuals) {
-      for (const flagship of ind.flagshipNames ?? []) {
-        counts.set(flagship, (counts.get(flagship) ?? 0) + 1);
-      }
-    }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, value], idx) => ({
-        name,
-        value,
+        stages: Array.from(item.stages, ([stage, count]) => ({ stage, count })).sort((a, b) => b.count - a.count),
         fill: CHART_COLORS[idx % CHART_COLORS.length],
       }));
-  }, [filteredIndividuals]);
+  }, [viz, valueChainRank]);
+
+  // DEBUG: remove once the individuals overview data has been inspected
+  useEffect(() => {
+    if (!viz) return;
+    console.log("[Individuals] raw overview API response (/api/visualizations/individuals):", viz);
+  }, [viz]);
+
+  useEffect(() => {
+    if (isLoading) return;
+    console.log("[Individuals] raw individuals list:", individuals.length, "items", individuals);
+    console.log("[Individuals] cards (kpis):", kpis);
+    console.log("[Individuals] chart data — Individuals by value chain:", valueChainData);
+    console.log("[Individuals] chart data — by sex:", sexData);
+  }, [
+    isLoading, individuals, kpis, valueChainData, sexData,
+  ]);
+
+  async function handleDownload(individualId: number, format: ExportFormat) {
+    try {
+      await downloadIndividual(queryClient, individualId, format);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not download this individual");
+    }
+  }
 
   return (
     <div className="space-y-6 w-full min-w-0">
@@ -508,14 +550,28 @@ export default function IndividualsList({
             readOnly ? undefined : (
               <div className="flex gap-3">
                 {addPath && (
-                  <Button
-                    variant="primary"
-                    className="!rounded-3xl font-medium"
-                    onPress={() => navigate(addPath, { viewTransition: true })}
-                  >
-                    <IconUserPlus size={16} />
-                    Add Individual
-                  </Button>
+                  <Dropdown>
+                    <Button variant="primary" className="!rounded-3xl font-medium" aria-label="Add Individual">
+                      <IconUserPlus size={16} />
+                      Add Individual
+                      <IconChevronDown size={14} />
+                    </Button>
+                    <Dropdown.Popover className="min-w-max">
+                      <Dropdown.Menu
+                        onAction={(key) => {
+                          if (key === "manual") navigate(addPath, { viewTransition: true });
+                          else setImportOpen(true);
+                        }}
+                      >
+                        <Dropdown.Item id="manual" textValue="Add manually">
+                          <Label>Add manually</Label>
+                        </Dropdown.Item>
+                        <Dropdown.Item id="upload" textValue="Upload sheet">
+                          <Label>Upload sheet</Label>
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown>
                 )}
               </div>
             )
@@ -533,7 +589,7 @@ export default function IndividualsList({
         </p>
       ) : null}
       <ContentTab
-        items={[...OVERVIEW_TABS]}
+        items={overviewTabItems}
         activeId={viewMode}
         onChange={(id) => setViewMode(id as ViewMode)}
       />
@@ -557,12 +613,12 @@ export default function IndividualsList({
         />
         <div className="hidden shrink-0 lg:block lg:w-5" aria-hidden />
         <AppSelect
-          name="overviewCategory"
-          label="Category View"
+          name="overviewYouthStatus"
+          label="Youth Status"
           className="w-full min-w-0 lg:flex-1"
-          options={categoryViewOptions}
-          selectedKey={selectedCategoryMode}
-          onSelectionChange={(value) => setSelectedCategoryMode((value || "all") as CategoryMode)}
+          options={youthStatusOptions}
+          selectedKey={selectedYouthStatus}
+          onSelectionChange={(value) => setSelectedYouthStatus(value || "all")}
         />
         <AppSelect
           name="overviewFlagship"
@@ -577,11 +633,24 @@ export default function IndividualsList({
         </div>
       </div>
 
+      {selectedValueChain ? (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="rounded-full bg-(--default) px-3 py-1">
+            Value chain: <strong>{selectedValueChain}</strong>
+          </span>
+          <Button size="sm" variant="secondary" onPress={() => setSelectedValueChain("")}>
+            Clear value chain
+          </Button>
+        </div>
+      ) : null}
+
       {vizFetching ? (
         <p className="text-xs text-(--muted)">Updating overview for selected location…</p>
       ) : null}
 
-      {viewMode === "overview" ? (
+      {viewMode === "draft" ? (
+        <DraftsTabContent entityType="individual" editPath={addPath ?? "/me/individuals/add-individual"} />
+      ) : viewMode === "overview" ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard
@@ -609,35 +678,19 @@ export default function IndividualsList({
               color="var(--forest)"
               iconBackground="var(--forest-icon-bg)"
               icon={<IconUserCircle size={18} />}
-              stat={kpis.females}
-              label="Female individuals"
+              stat={jobs ? jobs.female.toLocaleString("en-US") : "—"}
+              label={`Female jobs ${jobs?.scope ?? "across all flagships"}`}
             />
             <StatCard
               color="var(--success)"
               iconBackground="var(--success-icon-bg)"
               icon={<IconUserShare size={18} />}
-              stat={kpis.youth}
-              label="Youth individuals"
+              stat={kpis.youthTotal.toLocaleString("en-US")}
+              label="Total youth registered"
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold">Flagship vs non-flagship proportion</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={flagshipVsNonFlagshipData} dataKey="value" nameKey="name" outerRadius={90} label>
-                      {flagshipVsNonFlagshipData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
             <Card className="p-4">
               <h3 className="mb-3 text-base font-semibold">Individuals by sex</h3>
               <div className="h-64">
@@ -655,48 +708,27 @@ export default function IndividualsList({
             </Card>
 
             <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold">Individuals by youth category</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={youthCategoryData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value">
-                      {youthCategoryData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-semibold">Individuals by value chain</h3>
+                <AppSelect
+                  name="valueChainRank"
+                  label="Show"
+                  className="w-40 min-w-0"
+                  options={[
+                    { label: "Highest 5", value: "highest" },
+                    { label: "Lowest 5", value: "lowest" },
+                  ]}
+                  selectedKey={valueChainRank}
+                  onSelectionChange={(v) => setValueChainRank(v === "lowest" ? "lowest" : "highest")}
+                />
               </div>
-            </Card>
-
-            <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold">Individuals registered over time</h3>
-              <div className="h-64">
+              <div style={{ height: Math.max(256, valueChainData.length * 40 + 40) }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={registeredOverTimeData}>
+                  <BarChart data={valueChainData} layout="vertical" margin={{ left: 16 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold">Individuals by value chain</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={valueChainData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
+                    <XAxis type="number" allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" width={160} interval={0} />
+                    <Tooltip content={<ValueChainTooltip />} />
                     <Bar dataKey="value">
                       {valueChainData.map((entry) => (
                         <Cell key={entry.name} fill={entry.fill} />
@@ -707,24 +739,6 @@ export default function IndividualsList({
               </div>
             </Card>
 
-            <Card className="p-4">
-              <h3 className="mb-3 text-base font-semibold">Individuals enrolled per flagship</h3>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={enrolledPerFlagshipData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--separator)" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="value">
-                      {enrolledPerFlagshipData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
           </div>
         </div>
       ) : (
@@ -733,14 +747,27 @@ export default function IndividualsList({
           tableAriaLabel="Individuals table"
           loading={isLoading}
           emptyMessage={listEmptyMessage}
-          columns={readOnly ? COLUMNS_READONLY : COLUMNS}
+          columns={COLUMNS}
           rows={filteredRows}
-          minTableWidthClassName="min-w-[1054px]"
-          searchPlaceholder="Search by name, sex, category, location, flagship, source…"
-          searchKeys={["name", "sex", "category", "location", "source", "flagship", "province", "district"]}
-          statusColumnKey="source"
-          statusColorMap={STATUS_COLOR_MAP}
+          minTableWidthClassName="min-w-[1100px]"
+          exportConfig={{
+            title: "Individuals List",
+            fileBase: "individuals",
+            values: { youthStatus: (row) => youthStatusLabel(String(row.youthStatus)) },
+            // Full per-individual detail (same as the View dialog), not just the compact table columns.
+            getExportData: () => buildIndividualsExportData(queryClient, filteredIndividuals),
+          }}
+          searchPlaceholder="Search by name, sex, youth status, location, flagship, value chain…"
+          searchKeys={["name", "sex", "youthStatus", "location", "valueChain", "flagship", "province", "district"]}
           cellRenderers={{
+            youthStatus: (row) => {
+              const badge = YOUTH_STATUS_BADGES[youthStatusKey(String(row.youthStatus))];
+              return (
+                <Chip size="sm" variant="soft" color={badge.color}>
+                  {badge.label}
+                </Chip>
+              );
+            },
             flagship: (row) => (
               <span
                 className="block min-w-[280px] max-w-[320px] text-sm leading-snug whitespace-normal text-(--foreground)"
@@ -751,17 +778,17 @@ export default function IndividualsList({
             ),
           }}
           filterByTab={() => true}
-          actions={
-            readOnly
-              ? undefined
-              : (row) => [
-                  {
-                    label: "View Details",
-                    onClick: () =>
-                      updatePath
-                        ? navigate(`${updatePath}?editId=${row.id}&mode=view`, { viewTransition: true })
-                        : undefined,
-                  },
+          actions={(row) => [
+            { label: "View", onClick: () => view.open(Number(row.id)) },
+            ...(hideDownload
+              ? []
+              : [
+                  { label: "Download (.xlsx)", onClick: () => handleDownload(Number(row.id), "xlsx") },
+                  { label: "Download (.pdf)", onClick: () => handleDownload(Number(row.id), "pdf") },
+                ]),
+            ...(readOnly
+              ? []
+              : [
                   {
                     label: "Update",
                     onClick: () =>
@@ -776,12 +803,35 @@ export default function IndividualsList({
                       if (!confirmed) return;
                       deleteMutation.mutate(Number(row.id));
                     },
-                    color: "danger",
+                    color: "danger" as const,
                   },
-                ]
-          }
+                ]),
+          ]}
         />
       )}
+      <RecordDetailsDialog
+        testId="individual-details"
+        isOpen={view.id !== null}
+        onClose={view.close}
+        title={record.detail ? `${record.detail.firstName} ${record.detail.lastName}` : null}
+        fallbackTitle="Individual"
+        isLoading={record.isLoading}
+        isError={record.isError}
+        onRetry={record.onRetry}
+        sections={record.sections}
+        actions={
+          record.detail ? (
+            <ExportMenu
+              label="Download"
+              onExport={(format) => record.detail && exportIndividual(record.detail, record.sections, format)}
+            />
+          ) : undefined
+        }
+        onEdit={!readOnly && updatePath && view.id !== null ? () => navigate(`${updatePath}?editId=${view.id}`, { viewTransition: true }) : undefined}
+      />
+      {!readOnly && addPath ? (
+        <IndividualImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} individualsPath={pathname} />
+      ) : null}
     </div>
   );
 }

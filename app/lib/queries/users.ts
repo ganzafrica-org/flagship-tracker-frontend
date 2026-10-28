@@ -3,6 +3,12 @@ import { api, API_BASE_URL, ApiError } from "~/lib/api";
 
 export type UserRole = "ADMIN" | "SENIOR" | "MONITORING_OFFICER";
 
+export const USER_ROLE_OPTIONS: { label: string; value: UserRole }[] = [
+  { label: "Admin", value: "ADMIN" },
+  { label: "Senior Official", value: "SENIOR" },
+  { label: "Monitoring Officer", value: "MONITORING_OFFICER" },
+];
+
 export interface User {
   id: number;
   email: string;
@@ -48,12 +54,6 @@ export const usersListQueryOptions = queryOptions({
   queryKey: ["users", "all"],
   queryFn: ({ signal }) => fetchAllUsers(signal),
 });
-
-export const usersQueryOptions = (params?: { cursor?: string; search?: string; role?: string }) =>
-  queryOptions({
-    queryKey: ["users", params ?? {}],
-    queryFn: ({ signal }) => api.get<UserPageResponse>("/api/users", params, signal),
-  });
 
 /**
  * CSV import is multipart/form-data, which the JSON `api` client can't build —

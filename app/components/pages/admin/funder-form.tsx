@@ -17,17 +17,15 @@ import {
 interface FormState {
   funderName: string;
   funderType: string;
-  active: boolean;
 }
 
-const EMPTY: FormState = { funderName: "", funderType: "", active: true };
+const EMPTY: FormState = { funderName: "", funderType: "" };
 
 export default function FunderForm({ basePath = "/admin" }: { basePath?: string } = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const editId = params.get("editId");
-  const isView = params.get("mode") === "view";
   const isEdit = Boolean(editId);
 
   const { data: existing = [] } = useQuery({ ...fundersQueryOptions(), enabled: isEdit });
@@ -40,7 +38,7 @@ export default function FunderForm({ basePath = "/admin" }: { basePath?: string 
   useEffect(() => {
     if (!isEdit) return;
     const f = existing.find((x) => String(x.id) === editId);
-    if (f) setForm({ funderName: f.funderName, funderType: f.funderType, active: f.active });
+    if (f) setForm({ funderName: f.funderName, funderType: f.funderType });
   }, [isEdit, editId, existing]);
 
   const mutation = useMutation({
@@ -68,7 +66,7 @@ export default function FunderForm({ basePath = "/admin" }: { basePath?: string 
     mutation.mutate({ funderName: form.funderName.trim(), funderType: form.funderType });
   }
 
-  const title = isView ? "Funder Details" : isEdit ? "Edit Funder" : "Add Funder";
+  const title = isEdit ? "Edit Funder" : "Add Funder";
 
   return (
     <div className="flex flex-col gap-5">
@@ -87,7 +85,6 @@ export default function FunderForm({ basePath = "/admin" }: { basePath?: string 
             setErrors((e) => ({ ...e, funderName: undefined }));
           }}
           isRequired
-          isDisabled={isView}
           errorMessage={errors.funderName}
         />
 
@@ -102,23 +99,16 @@ export default function FunderForm({ basePath = "/admin" }: { basePath?: string 
             setErrors((e) => ({ ...e, funderType: undefined }));
           }}
           isRequired
-          isDisabled={isView}
           errorMessage={errors.funderType}
         />
 
-        {isView ? (
-          <p className="text-sm text-(--foreground-600)">Status: {form.active ? "Active" : "Inactive"}</p>
-        ) : null}
-
         <div className="flex gap-3 pt-2">
           <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders`)}>
-            {isView ? "Back" : "Cancel"}
+            Cancel
           </Button>
-          {!isView ? (
-            <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
-              {isEdit ? "Save Changes" : "Create"}
-            </Button>
-          ) : null}
+          <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
+            {isEdit ? "Save Changes" : "Create"}
+          </Button>
         </div>
       </Card>
     </div>
