@@ -9,6 +9,8 @@ interface AppProgressBarProps {
   /** Show the "NN%" label inline above the bar. */
   showLabel?: boolean;
   label?: string;
+  /** Overrides the inline "NN%" text, e.g. to show a real value above 100% or "—". */
+  valueText?: string;
   className?: string;
 }
 
@@ -18,6 +20,7 @@ export default function AppProgressBar({
   color = "accent",
   showLabel = false,
   label = "Progress",
+  valueText,
   className = "",
 }: AppProgressBarProps) {
   const clamped = Math.max(0, Math.min(100, value));
@@ -27,7 +30,11 @@ export default function AppProgressBar({
       {showLabel ? (
         <div className="mb-1 flex items-center justify-between text-[12px] text-(--muted)">
           <span>{label}</span>
-          <ProgressBar.Output className="font-medium text-(--foreground)" />
+          {valueText != null ? (
+            <span className="font-medium text-(--foreground)">{valueText}</span>
+          ) : (
+            <ProgressBar.Output className="font-medium text-(--foreground)" />
+          )}
         </div>
       ) : null}
       <ProgressBar.Track className="h-2 rounded-full bg-(--default)">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, FieldGroup, Fieldset, Form, Spinner } from "@heroui/react";
+import { IconFileImport } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { parseDate } from "@internationalized/date";
@@ -9,16 +10,22 @@ import AppDate from "~/components/app-date";
 import AppSelect, { NO_DATA_OPTIONS } from "~/components/app-select";
 import AppTextField from "~/components/app-text-field";
 import AppTextarea from "~/components/app-textarea";
+import FlagshipImportDialog from "~/components/pages/flagships/flagship-import-dialog";
 import { PageTitleCard } from "~/components/page-title-card";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
 import { Stepper, type StepConfig } from "~/components/stepper";
+import { toast } from "~/components/app-alert";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
+import { isNetworkError } from "~/lib/offline-drafts/network";
+import { createFlagshipDraft, deleteDraft, getDraft, updateDraft } from "~/lib/offline-drafts/repository";
+import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import {
   buildCreateFlagshipRequest,
   createFlagship,
   createFlagshipKpi,
   type CreateFlagshipKpiRequest,
+  type CreateFlagshipRequest,
   flagshipDetailQueryOptions,
   flagshipsQueryOptions,
   updateFlagship,
@@ -72,15 +79,36 @@ export default function MeAddFlagshipPage() {
   const editId = Number(searchParams.get("editId") || 0);
   const isUpdateMode = Number.isFinite(editId) && editId > 0;
   const returnTo = searchParams.get("returnTo") || "/me/flagships";
+  const draftIdRaw = Number(searchParams.get("draftId") || 0);
+  const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : null;
 
   const { data: flagshipDetail, isLoading: detailLoading, isError: detailError } = useQuery({
     ...flagshipDetailQueryOptions(editId),
     enabled: isUpdateMode,
   });
+  const [draftData, setDraftData] = useState<{
+    payload: CreateFlagshipRequest;
+    pendingKpis: PendingKpi[];
+  } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  useEffect(() => {
+    if (!draftId) {
+      setDraftData(null);
+      return;
+    }
+    setDraftLoading(true);
+    void getDraft(draftId).then((draft) => {
+      setDraftData(
+        draft && draft.entityType === "flagship" ? { payload: draft.payload, pendingKpis: draft.pendingKpis } : null,
+      );
+      setDraftLoading(false);
+    });
+  }, [draftId]);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Step 0 fields
   const [flagshipName, setFlagshipName] = useState("");
@@ -164,43 +192,48 @@ export default function MeAddFlagshipPage() {
 
   useEffect(() => {
     setPrefilled(false);
-  }, [editId]);
+  }, [editId, draftId]);
 
   useEffect(() => {
-    if (!isUpdateMode || !flagshipDetail || prefilled) return;
+    const source = isUpdateMode ? flagshipDetail : draftData?.payload;
+    if ((!isUpdateMode && !draftId) || !source || prefilled) return;
 
-    setFlagshipName(flagshipDetail.flagshipName);
-    setFlagshipCode(flagshipDetail.flagshipCode);
-    setDescription(flagshipDetail.description ?? "");
-    setFlagshipCluster(flagshipDetail.flagshipCluster);
-    setFlagshipStatus(flagshipDetail.status);
-    setPrimaryValueChain(flagshipDetail.primaryValueChain ?? "");
-    setImplementingAgency(flagshipDetail.implementingAgency ?? "");
-    setManagementModel(flagshipDetail.managementModel ?? "");
+    setFlagshipName(source.flagshipName);
+    setFlagshipCode(source.flagshipCode);
+    setDescription(source.description ?? "");
+    setFlagshipCluster(source.flagshipCluster);
+    setFlagshipStatus(source.status);
+    setPrimaryValueChain(source.primaryValueChain ?? "");
+    setImplementingAgency(source.implementingAgency ?? "");
+    setManagementModel(source.managementModel ?? "");
     setTargetYouthCount(
-      flagshipDetail.targetYouthCount != null ? String(flagshipDetail.targetYouthCount) : "",
+      source.targetYouthCount != null ? String(source.targetYouthCount) : "",
     );
     setBudgetTotalRwf(
-      flagshipDetail.budgetTotalRwf != null ? String(flagshipDetail.budgetTotalRwf) : "",
+      source.budgetTotalRwf != null ? String(source.budgetTotalRwf) : "",
     );
+    setFunder(source.funders ?? "");
 
-    if (flagshipDetail.startDate) {
+    if (source.startDate) {
       try {
-        setStartDate(parseDate(flagshipDetail.startDate.slice(0, 10)));
+        setStartDate(parseDate(source.startDate.slice(0, 10)));
       } catch {
         setStartDate(null);
       }
     }
-    if (flagshipDetail.endDate) {
+    if (source.endDate) {
       try {
-        setEndDate(parseDate(flagshipDetail.endDate.slice(0, 10)));
+        setEndDate(parseDate(source.endDate.slice(0, 10)));
       } catch {
         setEndDate(null);
       }
     }
+    if (!isUpdateMode && draftData?.pendingKpis) {
+      setPendingKpis(draftData.pendingKpis);
+    }
 
     setPrefilled(true);
-  }, [isUpdateMode, flagshipDetail, prefilled]);
+  }, [isUpdateMode, draftId, flagshipDetail, draftData, prefilled]);
 
   const saveMutation = useMutation({
     mutationFn: async (body: ReturnType<typeof buildCreateFlagshipRequest>) => {
@@ -288,15 +321,8 @@ export default function MeAddFlagshipPage() {
     setLocations((prev) => [...prev, entry]);
   }
 
-  async function handleSubmit() {
-    if (!flagshipName.trim() || !flagshipCode.trim() || !flagshipCluster || !flagshipStatus) {
-      setSubmitError("Complete required fields on Basic Flagship Details (name, code, cluster, status).");
-      setCurrentStep(0);
-      return;
-    }
-
-    setSubmitError(null);
-    const body = buildCreateFlagshipRequest({
+  function buildFlagshipPayload(): CreateFlagshipRequest {
+    return buildCreateFlagshipRequest({
       flagshipName,
       flagshipCode,
       flagshipCluster,
@@ -311,6 +337,37 @@ export default function MeAddFlagshipPage() {
       budgetTotalRwf,
       funders: funder || undefined,
     });
+  }
+
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  async function handleSaveDraft() {
+    setIsSavingDraft(true);
+    try {
+      const body = buildFlagshipPayload();
+      if (draftId) {
+        await updateDraft(draftId, { payload: body, pendingKpis });
+      } else {
+        await createFlagshipDraft(body, pendingKpis);
+      }
+      showDraftSavedToast();
+      navigate(returnTo, { viewTransition: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!flagshipName.trim() || !flagshipCode.trim() || !flagshipCluster || !flagshipStatus) {
+      setSubmitError("Complete required fields on Basic Flagship Details (name, code, cluster, status).");
+      setCurrentStep(0);
+      return;
+    }
+
+    setSubmitError(null);
+    const body = buildFlagshipPayload();
 
     try {
       const saved = await saveMutation.mutateAsync(body);
@@ -325,11 +382,18 @@ export default function MeAddFlagshipPage() {
       void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });
       void queryClient.invalidateQueries({ queryKey: ["flagships", saved.flagshipId] });
       void queryClient.invalidateQueries({ queryKey: ["flagships", saved.flagshipId, "detail"] });
+      if (draftId) void deleteDraft(draftId);
       navigate(
         isUpdateMode ? returnTo : `/me/flagships/${saved.flagshipId}`,
         { viewTransition: true },
       );
     } catch (error) {
+      if (isNetworkError(error)) {
+        void (draftId ? updateDraft(draftId, { payload: body, pendingKpis }) : createFlagshipDraft(body, pendingKpis));
+        showDraftSavedToast();
+        navigate(returnTo, { viewTransition: true });
+        return;
+      }
       if (error instanceof ApiError) {
         setSubmitError(formatApiErrorMessage(error.message));
       } else if (error instanceof Error) {
@@ -346,7 +410,7 @@ export default function MeAddFlagshipPage() {
     return apiOptions;
   };
 
-  if (isUpdateMode && detailLoading) {
+  if ((isUpdateMode && detailLoading) || (draftId && draftLoading)) {
     return (
       <div className="flex justify-center py-16">
         <Spinner size="lg" />
@@ -356,7 +420,20 @@ export default function MeAddFlagshipPage() {
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
-      <PageTitleCard title={isUpdateMode ? "Update Flagship" : "Flagship Projects Management"} />
+      <PageTitleCard
+        title={isUpdateMode ? "Update Flagship" : "Flagship Projects Management"}
+        actionSlot={
+          isUpdateMode ? undefined : (
+            <Button variant="outline" className="!rounded-3xl font-medium shrink-0" onPress={() => setImportOpen(true)}>
+              <IconFileImport size={16} />
+              Import
+            </Button>
+          )
+        }
+      />
+      {isUpdateMode ? null : (
+        <FlagshipImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} flagshipsPath="/me/flagships" />
+      )}
 
       {isUpdateMode && detailError ? (
         <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">
@@ -386,6 +463,8 @@ export default function MeAddFlagshipPage() {
           onNext={goNext}
           onSkip={() => setCurrentStep((s) => s + 1)}
           onSubmit={handleSubmit}
+          onSaveDraft={handleSaveDraft}
+          isSavingDraft={isSavingDraft}
           stepHasValue={stepHasValue}
           isSubmitting={saveMutation.isPending}
           isNextDisabled={lookupsLoading && currentStep === 0}

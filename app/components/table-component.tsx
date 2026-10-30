@@ -6,9 +6,12 @@ import { IconChevronsRight, IconChevronsLeft, IconX } from '@tabler/icons-react'
 
 import ActionDropdown from "~/components/action-dropdown";
 import AppSkeleton from "~/components/app-skeleton";
+import { TableExportMenu } from "~/components/export-menu";
+import type { ExportColumn } from "~/lib/export/table-export";
 import { dummyManageReports, dummyUserTabs } from "~/data/dummy-data";
 
 const ITEMS_PER_PAGE = 7;
+const PAGE_WINDOW = 5;
 
 type RowValue = string | number;
 
@@ -72,6 +75,22 @@ function rowMatchesSearch(
   });
 }
 
+export interface TableExportConfig {
+  /** Title printed in the exported file. */
+  title: string;
+  fileBase?: string;
+  /** Text for columns whose displayed value differs from the raw row value (badges, avatars…). */
+  values?: Record<string, (row: Record<string, unknown>) => string>;
+  /**
+   * Optional override for what actually gets exported. When set, this fully replaces the default
+   * behavior (exporting the visible table columns for every filtered+searched row) with custom
+   * columns/rows — e.g. fetching each record's full detail so the export matches its single-record
+   * view instead of just the compact table columns. `values` above is ignored when this is set
+   * (format the cell text directly in the returned rows instead).
+   */
+  getExportData?: () => Promise<{ columns: ExportColumn[]; rows: Record<string, unknown>[] }>;
+}
+
 interface TableComponentProps {
   tableSectionTitle?: string;
   tableAriaLabel?: string;
@@ -94,6 +113,8 @@ interface TableComponentProps {
   emptyMessage?: string;
   /** Custom cell renderers keyed by column key (overrides default text rendering). */
   cellRenderers?: Record<string, (row: TableRowData) => React.ReactNode>;
+  /** Shows an Export (.xlsx / .pdf) button that exports every filtered + searched row, not just the page. */
+  exportConfig?: TableExportConfig;
 }
 
 export default function TableComponent({
@@ -137,6 +158,7 @@ export default function TableComponent({
   loading = false,
   emptyMessage = "No records found",
   cellRenderers,
+  exportConfig,
 }: TableComponentProps) {
   const [selectedTab, setSelectedTab] = useState("all");
   const [search, setSearch] = useState("");
@@ -194,6 +216,12 @@ export default function TableComponent({
   const totalPages = Math.max(1, Math.ceil(ordered.length / itemsPerPage));
   const start = (page - 1) * itemsPerPage;
   const paginatedRows = ordered.slice(start, start + itemsPerPage);
+  const windowSize = Math.min(PAGE_WINDOW, totalPages);
+  const windowStart = Math.min(
+    Math.max(1, page - Math.floor(PAGE_WINDOW / 2)),
+    totalPages - windowSize + 1,
+  );
+  const visiblePages = Array.from({ length: windowSize }, (_, i) => windowStart + i);
   const MoveToFirstPage = () => setPage(1);
   const MoveToLastPage = () => setPage(totalPages);
 
@@ -255,8 +283,10 @@ export default function TableComponent({
             })}
           </div>
 
+          <div className="flex w-[40%] items-center justify-end gap-2">
           <SearchField
-            className="w-[30%]"
+            aria-label={searchPlaceholder}
+            className="min-w-0 flex-1"
             value={search}
             onChange={(value) => {
               setSearch(normalizeSearchTerm(value));
@@ -282,6 +312,25 @@ export default function TableComponent({
               />
             </SearchField.Group>
           </SearchField>
+          {exportConfig ? (
+            <TableExportMenu
+              isDisabled={loading || ordered.length === 0}
+              getOptions={async () => {
+                if (exportConfig.getExportData) {
+                  const { columns: exportColumns, rows } = await exportConfig.getExportData();
+                  return { title: exportConfig.title, fileBase: exportConfig.fileBase, columns: exportColumns, rows };
+                }
+                return {
+                  title: exportConfig.title,
+                  fileBase: exportConfig.fileBase,
+                  columns: columns.filter((c) => c.key !== "action").map((c) => ({ key: c.key, label: c.label })),
+                  rows: ordered,
+                  values: exportConfig.values,
+                };
+              }}
+            />
+          ) : null}
+          </div>
         </div>
 
         {/* Selected chips row — right-aligned, newest on the right */}
@@ -402,7 +451,7 @@ export default function TableComponent({
                   <Pagination.PreviousIcon />
                 </Pagination.Previous>
               </Pagination.Item>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              {visiblePages.map((p) => (
                 <Pagination.Item key={p}>
                   <Pagination.Link
                     isActive={page === p}

@@ -10,7 +10,7 @@ export interface SeniorDashboard {
   cards: {
     totalFlagships: number;
     totalJobsCreated: number | null;
-    totalInvestors: number;
+    totalFunders: number;
     totalInvestmentRwf: number | null;
     totalCooperativesEngaged: number;
   };
@@ -37,12 +37,32 @@ export interface SeniorDashboard {
   }[];
 }
 
+/** Dashboard data: revisiting within the window shows the cache instantly; stale data refetches in the background. */
+const DASHBOARD_CACHE = { staleTime: 60_000, gcTime: 30 * 60_000 } as const;
+
 export const seniorDashboardQueryOptions = (year?: number) =>
   queryOptions({
     queryKey: ["viz", "senior-dashboard", year ?? "all"],
     queryFn: ({ signal }) =>
       api.get<SeniorDashboard>("/api/visualizations/senior-dashboard", { year }, signal),
+    ...DASHBOARD_CACHE,
   });
+
+/** Total individuals and the youth_status split, from one aggregate query (no list download). */
+export interface SeniorIndividuals {
+  total: number;
+  youth: number;
+  nonYouth: number;
+  /** youth_status null or not 'youth' / 'non_youth'. */
+  unknown: number;
+}
+
+export const seniorIndividualsQueryOptions = queryOptions({
+  queryKey: ["viz", "senior-individuals"],
+  queryFn: ({ signal }) =>
+    api.get<SeniorIndividuals>("/api/visualizations/senior-dashboard/individuals", undefined, signal),
+  ...DASHBOARD_CACHE,
+});
 
 // ─── Cooperatives dashboard (C.1–C.10) ──────────────────────────────────────────
 
@@ -66,12 +86,53 @@ export interface CooperativesDashboard {
   cooperativesPerFlagship: { flagshipCode: string; cooperatives: number }[];
 }
 
-export const cooperativesDashboardQueryOptions = (flagship?: string) =>
+export const cooperativesDashboardQueryOptions = (flagship?: string, type?: string) =>
   queryOptions({
-    queryKey: ["viz", "cooperatives", flagship ?? "all"],
+    queryKey: ["viz", "cooperatives", flagship ?? "all", type ?? "all"],
     queryFn: ({ signal }) =>
-      api.get<CooperativesDashboard>("/api/visualizations/cooperatives", { flagship }, signal),
+      api.get<CooperativesDashboard>("/api/visualizations/cooperatives", { flagship, type }, signal),
   });
+
+// ─── Flagship summary (mv_flagship_summary) ────────────────────────────────────
+
+export interface FlagshipSummaryRow {
+  flagshipId: number;
+  flagshipName: string;
+  flagshipCode: string;
+  flagshipCluster: string;
+  status: string;
+  primaryValueChain: string[];
+  startDate: string | null;
+  targetYouthCount: number | null;
+  budgetTotalRwf: number | null;
+  jobsCreatedActual: number | null;
+  investorCount: number | null;
+  /** mv_flagship_summary.jobs_created_female; null when the flagship has no female job KPI. */
+  jobsCreatedFemale: number | null;
+}
+
+export const flagshipSummaryQueryOptions = queryOptions({
+  queryKey: ["viz", "flagship-summary"],
+  queryFn: ({ signal }) =>
+    api.get<FlagshipSummaryRow[]>("/api/visualizations/flagship-summary", undefined, signal),
+});
+
+const STATUS_ORDER = ["active", "planning", "suspended", "closed"];
+
+/** Flagships Status: every flagship from mv_flagship_summary, active first, then by name (same cache entry as the flagship cards). */
+export const flagshipStatusListQueryOptions = queryOptions({
+  ...flagshipSummaryQueryOptions,
+  ...DASHBOARD_CACHE,
+  select: (summary: FlagshipSummaryRow[]): FlagshipSummaryRow[] => {
+    const rank = (status: string) => {
+      const i = STATUS_ORDER.indexOf(status);
+      return i === -1 ? STATUS_ORDER.length : i;
+    };
+    return [...summary].sort(
+      (a, b) => rank(a.status) - rank(b.status) || a.flagshipName.localeCompare(b.flagshipName),
+    );
+  },
+});
 
 // ─── Individuals dashboard (I.1–I.11) ───────────────────────────────────────────
 
@@ -84,17 +145,8 @@ export interface IndividualsDashboard {
     youth: number;
   };
   bySex: { name: string; value: number }[];
-  byYouthCategory: { name: string; value: number }[];
-  flagshipProportion: { name: string; value: number }[];
-  perFlagship: { flagshipCode: string; count: number }[];
-  byValueChain: { name: string; value: number }[];
-  growth: {
-    year: number;
-    month: number;
-    registered: number;
-    inFlagships: number;
-    outsideFlagships: number;
-  }[];
+  /** One entry per value chain (stages combined); `stages` is the per-stage breakdown. */
+  byValueChain: { name: string; value: number; stages?: { stage: string; count: number }[] }[];
 }
 
 export const individualsDashboardQueryOptions = (params?: {
@@ -103,6 +155,8 @@ export const individualsDashboardQueryOptions = (params?: {
   sector?: string;
   cell?: string;
   view?: "all" | "youth";
+  /** Flagship NAME; narrows the value-chain chart to that flagship. */
+  flagship?: string;
 }) =>
   queryOptions({
     queryKey: ["viz", "individuals", params ?? {}],
@@ -164,3 +218,36 @@ export const flagshipDashboardQueryOptions = (id: number | string) =>
     queryFn: ({ signal }) =>
       api.get<FlagshipDashboard>(`/api/visualizations/flagships/${id}`, undefined, signal),
   });
+
+// ─── Value chains by flagship (admin dashboard) ─────────────────────────────────
+
+export interface FlagshipValueChain {
+  name: string;
+  totalIndividuals: number;
+  stages: { stage: string; count: number }[];
+  female: number;
+  male: number;
+  youth: number;
+  nonYouth: number;
+  unknownYouth: number;
+  cooperatives: number;
+}
+
+export interface FlagshipValueChains {
+  flagships: {
+    flagshipId: number;
+    flagshipCode: string;
+    flagshipName: string;
+    /** Flagship-level only: jobs are not tracked per value chain. */
+    jobsCreated: number | null;
+    /** Individuals linked to this flagship through individual_flagship (any value chain). */
+    linkedIndividuals: number;
+    valueChains: FlagshipValueChain[];
+  }[];
+}
+
+export const flagshipValueChainsQueryOptions = queryOptions({
+  queryKey: ["viz", "flagship-value-chains"],
+  queryFn: ({ signal }) =>
+    api.get<FlagshipValueChains>("/api/visualizations/flagship-value-chains", undefined, signal),
+});

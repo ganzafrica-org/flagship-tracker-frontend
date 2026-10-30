@@ -5,13 +5,23 @@ import type { Route } from "./+types/layout";
 import { queryClient } from "~/lib/query-client";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { reportsQueryOptions } from "~/lib/queries/reports";
+import { flagshipStatusListQueryOptions, seniorDashboardQueryOptions, seniorIndividualsQueryOptions } from "~/lib/queries/visualizations";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
 import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
-export async function clientLoader() {
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (!hasValidSession()) return null;
+  if (new URL(request.url).pathname.endsWith("/senior/dashboard")) {
+    // Start the dashboard's queries during navigation; the page's useQuery calls share these fetches.
+    // The full flagships list is not prefetched here — the dashboard doesn't use it and it would
+    // compete with the dashboard's own requests.
+    queryClient.prefetchQuery(seniorDashboardQueryOptions());
+    queryClient.prefetchQuery(seniorIndividualsQueryOptions);
+    queryClient.prefetchQuery(flagshipStatusListQueryOptions);
+    return null;
+  }
   queryClient.prefetchQuery(flagshipsQueryOptions);
   queryClient.prefetchQuery(reportsQueryOptions);
   return null;

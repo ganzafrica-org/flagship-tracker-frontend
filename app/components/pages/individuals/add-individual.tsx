@@ -21,52 +21,33 @@ import AppTextField from "~/components/app-text-field";
 import AppTextarea from "~/components/app-textarea";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
 import { Stepper, type StepConfig } from "~/components/stepper";
+import { toast } from "~/components/app-alert";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
+import { isNetworkError } from "~/lib/offline-drafts/network";
+import { createIndividualDraft, deleteDraft, getDraft, updateDraft } from "~/lib/offline-drafts/repository";
+import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import {
   createIndividual,
   individualQueryOptions,
   individualsQueryOptions,
   updateIndividual,
+  type CreateIndividualRequest,
   type IndividualCooperativeRelation,
   type IndividualFlagshipRelation,
   type UpdateIndividualRequest,
 } from "~/lib/queries/individuals";
 import { useIndividualsFormLookups } from "~/lib/queries/lookups";
 import { useFlagshipSelectOptions } from "~/lib/queries/flagships";
+import {
+  EDUCATION_LEVEL_OPTIONS,
+  REGISTRATION_SOURCE_OPTIONS,
+  SEX_OPTIONS,
+  YOUTH_CATEGORY_OPTIONS,
+  YOUTH_STATUS_OPTIONS,
+} from "~/lib/individual-import/schema";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const SEX_OPTIONS = [
-  { value: "Male", label: "Male" },
-  { value: "Female", label: "Female" },
-];
-
-const YOUTH_CATEGORY_OPTIONS = [
-  { value: "student", label: "Student" },
-  { value: "graduate", label: "Graduate" },
-  { value: "neet", label: "NEET" },
-  { value: "employed", label: "Employed" },
-  { value: "self_employed", label: "Self-Employed" },
-  { value: "other", label: "Other" },
-];
-
-const EDUCATION_LEVEL_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "primary", label: "Primary" },
-  { value: "lower_secondary", label: "Lower Secondary" },
-  { value: "upper_secondary", label: "Upper Secondary" },
-  { value: "tvet", label: "TVET" },
-  { value: "university", label: "University" },
-  { value: "other", label: "Other" },
-];
-
-const REGISTRATION_SOURCE_OPTIONS = [
-  { value: "flagship", label: "Flagship" },
-  { value: "walk-in", label: "Walk-in" },
-  { value: "referral", label: "Referral" },
-  { value: "survey", label: "Survey" },
-];
 
 const PARTICIPATION_TYPE_OPTIONS = [
   { value: "beneficiary", label: "Beneficiary" },
@@ -401,6 +382,7 @@ interface BasicInfoFields {
   lastName: string;
   sex: string;
   dateOfBirth: DateValue | null;
+  youthStatus: string;
   youthCategory: string;
   educationLevel: string;
   disabilityStatus: string;
@@ -510,6 +492,7 @@ interface BasicInfoErrors {
   firstName?: string;
   lastName?: string;
   sex?: string;
+  youthStatus?: string;
   registrationSource?: string;
   province?: string;
 }
@@ -529,6 +512,7 @@ function validateBasicInfo(f: BasicInfoFields): BasicInfoErrors {
   if (!f.firstName.trim()) e.firstName = "First name is required";
   if (!f.lastName.trim()) e.lastName = "Last name is required";
   if (!f.sex) e.sex = "Sex is required";
+  if (!f.youthStatus) e.youthStatus = "Youth status is required";
   if (!f.registrationSource) e.registrationSource = "Registration source is required";
   if (!f.location.province) e.province = "Province is required";
   if (f.location.province && !f.location.district) e.province = "District is required";
@@ -593,7 +577,7 @@ function validateConstraintEntry(e: ConstraintEntry): ConstraintEntryErrors {
 function hasAnyBasicValue(f: BasicInfoFields): boolean {
   return !!(
     f.nationalId || f.phoneNumber || f.firstName || f.lastName || f.sex ||
-    f.dateOfBirth || f.youthCategory || f.educationLevel || f.disabilityStatus ||
+    f.dateOfBirth || f.youthStatus || f.youthCategory || f.educationLevel || f.disabilityStatus ||
     f.registrationSource || f.location.province || f.latitude || f.longitude
   );
 }
@@ -1390,6 +1374,7 @@ const DEFAULT_BASIC: BasicInfoFields = {
   lastName: "",
   sex: "",
   dateOfBirth: null,
+  youthStatus: "",
   youthCategory: "",
   educationLevel: "",
   disabilityStatus: "",
@@ -1411,12 +1396,27 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
   const [searchParams] = useSearchParams();
   const editId = Number(searchParams.get("editId") || 0);
   const isUpdateMode = Number.isFinite(editId) && editId > 0;
+  const draftIdRaw = Number(searchParams.get("draftId") || 0);
+  const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : null;
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const { data: existingIndividual, isLoading: detailLoading } = useQuery({
     ...individualQueryOptions(editId),
     enabled: isUpdateMode,
   });
+  const [draftPayload, setDraftPayload] = useState<CreateIndividualRequest | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+  useEffect(() => {
+    if (!draftId) {
+      setDraftPayload(null);
+      return;
+    }
+    setDraftLoading(true);
+    void getDraft(draftId).then((draft) => {
+      setDraftPayload(draft && draft.entityType === "individual" ? draft.payload : null);
+      setDraftLoading(false);
+    });
+  }, [draftId]);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
@@ -1444,39 +1444,41 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
     setProductionEntries([]);
     setInterventionEntries([]);
     setConstraintEntries([]);
-  }, [editId]);
+  }, [editId, draftId]);
 
   useEffect(() => {
-    if (!isUpdateMode || !existingIndividual || prefilled) return;
+    const source = isUpdateMode ? existingIndividual : draftPayload;
+    if ((!isUpdateMode && !draftId) || !source || prefilled) return;
     setBasic((prev) => ({
       ...prev,
-      nationalId: existingIndividual.nationalId ?? "",
-      phoneNumber: existingIndividual.phoneNumber ?? "",
-      firstName: existingIndividual.firstName ?? "",
-      lastName: existingIndividual.lastName ?? "",
-      sex: existingIndividual.sex ?? "",
-      dateOfBirth: existingIndividual.dateOfBirth
-        ? parseDate(existingIndividual.dateOfBirth.slice(0, 10))
+      nationalId: source.nationalId ?? "",
+      phoneNumber: source.phoneNumber ?? "",
+      firstName: source.firstName ?? "",
+      lastName: source.lastName ?? "",
+      sex: source.sex ?? "",
+      dateOfBirth: source.dateOfBirth
+        ? parseDate(source.dateOfBirth.slice(0, 10))
         : null,
-      youthCategory: existingIndividual.youthCategory ?? "",
-      educationLevel: existingIndividual.educationLevel ?? "",
+      youthStatus: source.youthStatus ?? "",
+      youthCategory: source.youthCategory ?? "",
+      educationLevel: source.educationLevel ?? "",
       disabilityStatus:
-        existingIndividual.disabilityStatus == null ? "" : String(existingIndividual.disabilityStatus),
-      registrationSource: existingIndividual.registrationSource ?? "",
+        source.disabilityStatus == null ? "" : String(source.disabilityStatus),
+      registrationSource: source.registrationSource ?? "",
       location: {
-        province: existingIndividual.province ?? "",
-        district: existingIndividual.district ?? "",
-        sector: existingIndividual.sector ?? "",
-        cell: existingIndividual.cell ?? "",
-        village: existingIndividual.village ?? "",
+        province: source.province ?? "",
+        district: source.district ?? "",
+        sector: source.sector ?? "",
+        cell: source.cell ?? "",
+        village: source.village ?? "",
       },
-      latitude: existingIndividual.latitude == null ? "" : String(existingIndividual.latitude),
-      longitude: existingIndividual.longitude == null ? "" : String(existingIndividual.longitude),
+      latitude: source.latitude == null ? "" : String(source.latitude),
+      longitude: source.longitude == null ? "" : String(source.longitude),
     }));
-    setFlagshipEntries((existingIndividual.flagships ?? []).map(flagshipRelationToEntry));
-    setCooperativeEntries((existingIndividual.cooperatives ?? []).map(cooperativeRelationToEntry));
+    setFlagshipEntries((source.flagships ?? []).map(flagshipRelationToEntry));
+    setCooperativeEntries((source.cooperatives ?? []).map(cooperativeRelationToEntry));
     setValueChainEntries(
-      (existingIndividual.valueChains ?? []).map((row) => {
+      (source.valueChains ?? []).map((row) => {
         const entry = row as {
           cluster?: string;
           valueChain?: string;
@@ -1497,7 +1499,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setEmploymentEntries(
-      (existingIndividual.employments ?? []).map((row) => {
+      (source.employments ?? []).map((row) => {
         const entry = row as {
           flagshipId?: number;
           cooperativeId?: number;
@@ -1528,7 +1530,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setLandEntries(
-      (existingIndividual.landAccess ?? []).map((row) => {
+      (source.landAccess ?? []).map((row) => {
         const entry = row as {
           landUseType?: string;
           ownershipStatus?: string;
@@ -1553,7 +1555,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setProductionEntries(
-      (existingIndividual.productionRecords ?? []).map((row) => {
+      (source.productionRecords ?? []).map((row) => {
         const entry = row as {
           flagshipId?: number;
           cooperativeId?: number;
@@ -1586,7 +1588,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setInterventionEntries(
-      (existingIndividual.interventions ?? []).map((row) => {
+      (source.interventions ?? []).map((row) => {
         const entry = row as {
           flagshipId?: number;
           cooperativeId?: number;
@@ -1611,7 +1613,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setConstraintEntries(
-      (existingIndividual.constraintFeedback ?? []).map((row) => {
+      (source.constraintFeedback ?? []).map((row) => {
         const entry = row as {
           flagshipId?: number;
           cooperativeId?: number;
@@ -1634,49 +1636,74 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
       }),
     );
     setPrefilled(true);
-  }, [isUpdateMode, existingIndividual, prefilled]);
+  }, [isUpdateMode, draftId, existingIndividual, draftPayload, prefilled]);
+
+  function buildIndividualPayload(): CreateIndividualRequest {
+    const entryState = {
+      flagshipEntries,
+      cooperativeEntries,
+      valueChainEntries,
+      employmentEntries,
+      landEntries,
+      productionEntries,
+      interventionEntries,
+      constraintEntries,
+    };
+    const relations = buildRelationsPayload(basic, entryState);
+    const payload = {
+      nationalId: basic.nationalId || undefined,
+      phoneNumber: basic.phoneNumber.trim(),
+      firstName: basic.firstName.trim(),
+      lastName: basic.lastName.trim(),
+      sex: basic.sex,
+      dateOfBirth: dateValueToIso(basic.dateOfBirth),
+      youthStatus: basic.youthStatus,
+      youthCategory: basic.youthCategory || undefined,
+      educationLevel: basic.educationLevel || undefined,
+      disabilityStatus: basic.disabilityStatus ? basic.disabilityStatus === "true" : undefined,
+      registrationSource: basic.registrationSource,
+      province: basic.location.province,
+      district: basic.location.district,
+      sector: basic.location.sector,
+      cell: basic.location.cell || "",
+      village: basic.location.village || "",
+      latitude: basic.latitude ? parseOptionalNumber(basic.latitude) : undefined,
+      longitude: basic.longitude ? parseOptionalNumber(basic.longitude) : undefined,
+    };
+    return { ...payload, ...relations };
+  }
+
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  async function handleSaveDraft() {
+    setIsSavingDraft(true);
+    try {
+      const payload = buildIndividualPayload();
+      if (draftId) {
+        await updateDraft(draftId, { payload });
+      } else {
+        await createIndividualDraft(payload);
+      }
+      showDraftSavedToast();
+      navigate(backPath, { viewTransition: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
-      const entryState = {
-        flagshipEntries,
-        cooperativeEntries,
-        valueChainEntries,
-        employmentEntries,
-        landEntries,
-        productionEntries,
-        interventionEntries,
-        constraintEntries,
-      };
-      const relations = buildRelationsPayload(basic, entryState);
-      const payload = {
-        nationalId: basic.nationalId || undefined,
-        phoneNumber: basic.phoneNumber.trim(),
-        firstName: basic.firstName.trim(),
-        lastName: basic.lastName.trim(),
-        sex: basic.sex,
-        dateOfBirth: dateValueToIso(basic.dateOfBirth),
-        youthCategory: basic.youthCategory || undefined,
-        educationLevel: basic.educationLevel || undefined,
-        disabilityStatus: basic.disabilityStatus ? basic.disabilityStatus === "true" : undefined,
-        registrationSource: basic.registrationSource,
-        province: basic.location.province,
-        district: basic.location.district,
-        sector: basic.location.sector,
-        cell: basic.location.cell || "",
-        village: basic.location.village || "",
-        latitude: basic.latitude ? parseOptionalNumber(basic.latitude) : undefined,
-        longitude: basic.longitude ? parseOptionalNumber(basic.longitude) : undefined,
-      };
-
+    mutationFn: async (body: CreateIndividualRequest) => {
       if (isUpdateMode) {
-        return updateIndividual(editId, { ...payload, ...relations });
+        return updateIndividual(editId, body);
       }
 
-      return createIndividual({ ...payload, ...relations });
+      return createIndividual(body);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
+      if (draftId) void deleteDraft(draftId);
       if (isUpdateMode) {
         void queryClient.invalidateQueries({ queryKey: ["individuals", editId] });
         navigate(backPath, { viewTransition: true });
@@ -1684,7 +1711,13 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
         setSubmitted(true);
       }
     },
-    onError: (error: Error) => {
+    onError: (error: Error, body) => {
+      if (isNetworkError(error)) {
+        void (draftId ? updateDraft(draftId, { payload: body }) : createIndividualDraft(body));
+        showDraftSavedToast();
+        navigate(backPath, { viewTransition: true });
+        return;
+      }
       if (error instanceof ApiError) {
         setSubmitError(formatApiErrorMessage(error.message));
       } else {
@@ -1714,7 +1747,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
 
   function handleSubmit() {
     setSubmitError(null);
-    saveMutation.mutate();
+    saveMutation.mutate(buildIndividualPayload());
   }
 
   function resetForm() {
@@ -1746,7 +1779,7 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
     currentStep === 8 ? constraintEntries.length > 0 :
     false;
 
-  if (isUpdateMode && detailLoading) {
+  if ((isUpdateMode && detailLoading) || (draftId && draftLoading)) {
     return (
       <div className="space-y-6">
         <PageTitleCard title="Update Individual" />
@@ -1788,6 +1821,8 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
         onSkip={() => setCurrentStep((s) => s + 1)}
         onSubmit={handleSubmit}
         submitLabel={isUpdateMode ? "Update" : "Save"}
+        onSaveDraft={handleSaveDraft}
+        isSavingDraft={isSavingDraft}
         stepHasValue={stepHasValue}
         stepHasError={stepHasError}
         isSubmitting={saveMutation.isPending}
@@ -1847,6 +1882,16 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
                     label="Date of Birth"
                     value={basic.dateOfBirth}
                     onChange={(v) => updateBasic("dateOfBirth", v)}
+                  />
+                  <AppSelect
+                    name="youthStatus"
+                    label="Youth Status *"
+                    placeholder="Select youth status"
+                    options={YOUTH_STATUS_OPTIONS}
+                    selectedKey={basic.youthStatus}
+                    onSelectionChange={(v) => updateBasic("youthStatus", v)}
+                    errorMessage={basicErrors.youthStatus}
+                    isRequired
                   />
                   <AppSelect
                     name="youthCategory"

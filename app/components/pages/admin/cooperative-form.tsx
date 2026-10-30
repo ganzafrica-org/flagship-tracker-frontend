@@ -52,7 +52,6 @@ export default function CooperativeForm() {
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const editId = params.get("editId");
-  const isView = params.get("mode") === "view";
   const isEdit = Boolean(editId);
 
   const { data: groupTypes = [] } = useQuery(enumValuesQueryOptions("group_type"));
@@ -62,7 +61,7 @@ export default function CooperativeForm() {
     enabled: isEdit,
   });
 
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const [form, setForm] = useState<FormState>({ ...EMPTY, groupType: editId ? "" : (params.get("type") ?? "") });
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -91,7 +90,7 @@ export default function CooperativeForm() {
       toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["cooperative", String(editId)] });
-      navigate("/admin/cooperatives");
+      navigate(`/admin/cooperatives?type=${form.groupType || params.get("type") || "association"}`);
     },
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
@@ -128,7 +127,7 @@ export default function CooperativeForm() {
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const title = isView ? "Cooperative Details" : isEdit ? "Edit Cooperative" : "Add Cooperative";
+  const title = isEdit ? "Edit Cooperative" : "Add Cooperative";
 
   return (
     <div className="flex flex-col gap-5">
@@ -145,7 +144,6 @@ export default function CooperativeForm() {
             value={form.cooperativeName}
             onChange={setField("cooperativeName")}
             isRequired
-            isDisabled={isView}
             errorMessage={errors.cooperativeName}
           />
           <AppTextField
@@ -154,7 +152,6 @@ export default function CooperativeForm() {
             placeholder="Optional code"
             value={form.cooperativeCode}
             onChange={setField("cooperativeCode")}
-            isDisabled={isView}
           />
         </div>
 
@@ -167,7 +164,6 @@ export default function CooperativeForm() {
             selectedKey={form.groupType}
             onSelectionChange={setField("groupType")}
             isRequired
-            isDisabled={isView}
             errorMessage={errors.groupType}
           />
           <AppSelect
@@ -177,7 +173,6 @@ export default function CooperativeForm() {
             options={regStatuses.map((r) => ({ label: r.label, value: r.value }))}
             selectedKey={form.registrationStatus}
             onSelectionChange={setField("registrationStatus")}
-            isDisabled={isView}
           />
         </div>
 
@@ -188,7 +183,6 @@ export default function CooperativeForm() {
             placeholder="e.g. Potato"
             value={form.primaryValueChain}
             onChange={setField("primaryValueChain")}
-            isDisabled={isView}
           />
           <AppTextField
             name="cluster"
@@ -196,7 +190,6 @@ export default function CooperativeForm() {
             placeholder="e.g. Horticulture"
             value={form.cluster}
             onChange={setField("cluster")}
-            isDisabled={isView}
           />
         </div>
 
@@ -209,7 +202,6 @@ export default function CooperativeForm() {
             min={0}
             value={form.totalMembers}
             onChange={setField("totalMembers")}
-            isDisabled={isView}
           />
           <AppTextField
             name="femaleMembers"
@@ -219,7 +211,6 @@ export default function CooperativeForm() {
             min={0}
             value={form.femaleMembers}
             onChange={setField("femaleMembers")}
-            isDisabled={isView}
           />
           <AppTextField
             name="youthMembers"
@@ -229,25 +220,22 @@ export default function CooperativeForm() {
             min={0}
             value={form.youthMembers}
             onChange={setField("youthMembers")}
-            isDisabled={isView}
           />
         </div>
 
         <div className="grid grid-cols-3 gap-4">
-          <AppTextField name="province" label="Province" value={form.province} onChange={setField("province")} isDisabled={isView} />
-          <AppTextField name="district" label="District" value={form.district} onChange={setField("district")} isDisabled={isView} />
-          <AppTextField name="sector" label="Sector" value={form.sector} onChange={setField("sector")} isDisabled={isView} />
+          <AppTextField name="province" label="Province" value={form.province} onChange={setField("province")} />
+          <AppTextField name="district" label="District" value={form.district} onChange={setField("district")} />
+          <AppTextField name="sector" label="Sector" value={form.sector} onChange={setField("sector")} />
         </div>
 
         <div className="flex gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/cooperatives")}>
-            {isView ? "Back" : "Cancel"}
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`/admin/cooperatives?type=${form.groupType || params.get("type") || "association"}`)}>
+            Cancel
           </Button>
-          {!isView ? (
-            <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
-              {isEdit ? "Save Changes" : "Create"}
-            </Button>
-          ) : null}
+          <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
+            {isEdit ? "Save Changes" : "Create"}
+          </Button>
         </div>
       </Card>
     </div>

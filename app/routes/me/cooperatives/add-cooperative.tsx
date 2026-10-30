@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FieldGroup, Fieldset, Form } from "@heroui/react";
-import { useNavigate, useSearchParams } from "react-router";
+import { redirect, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { DateValue } from "@internationalized/date";
 
@@ -12,8 +12,11 @@ import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/r
 import { Stepper, type StepConfig } from "~/components/stepper";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
+import { isNetworkError } from "~/lib/offline-drafts/network";
+import { createCooperativeDraft, deleteDraft, getDraft, updateDraft } from "~/lib/offline-drafts/repository";
+import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import { enumValuesQueryOptions } from "~/lib/queries/lookups";
-import { cooperativeQueryOptions, flagshipOptionsQueryOptions, buildCooperativeFlagshipsPayload, isoToDateValue, type CooperativeDetail, type CooperativeRequest, type CooperativeUpdateRequest } from "~/lib/queries/cooperatives";
+import { cooperativeQueryOptions, ENGAGEMENT_TYPE_OPTIONS, flagshipOptionsQueryOptions, buildCooperativeFlagshipsPayload, isoToDateValue, type CooperativeDetail, type CooperativeRequest, type CooperativeUpdateRequest } from "~/lib/queries/cooperatives";
 
 const STEPS: StepConfig[] = [
   { id: "cooperative-details", label: "Cooperative Details" },
@@ -28,11 +31,19 @@ const DEFAULT_LOCATION: RwandaLocationValue = {
   village: "",
 };
 
-const ENGAGEMENT_TYPE_OPTIONS = [
-  { label: "Implementing Partner", value: "implementing_partner" },
-  { label: "Beneficiary Group", value: "beneficiary_group" },
-  { label: "Service Provider", value: "service_provider" },
-];
+// Viewing a cooperative is a dialog on its list now. Old `mode=view` links (which carry the
+// list they came from in `returnTo`, Senior's included) land on that list with it open.
+export function clientLoader({ request }: { request: Request }) {
+  const url = new URL(request.url);
+  const id = url.searchParams.get("editId");
+  if (!id || url.searchParams.get("mode") !== "view") return null;
+  const returnTo = url.searchParams.get("returnTo") ?? "";
+  // Only follow an in-app cooperatives list path.
+  const list = /^\/(me|senior)\/cooperatives(\?|$)/.test(returnTo) ? returnTo : "/me/cooperatives";
+  const target = new URL(list, url.origin);
+  target.searchParams.set("view", id);
+  return redirect(target.pathname + target.search);
+}
 
 export function meta() {
   return [{ title: "Add Cooperative | M&E" }];
@@ -43,20 +54,22 @@ export default function MeAddCooperativePage() {
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const editId = params.get("editId");
-  const isView = params.get("mode") === "view";
-  const isEdit = Boolean(editId) && !isView;
+  const isEdit = Boolean(editId);
   const returnTo = params.get("returnTo") || "/me/cooperatives";
+  const draftIdRaw = Number(params.get("draftId") || 0);
+  const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : null;
 
   const [currentStep, setCurrentStep] = useState(0);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Created cooperative id — set after step 0 POST so step 1 can PATCH it
+  // Created cooperative id — set after a successful create/update so step 1 (edit mode only) can PATCH it
   const [createdId, setCreatedId] = useState<number | null>(null);
 
   // Step 0 fields
   const [cooperativeName, setCooperativeName] = useState("");
   const [cooperativeCode, setCooperativeCode] = useState("");
-  const [groupType, setGroupType] = useState("");
+  // A new cooperative opened from a type page starts with that type selected.
+  const [groupType, setGroupType] = useState(() => (params.get("editId") ? "" : (params.get("type") ?? "")));
   const [registrationStatus, setRegistrationStatus] = useState("");
   const [primaryValueChain, setPrimaryValueChain] = useState("");
   const [cluster, setCluster] = useState("");
@@ -82,39 +95,55 @@ export default function MeAddCooperativePage() {
     enabled: Boolean(editId),
   });
 
+  // Load a locally-saved draft (reached via the Draft tab's "Edit" button) when adding, not editing.
+  const [draftPayload, setDraftPayload] = useState<CooperativeRequest | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
   useEffect(() => {
-    if ((isEdit || isView) && editId) {
-      setCreatedId(Number(editId));
+    if (!draftId) {
+      setDraftPayload(null);
+      return;
     }
-  }, [isEdit, isView, editId]);
+    setDraftLoading(true);
+    void getDraft(draftId).then((draft) => {
+      setDraftPayload(draft && draft.entityType === "cooperative" ? draft.payload : null);
+      setDraftLoading(false);
+    });
+  }, [draftId]);
 
   useEffect(() => {
-    if (!detail) return;
-    setCooperativeName(detail.cooperativeName ?? "");
-    setCooperativeCode(detail.cooperativeCode ?? "");
-    setGroupType(detail.groupType ?? "");
-    setRegistrationStatus(detail.registrationStatus ?? "");
-    setPrimaryValueChain(detail.primaryValueChain ?? "");
-    setCluster(detail.cluster ?? "");
-    setTotalMembers(detail.totalMembers != null ? String(detail.totalMembers) : "");
-    setFemaleMembers(detail.femaleMembers != null ? String(detail.femaleMembers) : "");
-    setYouthMembers(detail.youthMembers != null ? String(detail.youthMembers) : "");
+    if (isEdit && editId) {
+      setCreatedId(Number(editId));
+    }
+  }, [isEdit, editId]);
+
+  useEffect(() => {
+    const source = isEdit ? detail : draftPayload;
+    if (!source) return;
+    setCooperativeName(source.cooperativeName ?? "");
+    setCooperativeCode(source.cooperativeCode ?? "");
+    setGroupType(source.groupType ?? "");
+    setRegistrationStatus(source.registrationStatus ?? "");
+    setPrimaryValueChain(source.primaryValueChain ?? "");
+    setCluster(source.cluster ?? "");
+    setTotalMembers(source.totalMembers != null ? String(source.totalMembers) : "");
+    setFemaleMembers(source.femaleMembers != null ? String(source.femaleMembers) : "");
+    setYouthMembers(source.youthMembers != null ? String(source.youthMembers) : "");
     setLocation({
-      province: detail.province ?? "",
-      district: detail.district ?? "",
-      sector: detail.sector ?? "",
+      province: source.province ?? "",
+      district: source.district ?? "",
+      sector: source.sector ?? "",
       cell: "",
       village: "",
     });
 
-    const flagshipLink = detail.flagships?.[0];
+    const flagshipLink = source.flagships?.[0];
     if (flagshipLink) {
       setFlagshipId(String(flagshipLink.flagshipId));
       setEngagementType(flagshipLink.engagementType ?? "");
       setEngagementStartDate(isoToDateValue(flagshipLink.startDate));
       setEngagementEndDate(isoToDateValue(flagshipLink.endDate));
     }
-  }, [detail]);
+  }, [isEdit, detail, draftPayload]);
 
   function toNum(v: string): number | undefined {
     if (v.trim() === "") return undefined;
@@ -139,19 +168,28 @@ export default function MeAddCooperativePage() {
     };
   }
 
+  /** Full body for the "add" flow: step 0 fields plus the optional flagship link, sent in one request. */
+  function buildFullAddBody(): CooperativeRequest {
+    const flagships = buildCooperativeFlagshipsPayload({
+      flagshipId,
+      engagementType,
+      startDate: engagementStartDate,
+      endDate: engagementEndDate,
+    });
+    return { ...buildStep0Body(), flagships: flagships.length ? flagships : undefined };
+  }
+
+  // Edit mode only: step 0 "Next" PATCHes immediately (progressive save matches the existing edit UX).
   const step0Mutation = useMutation({
     mutationFn: (body: CooperativeRequest) => {
-      const cooperativeId = createdId ?? (isEdit ? Number(editId) : null);
-      if (isEdit && cooperativeId) {
-        return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
-      }
-      return api.post<CooperativeDetail>("/api/cooperatives", body);
+      const cooperativeId = createdId ?? Number(editId);
+      return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
     },
     onSuccess: (res) => {
       setApiError(null);
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
-      const cooperativeId = res.cooperativeId ?? createdId ?? (isEdit ? Number(editId) : null);
+      const cooperativeId = res.cooperativeId ?? createdId ?? Number(editId);
       if (cooperativeId) {
         setCreatedId(cooperativeId);
         queryClient.invalidateQueries({ queryKey: ["cooperative", String(cooperativeId)] });
@@ -161,14 +199,15 @@ export default function MeAddCooperativePage() {
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
 
+  // Edit mode only: step 1 "Submit" PATCHes the flagship link.
   const step1Mutation = useMutation({
     mutationFn: (body: CooperativeUpdateRequest) => {
-      const cooperativeId = createdId ?? (isEdit ? Number(editId) : null);
+      const cooperativeId = createdId ?? Number(editId);
       if (!cooperativeId) throw new Error("No cooperative ID");
       return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
     },
     onSuccess: (res) => {
-      toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
+      toast.success("Cooperative updated");
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
       if (res.cooperativeId) {
@@ -179,12 +218,56 @@ export default function MeAddCooperativePage() {
     onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
   });
 
+  /**
+   * Add mode only: the single submission for the whole form (both steps), fired from the last
+   * step's Submit/Skip. Mirrors Add Individual / Add Flagship — nothing is sent to the server
+   * until the user has reached the end, so a dropped connection here is the only place offline
+   * capture needs to happen for this flow.
+   */
+  const createMutation = useMutation({
+    mutationFn: (body: CooperativeRequest) => api.post<CooperativeDetail>("/api/cooperatives", body),
+    onSuccess: () => {
+      setApiError(null);
+      toast.success("Cooperative created");
+      queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+      queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+      if (draftId) void deleteDraft(draftId);
+      navigate(returnTo, { viewTransition: true });
+    },
+    onError: (err, body) => {
+      if (isNetworkError(err)) {
+        void (draftId ? updateDraft(draftId, { payload: body }) : createCooperativeDraft(body));
+        showDraftSavedToast();
+        navigate(returnTo, { viewTransition: true });
+        return;
+      }
+      setApiError(err instanceof ApiError ? err.message : "Something went wrong");
+    },
+  });
+
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
+
+  /** Manual "Save Draft" — only offered on the last step (via Stepper), add mode only. */
+  async function handleSaveDraft() {
+    setIsSavingDraft(true);
+    try {
+      const body = buildFullAddBody();
+      if (draftId) {
+        await updateDraft(draftId, { payload: body });
+      } else {
+        await createCooperativeDraft(body);
+      }
+      showDraftSavedToast();
+      navigate(returnTo, { viewTransition: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save draft");
+    } finally {
+      setIsSavingDraft(false);
+    }
+  }
+
   function goNext() {
     setApiError(null);
-    if (isView) {
-      setCurrentStep(1);
-      return;
-    }
     if (!cooperativeName.trim()) {
       setApiError("Cooperative name is required");
       return;
@@ -193,43 +276,34 @@ export default function MeAddCooperativePage() {
       setApiError("Group type is required");
       return;
     }
-    step0Mutation.mutate(buildStep0Body());
-  }
-
-  function handleSkipStep1() {
-    if (isView) {
-      navigate(returnTo);
+    if (isEdit) {
+      step0Mutation.mutate(buildStep0Body());
       return;
     }
-    toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
-    queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
-    queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
-    navigate(returnTo);
+    // Add mode: nothing is sent yet — just advance to the flagship-link step.
+    setCurrentStep(1);
   }
 
   function handleSubmit() {
     setApiError(null);
-    if (isView) {
-      if (currentStep < STEPS.length - 1) {
-        setCurrentStep((step) => step + 1);
+    if (isEdit) {
+      const flagships = buildCooperativeFlagshipsPayload({
+        flagshipId,
+        engagementType,
+        startDate: engagementStartDate,
+        endDate: engagementEndDate,
+      });
+      if (flagships.length === 0) {
+        toast.success("Cooperative updated");
+        queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+        queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+        navigate(returnTo);
         return;
       }
-      navigate(returnTo);
+      step1Mutation.mutate({ flagships });
       return;
     }
-    const flagships = buildCooperativeFlagshipsPayload({
-      flagshipId,
-      engagementType,
-      startDate: engagementStartDate,
-      endDate: engagementEndDate,
-    });
-
-    if (flagships.length === 0) {
-      handleSkipStep1();
-      return;
-    }
-
-    step1Mutation.mutate({ flagships });
+    createMutation.mutate(buildFullAddBody());
   }
 
   const stepHasValue =
@@ -237,8 +311,16 @@ export default function MeAddCooperativePage() {
       ? !!(cooperativeName || cooperativeCode || groupType || location.province)
       : !!(flagshipId || engagementType || engagementStartDate);
 
-  const isPending = !isView && (step0Mutation.isPending || step1Mutation.isPending);
-  const pageTitle = isView ? "Cooperative Details" : isEdit ? "Edit Cooperative" : "Cooperatives Management";
+  const isPending = isEdit ? step0Mutation.isPending || step1Mutation.isPending : createMutation.isPending;
+  const pageTitle = isEdit ? "Edit Cooperative" : "Cooperatives Management";
+
+  if (draftId && draftLoading) {
+    return (
+      <div className="flex flex-col gap-5 w-full min-w-0">
+        <PageTitleCard title={pageTitle} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
@@ -254,11 +336,12 @@ export default function MeAddCooperativePage() {
           else setCurrentStep((s) => s - 1);
         }}
         onNext={goNext}
-        onSkip={handleSkipStep1}
+        onSkip={handleSubmit}
         onSubmit={handleSubmit}
         stepHasValue={stepHasValue}
         isSubmitting={isPending}
-        submitLabel={isView ? (currentStep < STEPS.length - 1 ? "Next" : "Close") : undefined}
+        onSaveDraft={!isEdit ? handleSaveDraft : undefined}
+        isSavingDraft={isSavingDraft}
       >
         <Form className="w-full" onSubmit={(e) => { e.preventDefault(); }}>
           <Fieldset className="w-full border-none p-0">
@@ -273,7 +356,6 @@ export default function MeAddCooperativePage() {
                     value={cooperativeName}
                     onChange={setCooperativeName}
                     isRequired
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="cooperativeCode"
@@ -282,7 +364,6 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={cooperativeCode}
                     onChange={setCooperativeCode}
-                    isDisabled={isView}
                   />
                   <AppSelect
                     name="groupType"
@@ -293,7 +374,6 @@ export default function MeAddCooperativePage() {
                     onSelectionChange={setGroupType}
                     options={groupTypes.map((g) => ({ label: g.label, value: g.value }))}
                     isRequired
-                    isDisabled={isView}
                   />
                   <AppSelect
                     name="registrationStatus"
@@ -303,7 +383,6 @@ export default function MeAddCooperativePage() {
                     selectedKey={registrationStatus}
                     onSelectionChange={setRegistrationStatus}
                     options={regStatuses.map((r) => ({ label: r.label, value: r.value }))}
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="primaryValueChain"
@@ -312,7 +391,6 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={primaryValueChain}
                     onChange={setPrimaryValueChain}
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="cluster"
@@ -321,7 +399,6 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={cluster}
                     onChange={setCluster}
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="totalMembers"
@@ -333,7 +410,6 @@ export default function MeAddCooperativePage() {
                     onChange={setTotalMembers}
                     min={0}
                     step={1}
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="femaleMembers"
@@ -345,7 +421,6 @@ export default function MeAddCooperativePage() {
                     onChange={setFemaleMembers}
                     min={0}
                     step={1}
-                    isDisabled={isView}
                   />
                   <AppTextField
                     name="youthMembers"
@@ -357,11 +432,10 @@ export default function MeAddCooperativePage() {
                     onChange={setYouthMembers}
                     min={0}
                     step={1}
-                    isDisabled={isView}
                   />
                   <div className="sm:col-span-10">
                     <span className="mb-2 block text-sm font-medium text-(--foreground)">Location</span>
-                    <RwandaLocationSelector value={location} onChange={setLocation} disabled={isView} />
+                    <RwandaLocationSelector value={location} onChange={setLocation} />
                   </div>
                 </>
               ) : null}
@@ -376,7 +450,6 @@ export default function MeAddCooperativePage() {
                     selectedKey={flagshipId}
                     onSelectionChange={setFlagshipId}
                     options={flagshipOptions}
-                    isDisabled={isView}
                   />
                   <AppSelect
                     name="engagementType"
@@ -386,7 +459,6 @@ export default function MeAddCooperativePage() {
                     selectedKey={engagementType}
                     onSelectionChange={setEngagementType}
                     options={ENGAGEMENT_TYPE_OPTIONS}
-                    isDisabled={isView}
                   />
                   <AppDate
                     name="engagementStartDate"
@@ -394,7 +466,6 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={engagementStartDate}
                     onChange={setEngagementStartDate}
-                    isDisabled={isView}
                   />
                   <AppDate
                     name="engagementEndDate"
@@ -402,7 +473,6 @@ export default function MeAddCooperativePage() {
                     className="sm:col-span-5 w-full"
                     value={engagementEndDate}
                     onChange={setEngagementEndDate}
-                    isDisabled={isView}
                   />
                 </>
               ) : null}
