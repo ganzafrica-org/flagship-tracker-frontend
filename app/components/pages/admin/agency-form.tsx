@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -70,11 +72,47 @@ export default function AgencyForm({ basePath = "/admin" }: { basePath?: string 
     mutation.mutate({ agencyName: form.agencyName.trim(), agencyType: form.agencyType });
   }
 
+  const typeSelectOptions = typeOptions.map((t) => ({ label: t.label, value: t.value }));
+
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows<AgencyRequest>({
+      rows,
+      mapRow: (row) => ({
+        agencyName: pickCell(row, ["Agency Name", "Name", "Agency"]),
+        agencyType: matchOption(pickCell(row, ["Agency Type", "Type"]), typeSelectOptions),
+      }),
+      isUsable: (value) => Boolean(value.agencyName.trim() && value.agencyType),
+      missingMessage: "Each row needs Agency Name and Agency Type.",
+      onSingle: (value) => {
+        setForm({ agencyName: value.agencyName, agencyType: value.agencyType, active: true });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/lookups/implementing-agencies", {
+          agencyName: value.agencyName.trim(),
+          agencyType: value.agencyType,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["implementing-agencies"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "agency" : "agencies", () =>
+      navigate(`${basePath}/agencies`),
+    );
+  }
+
   const title = isView ? "Agency Details" : isEdit ? "Edit Agency" : "Add Agency";
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={!isView && !isEdit ? <ExcelImportButton onImport={handleImport} /> : undefined}
+      />
 
       <Card className="p-6 space-y-4 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

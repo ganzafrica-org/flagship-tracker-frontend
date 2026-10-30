@@ -14,6 +14,7 @@ import { parseDate } from "@internationalized/date";
 import type { DateValue } from "@internationalized/date";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
 import AppDate from "~/components/app-date";
 import AppSelect from "~/components/app-select";
@@ -28,10 +29,12 @@ import {
   individualQueryOptions,
   individualsQueryOptions,
   updateIndividual,
+  type CreateIndividualRequest,
   type IndividualCooperativeRelation,
   type IndividualFlagshipRelation,
   type UpdateIndividualRequest,
 } from "~/lib/queries/individuals";
+import { importMappedRows, matchOption, pickCell, toIsoDate, type SpreadsheetRow } from "~/lib/spreadsheet";
 import { useIndividualsFormLookups } from "~/lib/queries/lookups";
 import { useFlagshipSelectOptions } from "~/lib/queries/flagships";
 
@@ -224,6 +227,15 @@ function dateValueToIso(value: DateValue | null): string | undefined {
 function isoToDateValue(iso: string | null | undefined): DateValue | null {
   if (!iso) return null;
   return parseDate(iso.slice(0, 10));
+}
+
+function sheetDate(iso: string): DateValue | null {
+  if (!iso) return null;
+  try {
+    return parseDate(iso.slice(0, 10));
+  } catch {
+    return null;
+  }
 }
 
 function flagshipRelationToEntry(relation: IndividualFlagshipRelation): FlagshipEntry {
@@ -1746,6 +1758,96 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
     currentStep === 8 ? constraintEntries.length > 0 :
     false;
 
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const sexChoices = pickOptions(sexOptions, SEX_OPTIONS);
+    const youthChoices = pickOptions(youthCategoryOptions, YOUTH_CATEGORY_OPTIONS);
+    const educationChoices = pickOptions(educationLevelOptions, EDUCATION_LEVEL_OPTIONS);
+    const sourceChoices = pickOptions(registrationSourceOptions, REGISTRATION_SOURCE_OPTIONS);
+    const disabilityChoices = [
+      { value: "false", label: "No disability" },
+      { value: "true", label: "Has registered disability" },
+      { value: "false", label: "No" },
+      { value: "true", label: "Yes" },
+    ];
+
+    const outcome = await importMappedRows<CreateIndividualRequest>({
+      rows,
+      mapRow: (row) => {
+        const latitude = pickCell(row, ["Latitude"]);
+        const longitude = pickCell(row, ["Longitude"]);
+        const disability = matchOption(pickCell(row, ["Disability Status", "Disability"]), disabilityChoices);
+        return {
+          nationalId: pickCell(row, ["National ID", "NID"]) || undefined,
+          phoneNumber: pickCell(row, ["Phone Number", "Phone"]),
+          firstName: pickCell(row, ["First Name"]),
+          lastName: pickCell(row, ["Last Name"]),
+          sex: matchOption(pickCell(row, ["Sex", "Gender"]), sexChoices),
+          dateOfBirth: toIsoDate(pickCell(row, ["Date of Birth", "DOB"])) || undefined,
+          youthCategory: matchOption(pickCell(row, ["Youth Category"]), youthChoices) || undefined,
+          educationLevel: matchOption(pickCell(row, ["Education Level", "Education"]), educationChoices) || undefined,
+          disabilityStatus: disability === "" ? undefined : disability === "true",
+          registrationSource: matchOption(pickCell(row, ["Registration Source", "Source"]), sourceChoices),
+          province: pickCell(row, ["Province"]),
+          district: pickCell(row, ["District"]),
+          sector: pickCell(row, ["Sector"]),
+          cell: pickCell(row, ["Cell"]),
+          village: pickCell(row, ["Village"]),
+          latitude: latitude ? parseOptionalNumber(latitude) : undefined,
+          longitude: longitude ? parseOptionalNumber(longitude) : undefined,
+        };
+      },
+      isUsable: (value) =>
+        Boolean(
+          value.phoneNumber.trim() &&
+            value.firstName.trim() &&
+            value.lastName.trim() &&
+            value.sex &&
+            value.registrationSource &&
+            value.province &&
+            value.district &&
+            value.sector,
+        ),
+      missingMessage:
+        "Each row needs Phone Number, First Name, Last Name, Sex, Registration Source, Province, District, and Sector.",
+      onSingle: (value) => {
+        setBasic({
+          nationalId: value.nationalId ?? "",
+          phoneNumber: value.phoneNumber,
+          firstName: value.firstName,
+          lastName: value.lastName,
+          sex: value.sex,
+          dateOfBirth: value.dateOfBirth ? sheetDate(value.dateOfBirth) : null,
+          youthCategory: value.youthCategory ?? "",
+          educationLevel: value.educationLevel ?? "",
+          disabilityStatus: value.disabilityStatus == null ? "" : String(value.disabilityStatus),
+          registrationSource: value.registrationSource,
+          location: {
+            province: value.province,
+            district: value.district,
+            sector: value.sector,
+            cell: value.cell,
+            village: value.village,
+          },
+          latitude: value.latitude == null ? "" : String(value.latitude),
+          longitude: value.longitude == null ? "" : String(value.longitude),
+        });
+        setBasicErrors({});
+        setBasicTouched(true);
+        setSubmitError(null);
+        setCurrentStep(0);
+      },
+      create: (value) => createIndividual(value).then(() => undefined),
+    });
+
+    if (outcome.mode === "bulk") {
+      void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
+      setSubmitError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "individual" : "individuals", () =>
+      navigate(backPath, { viewTransition: true }),
+    );
+  }
+
   if (isUpdateMode && detailLoading) {
     return (
       <div className="space-y-6">
@@ -1770,7 +1872,10 @@ export default function AddIndividual({ backPath }: AddIndividualProps) {
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      <PageTitleCard title={isUpdateMode ? "Update Individual" : "Add Individual"} />
+      <PageTitleCard
+        title={isUpdateMode ? "Update Individual" : "Add Individual"}
+        actionSlot={isUpdateMode ? undefined : <ExcelImportButton onImport={handleImport} />}
+      />
       {submitError ? (
         <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">
           {submitError}

@@ -7,7 +7,9 @@ import { Button, Spinner } from "@heroui/react";
 import FlagshipsList, { FunderAvatars, type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
 import AppProgressBar from "~/components/app-progress-bar";
 import { ContentTab } from "~/components/content-tab";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importFlagshipsFromSheet } from "~/lib/entity-imports";
 import TableComponent from "~/components/table-component";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
@@ -130,11 +132,27 @@ export default function FlagshipsIndexPage({
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title={title}
-        actionLabel={addFlagshipPath ? actionLabel : undefined}
-        onActionPress={
-          addFlagshipPath
-            ? () => navigate(addFlagshipPath, { viewTransition: true })
-            : undefined
+        actionSlot={
+          addFlagshipPath ? (
+            <div className="flex gap-3">
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importFlagshipsFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });
+                  setListError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "flagship" : "flagships");
+                }}
+              />
+              <Button
+                variant="primary"
+                className="!rounded-3xl font-medium"
+                onPress={() => navigate(addFlagshipPath, { viewTransition: true })}
+              >
+                {actionLabel}
+              </Button>
+            </div>
+          ) : undefined
         }
       />
       <ContentTab

@@ -3,7 +3,9 @@ import { Button, Card } from "@heroui/react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -84,12 +86,47 @@ export default function AdminAddUserPage() {
     });
   }
 
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows<CreateUserRequest>({
+      rows,
+      mapRow: (row) => ({
+        fullName: pickCell(row, ["Full Name", "Name"]),
+        email: pickCell(row, ["Email", "Email Address"]),
+        role: matchOption(pickCell(row, ["Role"]), ROLE_OPTIONS) as UserRole,
+      }),
+      isUsable: (value) =>
+        Boolean(value.fullName.trim() && value.email.trim() && value.role && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.email.trim())),
+      missingMessage: "Each row needs Full Name, a valid Email, and Role (Admin, Senior Official, or Monitoring Officer).",
+      onSingle: (value) => {
+        setForm({ fullName: value.fullName, email: value.email, role: value.role });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/users", {
+          email: value.email.trim(),
+          fullName: value.fullName.trim(),
+          role: value.role,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "user" : "users", () => navigate("/admin/users"));
+  }
+
   const readOnly = isView || isDetail;
   const title = readOnly ? "User Details" : "Add a New User";
 
   return (
     <div className="space-y-6">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={readOnly ? undefined : <ExcelImportButton onImport={handleImport} />}
+      />
 
       <Card className="space-y-4 p-6 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

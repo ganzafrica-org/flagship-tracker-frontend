@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -68,11 +70,47 @@ export default function FunderForm({ basePath = "/admin" }: { basePath?: string 
     mutation.mutate({ funderName: form.funderName.trim(), funderType: form.funderType });
   }
 
+  const typeSelectOptions = typeOptions.map((t) => ({ label: t.label, value: t.value }));
+
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows<FunderRequest>({
+      rows,
+      mapRow: (row) => ({
+        funderName: pickCell(row, ["Funder Name", "Name", "Funder"]),
+        funderType: matchOption(pickCell(row, ["Funder Type", "Type"]), typeSelectOptions),
+      }),
+      isUsable: (value) => Boolean(value.funderName.trim() && value.funderType),
+      missingMessage: "Each row needs Funder Name and Funder Type.",
+      onSingle: (value) => {
+        setForm({ funderName: value.funderName, funderType: value.funderType, active: true });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/lookups/funders", {
+          funderName: value.funderName.trim(),
+          funderType: value.funderType,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["funders"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "funder" : "funders", () =>
+      navigate(`${basePath}/funders`),
+    );
+  }
+
   const title = isView ? "Funder Details" : isEdit ? "Edit Funder" : "Add Funder";
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={!isView && !isEdit ? <ExcelImportButton onImport={handleImport} /> : undefined}
+      />
 
       <Card className="p-6 space-y-4 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

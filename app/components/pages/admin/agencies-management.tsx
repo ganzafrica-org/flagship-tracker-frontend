@@ -4,7 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importAgenciesFromSheet } from "~/lib/entity-imports";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
@@ -56,6 +58,14 @@ export default function AgenciesManagement({
               <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/agencies/types`)}>
                 Manage Types
               </Button>
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importAgenciesFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: ["implementing-agencies"] });
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "agency" : "agencies");
+                }}
+              />
               <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/agencies/add`)}>
                 Add Agency
               </Button>

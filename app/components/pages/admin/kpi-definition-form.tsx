@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -95,11 +97,64 @@ export default function KpiDefinitionForm({ basePath = "/admin" }: { basePath?: 
     });
   }
 
+  const flagshipOptions = flagshipCodes.map((f) => ({ label: `${f.code} — ${f.name}`, value: f.code }));
+  const tierOptions = tiers.map((t) => ({ label: t.label, value: t.value }));
+  const valueTypeOptions = valueTypes.map((t) => ({ label: t.label, value: t.value }));
+
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows<KpiDefinitionRequest>({
+      rows,
+      mapRow: (row) => {
+        const flagshipRaw = pickCell(row, ["Flagship Code", "Flagship", "Code"]);
+        const byCode = matchOption(flagshipRaw, flagshipOptions);
+        const byName = flagshipCodes.find(
+          (flagship) => flagship.name.trim().toLowerCase() === flagshipRaw.trim().toLowerCase(),
+        );
+        return {
+          flagshipCode: byCode || byName?.code || "",
+          indicatorName: pickCell(row, ["Indicator Name", "Indicator", "KPI", "Name"]),
+          indicatorTier: matchOption(pickCell(row, ["Indicator Tier", "Tier"]), tierOptions),
+          indicatorValueType: matchOption(
+            pickCell(row, ["Value Type", "Indicator Value Type"]),
+            valueTypeOptions,
+          ),
+        };
+      },
+      isUsable: (value) =>
+        Boolean(value.flagshipCode && value.indicatorName.trim() && value.indicatorTier && value.indicatorValueType),
+      missingMessage: "Each row needs Flagship, Indicator Name, Indicator Tier, and Value Type.",
+      onSingle: (value) => {
+        setForm({ ...value, active: true });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/lookups/kpi-definitions", {
+          flagshipCode: value.flagshipCode,
+          indicatorName: value.indicatorName.trim(),
+          indicatorTier: value.indicatorTier,
+          indicatorValueType: value.indicatorValueType,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["kpi-definitions"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "KPI definition" : "KPI definitions", () =>
+      navigate(`${basePath}/kpis`),
+    );
+  }
+
   const title = isView ? "KPI Definition Details" : isEdit ? "Edit KPI Definition" : "Add KPI Definition";
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={!isView && !isEdit ? <ExcelImportButton onImport={handleImport} /> : undefined}
+      />
 
       <Card className="p-6 space-y-4 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

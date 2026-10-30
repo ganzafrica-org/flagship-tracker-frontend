@@ -9,7 +9,9 @@ import AppDate from "~/components/app-date";
 import AppSelect, { NO_DATA_OPTIONS } from "~/components/app-select";
 import AppTextField from "~/components/app-text-field";
 import AppTextarea from "~/components/app-textarea";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, toIsoDate, type SpreadsheetRow } from "~/lib/spreadsheet";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
 import { Stepper, type StepConfig } from "~/components/stepper";
 import { ApiError } from "~/lib/api";
@@ -59,6 +61,16 @@ const DEFAULT_LOCATION: RwandaLocationValue = {
 function formatDateValue(date: DateValue | null): string | undefined {
   if (!date) return undefined;
   return date.toString();
+}
+
+function sheetDate(raw: string): DateValue | null {
+  const iso = toIsoDate(raw);
+  if (!iso) return null;
+  try {
+    return parseDate(iso);
+  } catch {
+    return null;
+  }
 }
 
 export function meta() {
@@ -340,6 +352,80 @@ export default function MeAddFlagshipPage() {
     }
   }
 
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows({
+      rows,
+      mapRow: (row) => ({
+        flagshipName: pickCell(row, ["Flagship Name", "Name"]),
+        flagshipCode: pickCell(row, ["Flagship Code", "Code"]),
+        description: pickCell(row, ["Description"]),
+        startDate: toIsoDate(pickCell(row, ["Start Date"])),
+        endDate: toIsoDate(pickCell(row, ["End Date"])),
+        implementingAgency: matchOption(
+          pickCell(row, ["Implementing Agency", "Agency"]),
+          implementingAgencyOptions,
+        ),
+        managementModel: pickCell(row, ["Management Model"]),
+        targetYouthCount: pickCell(row, ["Target Youth Count", "Target Youth", "Youth"]),
+        budgetTotalRwf: pickCell(row, ["Budget Total RWF", "Budget", "Budget Total"]),
+        flagshipCluster: matchOption(pickCell(row, ["Flagship Cluster", "Cluster"]), clusterOptions),
+        status: matchOption(pickCell(row, ["Status", "Flagship Status"]), statusOptions),
+        primaryValueChain: matchOption(
+          pickCell(row, ["Primary Value Chain", "Value Chain"]),
+          valueChainOptions,
+        ),
+        funder: matchOption(pickCell(row, ["Funder", "Funders"]), funderOptions),
+      }),
+      isUsable: (value) =>
+        Boolean(value.flagshipName.trim() && value.flagshipCode.trim() && value.flagshipCluster && value.status),
+      missingMessage: "Each row needs Flagship Name, Flagship Code, Cluster, and Status.",
+      onSingle: (value) => {
+        setFlagshipName(value.flagshipName);
+        setFlagshipCode(value.flagshipCode);
+        setDescription(value.description);
+        setStartDate(sheetDate(value.startDate));
+        setEndDate(sheetDate(value.endDate));
+        setImplementingAgency(value.implementingAgency);
+        setManagementModel(value.managementModel);
+        setTargetYouthCount(value.targetYouthCount);
+        setBudgetTotalRwf(value.budgetTotalRwf);
+        setFlagshipCluster(value.flagshipCluster);
+        setFlagshipStatus(value.status);
+        setPrimaryValueChain(value.primaryValueChain);
+        setFunder(value.funder);
+        setSubmitError(null);
+        setCurrentStep(0);
+      },
+      create: async (value) => {
+        await createFlagship(
+          buildCreateFlagshipRequest({
+            flagshipName: value.flagshipName,
+            flagshipCode: value.flagshipCode,
+            flagshipCluster: value.flagshipCluster,
+            status: value.status,
+            description: value.description,
+            primaryValueChain: value.primaryValueChain,
+            startDate: value.startDate || undefined,
+            endDate: value.endDate || undefined,
+            implementingAgency: value.implementingAgency,
+            managementModel: value.managementModel,
+            targetYouthCount: value.targetYouthCount,
+            budgetTotalRwf: value.budgetTotalRwf,
+            funders: value.funder || undefined,
+          }),
+        );
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });
+      setSubmitError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "flagship" : "flagships", () =>
+      navigate(returnTo, { viewTransition: true }),
+    );
+  }
+
   const selectOptions = (apiOptions: typeof clusterOptions, loading: boolean) => {
     if (loading) return [{ label: "Loading…", value: "" }];
     if (apiOptions.length === 0) return NO_DATA_OPTIONS;
@@ -356,7 +442,10 @@ export default function MeAddFlagshipPage() {
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
-      <PageTitleCard title={isUpdateMode ? "Update Flagship" : "Flagship Projects Management"} />
+      <PageTitleCard
+        title={isUpdateMode ? "Update Flagship" : "Flagship Projects Management"}
+        actionSlot={isUpdateMode ? undefined : <ExcelImportButton onImport={handleImport} />}
+      />
 
       {isUpdateMode && detailError ? (
         <p className="rounded-lg border border-(--danger) bg-(--danger)/10 px-4 py-3 text-sm text-(--danger)">

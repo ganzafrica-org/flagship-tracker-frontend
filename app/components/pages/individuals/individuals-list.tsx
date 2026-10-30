@@ -35,7 +35,9 @@ import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } f
 import { individualsDashboardQueryOptions } from "~/lib/queries/visualizations";
 import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
 import { useUrlState } from "~/lib/use-url-state";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importIndividualsFromSheet } from "~/lib/entity-imports";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import TableComponent from "~/components/table-component";
 import {
@@ -508,14 +510,28 @@ export default function IndividualsList({
             readOnly ? undefined : (
               <div className="flex gap-3">
                 {addPath && (
-                  <Button
-                    variant="primary"
-                    className="!rounded-3xl font-medium"
-                    onPress={() => navigate(addPath, { viewTransition: true })}
-                  >
-                    <IconUserPlus size={16} />
-                    Add Individual
-                  </Button>
+                  <>
+                    <ExcelImportButton
+                      variant="outline"
+                      onImport={async (rows) => {
+                        const outcome = await importIndividualsFromSheet(rows);
+                        void queryClient.invalidateQueries({ queryKey: individualsQueryOptions.queryKey });
+                        setSubmitError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+                        notifySpreadsheetImport(
+                          outcome,
+                          outcome.created === 1 ? "individual" : "individuals",
+                        );
+                      }}
+                    />
+                    <Button
+                      variant="primary"
+                      className="!rounded-3xl font-medium"
+                      onPress={() => navigate(addPath, { viewTransition: true })}
+                    >
+                      <IconUserPlus size={16} />
+                      Add Individual
+                    </Button>
+                  </>
                 )}
               </div>
             )

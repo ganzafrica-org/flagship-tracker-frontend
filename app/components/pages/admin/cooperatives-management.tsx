@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importCooperativesFromSheet } from "~/lib/entity-imports";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
@@ -37,8 +40,21 @@ export default function CooperativesManagement() {
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="Cooperatives"
-        actionLabel="Add Cooperative"
-        onActionPress={() => navigate("/admin/cooperatives/add")}
+        actionSlot={
+          <div className="flex gap-3">
+            <ExcelImportButton
+              variant="outline"
+              onImport={async (rows) => {
+                const outcome = await importCooperativesFromSheet(rows);
+                void queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+                notifySpreadsheetImport(outcome, outcome.created === 1 ? "cooperative" : "cooperatives");
+              }}
+            />
+            <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/cooperatives/add")}>
+              Add Cooperative
+            </Button>
+          </div>
+        }
       />
 
       {isError ? (

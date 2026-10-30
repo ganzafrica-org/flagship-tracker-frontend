@@ -3,7 +3,9 @@ import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importCooperativesFromSheet } from "~/lib/entity-imports";
 import { ContentTab } from "~/components/content-tab";
 import TableComponent from "~/components/table-component";
 import AppAlertDialog from "~/components/app-alert-dialog";
@@ -69,8 +71,23 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title="Cooperatives"
-        actionLabel={addPath ? "Add Cooperative" : undefined}
-        onActionPress={addPath ? () => navigate(addPath) : undefined}
+        actionSlot={
+          addPath ? (
+            <div className="flex gap-3">
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importCooperativesFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "cooperative" : "cooperatives");
+                }}
+              />
+              <Button variant="primary" className="!rounded-3xl font-medium" onPress={() => navigate(addPath)}>
+                Add Cooperative
+              </Button>
+            </div>
+          ) : undefined
+        }
       />
 
       <ContentTab

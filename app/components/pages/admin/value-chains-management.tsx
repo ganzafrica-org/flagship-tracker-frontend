@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
 import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importValueChainsFromSheet } from "~/lib/entity-imports";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
@@ -52,8 +55,23 @@ export default function ValueChainsManagement({
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="Value Chains"
-        actionLabel={readOnly ? undefined : "Add Value Chain"}
-        onActionPress={readOnly ? undefined : () => navigate(`${basePath}/value-chains/add`)}
+        actionSlot={
+          readOnly ? undefined : (
+            <div className="flex gap-3">
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importValueChainsFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: ["value-chains"] });
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "value chain" : "value chains");
+                }}
+              />
+              <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/value-chains/add`)}>
+                Add Value Chain
+              </Button>
+            </div>
+          )
+        }
       />
 
       {isError ? (

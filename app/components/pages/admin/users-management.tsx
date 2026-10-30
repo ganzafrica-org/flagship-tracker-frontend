@@ -1,19 +1,17 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 import { IconUpload } from "@tabler/icons-react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importUsersFromSheet } from "~/lib/entity-imports";
 import AppModal from "~/components/app-modal";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError } from "~/lib/api";
-import {
-  usersListQueryOptions,
-  importUsersCsv,
-  type ImportResult,
-} from "~/lib/queries/users";
+import { importUsersCsv, usersListQueryOptions, type ImportResult } from "~/lib/queries/users";
 
 function ImportUsersModal({
   isOpen,
@@ -102,6 +100,7 @@ function ImportUsersModal({
 
 export default function UsersManagementPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: users = [], isLoading, isError, error } = useQuery(usersListQueryOptions);
   const [importOpen, setImportOpen] = useState(false);
 
@@ -126,6 +125,14 @@ export default function UsersManagementPage() {
             <Button variant="outline" className="!rounded-3xl" onPress={() => setImportOpen(true)}>
               <IconUpload size={16} /> Import CSV
             </Button>
+            <ExcelImportButton
+              variant="outline"
+              onImport={async (rows) => {
+                const outcome = await importUsersFromSheet(rows);
+                void queryClient.invalidateQueries({ queryKey: ["users"] });
+                notifySpreadsheetImport(outcome, outcome.created === 1 ? "user" : "users");
+              }}
+            />
             <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/users/add-user")}>
               Add A New User
             </Button>

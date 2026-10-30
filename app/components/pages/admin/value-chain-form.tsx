@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -75,11 +77,47 @@ export default function ValueChainForm({ basePath = "/admin" }: { basePath?: str
     mutation.mutate({ cluster: form.cluster, valueChain: form.valueChain.trim() });
   }
 
+  const clusterOptions = clusters.map((c) => ({ label: c.label, value: c.value }));
+
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows<ValueChainRequest>({
+      rows,
+      mapRow: (row) => ({
+        cluster: matchOption(pickCell(row, ["Cluster"]), clusterOptions),
+        valueChain: pickCell(row, ["Value Chain", "ValueChain", "Name"]),
+      }),
+      isUsable: (value) => Boolean(value.cluster && value.valueChain.trim()),
+      missingMessage: "Each row needs Cluster and Value Chain.",
+      onSingle: (value) => {
+        setForm({ cluster: value.cluster, valueChain: value.valueChain, active: true });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/lookups/value-chains", {
+          cluster: value.cluster,
+          valueChain: value.valueChain.trim(),
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["value-chains"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "value chain" : "value chains", () =>
+      navigate(`${basePath}/value-chains`),
+    );
+  }
+
   const title = isView ? "Value Chain Details" : isEdit ? "Edit Value Chain" : "Add Value Chain";
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={!isView && !isEdit ? <ExcelImportButton onImport={handleImport} /> : undefined}
+      />
 
       <Card className="p-6 space-y-4 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

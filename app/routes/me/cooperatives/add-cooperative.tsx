@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { FieldGroup, Fieldset, Form } from "@heroui/react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { parseDate } from "@internationalized/date";
 import type { DateValue } from "@internationalized/date";
 
 import AppDate from "~/components/app-date";
 import AppSelect from "~/components/app-select";
 import AppTextField from "~/components/app-text-field";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, toIsoDate, type SpreadsheetRow } from "~/lib/spreadsheet";
 import { RwandaLocationSelector, type RwandaLocationValue } from "~/components/rwanda-location-selector";
 import { Stepper, type StepConfig } from "~/components/stepper";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -232,6 +235,95 @@ export default function MeAddCooperativePage() {
     step1Mutation.mutate({ flagships });
   }
 
+  function sheetDate(raw: string): DateValue | null {
+    const iso = toIsoDate(raw);
+    if (!iso) return null;
+    try {
+      return parseDate(iso);
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const groupOptions = groupTypes.map((g) => ({ label: g.label, value: g.value }));
+    const statusOptions = regStatuses.map((r) => ({ label: r.label, value: r.value }));
+    const flagshipSelectOptions = flagshipOptions.map((f) => ({ label: f.label, value: f.value }));
+
+    const outcome = await importMappedRows<CooperativeRequest & { flagshipId?: string; engagementType?: string; startDate?: string; endDate?: string }>({
+      rows,
+      mapRow: (row) => ({
+        cooperativeName: pickCell(row, ["Cooperative Name", "Name"]),
+        cooperativeCode: pickCell(row, ["Cooperative Code", "Code"]) || undefined,
+        groupType: matchOption(pickCell(row, ["Group Type", "Type"]), groupOptions),
+        registrationStatus: matchOption(pickCell(row, ["Registration Status", "Status"]), statusOptions) || undefined,
+        primaryValueChain: pickCell(row, ["Primary Value Chain", "Value Chain"]) || undefined,
+        cluster: pickCell(row, ["Cluster"]) || undefined,
+        totalMembers: toNum(pickCell(row, ["Total Members", "Members"])),
+        femaleMembers: toNum(pickCell(row, ["Female Members", "Female"])),
+        youthMembers: toNum(pickCell(row, ["Youth Members", "Youth"])),
+        province: pickCell(row, ["Province"]) || undefined,
+        district: pickCell(row, ["District"]) || undefined,
+        sector: pickCell(row, ["Sector"]) || undefined,
+        flagshipId: matchOption(pickCell(row, ["Flagship", "Flagship Name", "Flagship Code"]), flagshipSelectOptions),
+        engagementType: matchOption(pickCell(row, ["Engagement Type"]), ENGAGEMENT_TYPE_OPTIONS),
+        startDate: toIsoDate(pickCell(row, ["Engagement Start Date", "Start Date"])),
+        endDate: toIsoDate(pickCell(row, ["Engagement End Date", "End Date"])),
+      }),
+      isUsable: (value) => Boolean(value.cooperativeName?.trim() && value.groupType),
+      missingMessage: "Each row needs Cooperative Name and Group Type.",
+      onSingle: (value) => {
+        setCooperativeName(value.cooperativeName ?? "");
+        setCooperativeCode(value.cooperativeCode ?? "");
+        setGroupType(value.groupType ?? "");
+        setRegistrationStatus(value.registrationStatus ?? "");
+        setPrimaryValueChain(value.primaryValueChain ?? "");
+        setCluster(value.cluster ?? "");
+        setTotalMembers(value.totalMembers != null ? String(value.totalMembers) : "");
+        setFemaleMembers(value.femaleMembers != null ? String(value.femaleMembers) : "");
+        setYouthMembers(value.youthMembers != null ? String(value.youthMembers) : "");
+        setLocation({
+          province: value.province ?? "",
+          district: value.district ?? "",
+          sector: value.sector ?? "",
+          cell: "",
+          village: "",
+        });
+        setFlagshipId(value.flagshipId ?? "");
+        setEngagementType(value.engagementType ?? "");
+        setEngagementStartDate(sheetDate(value.startDate ?? ""));
+        setEngagementEndDate(sheetDate(value.endDate ?? ""));
+        setApiError(null);
+        setCurrentStep(0);
+      },
+      create: async (value) => {
+        await api.post("/api/cooperatives", {
+          cooperativeName: value.cooperativeName.trim(),
+          cooperativeCode: value.cooperativeCode,
+          groupType: value.groupType,
+          registrationStatus: value.registrationStatus,
+          primaryValueChain: value.primaryValueChain,
+          cluster: value.cluster,
+          totalMembers: value.totalMembers,
+          femaleMembers: value.femaleMembers,
+          youthMembers: value.youthMembers,
+          province: value.province,
+          district: value.district,
+          sector: value.sector,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+      queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "cooperative" : "cooperatives", () =>
+      navigate(returnTo),
+    );
+  }
+
   const stepHasValue =
     currentStep === 0
       ? !!(cooperativeName || cooperativeCode || groupType || location.province)
@@ -242,7 +334,10 @@ export default function MeAddCooperativePage() {
 
   return (
     <div className="flex flex-col gap-5 w-full min-w-0">
-      <PageTitleCard title={pageTitle} />
+      <PageTitleCard
+        title={pageTitle}
+        actionSlot={isView || isEdit ? undefined : <ExcelImportButton onImport={handleImport} />}
+      />
 
       {apiError ? <AppAlert status="danger" message={apiError} /> : null}
 

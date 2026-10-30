@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@heroui/react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importKpiDefinitionsFromSheet } from "~/lib/entity-imports";
 import AppSelect from "~/components/app-select";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import { toast } from "~/components/app-alert";
@@ -70,8 +73,23 @@ export default function KpiDefinitionsManagement({
     <div className="flex flex-col gap-5">
       <PageTitleCard
         title="KPI Definitions"
-        actionLabel={readOnly ? undefined : "Add KPI Definition"}
-        onActionPress={readOnly ? undefined : () => navigate(`${basePath}/kpis/add`)}
+        actionSlot={
+          readOnly ? undefined : (
+            <div className="flex gap-3">
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importKpiDefinitionsFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: ["kpi-definitions"] });
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "KPI definition" : "KPI definitions");
+                }}
+              />
+              <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/kpis/add`)}>
+                Add KPI Definition
+              </Button>
+            </div>
+          )
+        }
       />
 
       {isError ? (
