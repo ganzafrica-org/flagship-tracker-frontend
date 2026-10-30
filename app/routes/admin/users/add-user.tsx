@@ -1,26 +1,20 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Button, Card } from "@heroui/react";
-import { useNavigate, useSearchParams } from "react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
-import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
-import {
-  usersQueryOptions,
-  type CreateUserRequest,
-  type UserRole,
-} from "~/lib/queries/users";
+import { redirectLegacyView } from "~/lib/legacy-view-redirect";
+import { USER_ROLE_OPTIONS, type CreateUserRequest, type UserRole } from "~/lib/queries/users";
 
-const ROLE_OPTIONS = [
-  { label: "Admin", value: "ADMIN" },
-  { label: "Senior Official", value: "SENIOR" },
-  { label: "Monitoring Officer", value: "MONITORING_OFFICER" },
-];
+// Viewing a user is a dialog on the users list now; old `?editId=N` links land there.
+export function clientLoader({ request }: { request: Request }) {
+  return redirectLegacyView(request, "/admin/users", { always: true });
+}
 
 export function meta() {
   return [{ title: "Add User | Admin" }];
@@ -37,29 +31,14 @@ const EMPTY: FormState = { email: "", fullName: "", role: "" };
 export default function AdminAddUserPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [params] = useSearchParams();
-  const editId = params.get("editId");
-  const isView = params.get("mode") === "view";
-  // Backend exposes create + list only (no per-user PUT), so edit ids are
-  // treated as read-only detail views populated from the list.
-  const isDetail = Boolean(editId);
-
-  const { data: page } = useQuery({ ...usersQueryOptions(), enabled: isDetail });
-
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [apiError, setApiError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isDetail || !page) return;
-    const u = page.content.find((x) => String(x.id) === editId);
-    if (u) setForm({ email: u.email, fullName: u.fullName, role: u.role });
-  }, [isDetail, editId, page]);
-
   const mutation = useMutation({
     mutationFn: (body: CreateUserRequest) => api.post("/api/users", body),
     onSuccess: () => {
-      toast.success("User created — a welcome email has been sent");
+      toast.success("User created — a welcome email is being sent");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       navigate("/admin/users");
     },
@@ -86,47 +65,9 @@ export default function AdminAddUserPage() {
     });
   }
 
-  async function handleImport(rows: SpreadsheetRow[]) {
-    const outcome = await importMappedRows<CreateUserRequest>({
-      rows,
-      mapRow: (row) => ({
-        fullName: pickCell(row, ["Full Name", "Name"]),
-        email: pickCell(row, ["Email", "Email Address"]),
-        role: matchOption(pickCell(row, ["Role"]), ROLE_OPTIONS) as UserRole,
-      }),
-      isUsable: (value) =>
-        Boolean(value.fullName.trim() && value.email.trim() && value.role && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.email.trim())),
-      missingMessage: "Each row needs Full Name, a valid Email, and Role (Admin, Senior Official, or Monitoring Officer).",
-      onSingle: (value) => {
-        setForm({ fullName: value.fullName, email: value.email, role: value.role });
-        setErrors({});
-        setApiError(null);
-      },
-      create: async (value) => {
-        await api.post("/api/users", {
-          email: value.email.trim(),
-          fullName: value.fullName.trim(),
-          role: value.role,
-        });
-      },
-    });
-
-    if (outcome.mode === "bulk") {
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
-    }
-    notifySpreadsheetImport(outcome, outcome.created === 1 ? "user" : "users", () => navigate("/admin/users"));
-  }
-
-  const readOnly = isView || isDetail;
-  const title = readOnly ? "User Details" : "Add a New User";
-
   return (
     <div className="space-y-6">
-      <PageTitleCard
-        title={title}
-        actionSlot={readOnly ? undefined : <ExcelImportButton onImport={handleImport} />}
-      />
+      <PageTitleCard title="Add a New User" />
 
       <Card className="space-y-4 p-6 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}
@@ -141,7 +82,6 @@ export default function AdminAddUserPage() {
             setErrors((e) => ({ ...e, fullName: undefined }));
           }}
           isRequired
-          isDisabled={readOnly}
           errorMessage={errors.fullName}
         />
 
@@ -156,7 +96,6 @@ export default function AdminAddUserPage() {
             setErrors((e) => ({ ...e, email: undefined }));
           }}
           isRequired
-          isDisabled={readOnly}
           errorMessage={errors.email}
         />
 
@@ -164,26 +103,23 @@ export default function AdminAddUserPage() {
           name="role"
           label="Role"
           placeholder="Select a role"
-          options={ROLE_OPTIONS}
+          options={USER_ROLE_OPTIONS}
           selectedKey={form.role}
           onSelectionChange={(v) => {
             setForm((f) => ({ ...f, role: v }));
             setErrors((e) => ({ ...e, role: undefined }));
           }}
           isRequired
-          isDisabled={readOnly}
           errorMessage={errors.role}
         />
 
         <div className="flex justify-end gap-3 pt-2">
           <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/users")}>
-            {readOnly ? "Back" : "Cancel"}
+            Cancel
           </Button>
-          {!readOnly ? (
-            <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
-              Create User
-            </Button>
-          ) : null}
+          <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
+            Create User
+          </Button>
         </div>
       </Card>
     </div>

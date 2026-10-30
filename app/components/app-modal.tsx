@@ -9,7 +9,11 @@ interface AppModalProps {
   footer?: ReactNode;
   /** Tailwind classes controlling dialog width. */
   dialogClassName?: string;
+  /** Fill the whole screen below the `sm` breakpoint instead of floating as a card. */
+  fullScreenOnMobile?: boolean;
 }
+
+const FULL_SCREEN_DIALOG = "max-sm:!m-0 max-sm:!h-dvh max-sm:!max-h-dvh max-sm:!w-screen max-sm:!max-w-none max-sm:!rounded-none";
 
 /**
  * Thin wrapper over HeroUI's Modal compound component.
@@ -22,11 +26,12 @@ export default function AppModal({
   children,
   footer,
   dialogClassName = "sm:max-w-lg w-full",
+  fullScreenOnMobile = false,
 }: AppModalProps) {
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container>
-        <Modal.Dialog className={dialogClassName}>
+      <Modal.Container className={fullScreenOnMobile ? "max-sm:!p-0" : undefined}>
+        <Modal.Dialog className={fullScreenOnMobile ? `${dialogClassName} ${FULL_SCREEN_DIALOG}` : dialogClassName}>
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>

@@ -15,12 +15,11 @@ export default function VizRefreshButton({ className }: { className?: string }) 
 
   const mutation = useMutation({
     mutationFn: refreshVisualizations,
-    onSuccess: () => {
-      toast.success("Data Refreshed");
-      queryClient.invalidateQueries({ queryKey: ["viz"] });
-    },
+    onSuccess: () => toast.success("Data Refreshed"),
     onError: (err) =>
       toast.error(err instanceof ApiError ? err.message : "Failed to refresh"),
+    // Invalidate even when the server-side view refresh fails, so the page always refetches.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["viz"] }),
   });
 
   return (

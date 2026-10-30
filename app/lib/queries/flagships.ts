@@ -4,6 +4,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { countFunders, parseFunderNames } from "../flagship-funders";
 import { ApiError, api } from "../api";
 import { getAccessToken } from "../auth";
+import type { FlagshipSummaryRow } from "./visualizations";
 
 export type FlagshipStatus = "planning" | "active" | "suspended" | "closed";
 
@@ -140,6 +141,8 @@ export interface FlagshipListItem {
   numberOfFunders: number;
   valueChain: string;
   progress: number;
+  /** Text shown next to the bar (can exceed 100% or be "—"); the bar itself is capped at 100. */
+  progressText?: string;
   location: string;
   dateLabel: string;
   accentColor: string;
@@ -167,7 +170,7 @@ export function getFlagshipCardAccent(cardIndex: number): string {
   return FLAGSHIP_CARD_ACCENTS[Math.max(0, cardIndex) % FLAGSHIP_CARD_ACCENTS.length];
 }
 
-function formatDateLabel(iso: string): string {
+export function formatDateLabel(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString(undefined, {
@@ -178,8 +181,9 @@ function formatDateLabel(iso: string): string {
 }
 
 /** Plain number formatting — no currency code unless the API provides one separately. */
-export function formatNumericAmount(amount: number): string {
-  return amount.toLocaleString(undefined, { maximumFractionDigits: 0 });
+/** Budget with its currency, e.g. "18,089,904,359 RWF" (budgets are stored in RWF). */
+export function formatBudgetRwf(amount: number): string {
+  return `${amount.toLocaleString("en-US", { maximumFractionDigits: 0 })} RWF`;
 }
 
 function formatLocations(locations: FlagshipLocation[]): string {
@@ -207,7 +211,7 @@ export function mapFlagshipToListItem(
     jobsCreated: detail.jobsCreated ?? 0,
     totalBudget:
       detail.budgetTotalRwf != null && detail.budgetTotalRwf > 0
-        ? formatNumericAmount(detail.budgetTotalRwf)
+        ? formatBudgetRwf(detail.budgetTotalRwf)
         : "—",
     numberOfFunders: funderCount,
     valueChain: detail.primaryValueChain?.trim() || "—",
@@ -217,6 +221,32 @@ export function mapFlagshipToListItem(
     accentColor: getFlagshipCardAccent(cardIndex),
     funderNames,
     funderContributions: detail.fundingContributions ?? [],
+  };
+}
+
+/**
+ * Card data from a mv_flagship_summary row. Funders are not in the view (only a count),
+ * so they come from the flagship detail the card was already built from.
+ */
+export function applySummaryRow(item: FlagshipListItem, row: FlagshipSummaryRow): FlagshipListItem {
+  const target = row.targetYouthCount;
+  const jobs = row.jobsCreatedActual;
+  const pct = target ? Math.round(((jobs ?? 0) / target) * 100) : null;
+
+  return {
+    ...item,
+    id: row.flagshipId,
+    status: row.status as FlagshipStatus,
+    title: row.flagshipName,
+    code: row.flagshipCode,
+    cluster: row.flagshipCluster,
+    jobsCreated: Math.round(jobs ?? 0),
+    totalBudget:
+      row.budgetTotalRwf != null && row.budgetTotalRwf > 0 ? formatBudgetRwf(row.budgetTotalRwf) : "—",
+    valueChain: row.primaryValueChain?.length ? row.primaryValueChain.join(", ") : "—",
+    progress: pct == null ? 0 : Math.min(100, pct),
+    progressText: pct == null ? "—" : `${pct}%`,
+    dateLabel: row.startDate ? formatDateLabel(row.startDate) : "—",
   };
 }
 
@@ -320,9 +350,26 @@ export interface FlagshipTableRow {
   status: FlagshipStatus;
 }
 
-export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): FlagshipTableRow[] {
+/**
+ * Single mapping used by both the card and table views, so they always match:
+ * mv_flagship_summary figures when the view has a row, else the flagship's own data
+ * (e.g. created since the last refresh).
+ */
+export function mapFlagshipCard(
+  detail: FlagshipDetailResponse,
+  index: number,
+  row: FlagshipSummaryRow | undefined,
+): FlagshipListItem {
+  const base = mapFlagshipToListItem(detail, index);
+  return row ? applySummaryRow(base, row) : base;
+}
+
+export function buildFlagshipTableRows(
+  flagships: FlagshipDetailResponse[],
+  summaryById: Map<number, FlagshipSummaryRow> = new Map(),
+): FlagshipTableRow[] {
   return flagships.map((item, index) => {
-    const card = mapFlagshipToListItem(item, index);
+    const card = mapFlagshipCard(item, index, summaryById.get(item.flagshipId));
     return {
       id: index + 1,
       flagshipId: card.id,
@@ -334,7 +381,7 @@ export function buildFlagshipTableRows(flagships: FlagshipDetailResponse[]): Fla
       code: card.code,
       cluster: card.cluster,
       status: card.status,
-      progress: `${card.progress}%`,
+      progress: card.progressText ?? `${card.progress}%`,
       progressValue: card.progress,
       funderContributions: card.funderContributions,
     };

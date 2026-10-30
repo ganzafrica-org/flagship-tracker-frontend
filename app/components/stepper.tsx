@@ -37,6 +37,12 @@ export interface StepperProps {
   isSubmitting?: boolean;
   /** Optional label for submit action */
   submitLabel?: string;
+  /** When provided, shows a "Save Draft" button to the right of Submit on the last step. */
+  onSaveDraft?: () => void;
+  /** Label for the save-draft action. Defaults to "Save Draft". */
+  saveDraftLabel?: string;
+  /** Show spinner on the save-draft button. */
+  isSavingDraft?: boolean;
   /** Layout direction */
   orientation?: "horizontal" | "vertical";
   /** Content for the current step */
@@ -185,6 +191,9 @@ export function Stepper({
   isNextDisabled = false,
   isSubmitting = false,
   submitLabel,
+  onSaveDraft,
+  saveDraftLabel,
+  isSavingDraft = false,
   orientation = "horizontal",
   children,
   className = "",
@@ -230,6 +239,9 @@ export function Stepper({
               onSkip={onSkip}
               onSubmit={onSubmit}
               submitLabel={submitLabel}
+              onSaveDraft={onSaveDraft}
+              saveDraftLabel={saveDraftLabel}
+              isSavingDraft={isSavingDraft}
             />
           </div>
         </div>
@@ -293,6 +305,9 @@ export function Stepper({
             onSkip={onSkip}
             onSubmit={onSubmit}
             submitLabel={submitLabel}
+            onSaveDraft={onSaveDraft}
+            saveDraftLabel={saveDraftLabel}
+            isSavingDraft={isSavingDraft}
           />
         </Card>
       </div>
@@ -313,6 +328,9 @@ interface StepperActionsProps {
   onSkip: () => void;
   onSubmit: () => void;
   submitLabel?: string;
+  onSaveDraft?: () => void;
+  saveDraftLabel?: string;
+  isSavingDraft?: boolean;
 }
 
 function StepperActions({
@@ -326,6 +344,9 @@ function StepperActions({
   onSkip,
   onSubmit,
   submitLabel,
+  onSaveDraft,
+  saveDraftLabel,
+  isSavingDraft,
 }: StepperActionsProps) {
   return (
     <div className="flex items-center justify-between gap-3 pt-2 border-t border-(--border)">
@@ -350,15 +371,28 @@ function StepperActions({
         )}
 
         {isLast ? (
-          <Button
-            variant="primary"
-            onPress={onSubmit}
-            isDisabled={isNextDisabled}
-            isLoading={isSubmitting}
-            className="!rounded-3xl"
-          >
-            {submitLabel ?? "Submit"}
-          </Button>
+          <>
+            <Button
+              variant="primary"
+              onPress={onSubmit}
+              isDisabled={isNextDisabled}
+              isLoading={isSubmitting}
+              className="!rounded-3xl"
+            >
+              {submitLabel ?? "Submit"}
+            </Button>
+            {onSaveDraft && (
+              <Button
+                variant="outline"
+                onPress={onSaveDraft}
+                isDisabled={isSubmitting}
+                isLoading={isSavingDraft}
+                className="!rounded-3xl"
+              >
+                {saveDraftLabel ?? "Save Draft"}
+              </Button>
+            )}
+          </>
         ) : (
           <Button
             variant="primary"

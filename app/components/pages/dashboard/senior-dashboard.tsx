@@ -6,7 +6,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -21,12 +20,17 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 
+import { FlagshipStatusBadge } from "~/components/pages/flagships/flagships-list";
 import { PageTitleCard } from "~/components/page-title-card";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
-import { individualsQueryOptions } from "~/lib/queries/individuals";
-import { seniorDashboardQueryOptions } from "~/lib/queries/visualizations";
-import { flagshipsQueryOptions } from "~/lib/queries/flagships";
+import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
+import {
+  flagshipStatusListQueryOptions,
+  seniorDashboardQueryOptions,
+  seniorIndividualsQueryOptions,
+  type FlagshipSummaryRow,
+} from "~/lib/queries/visualizations";
 import { CHART } from "~/data/dummy-flagship-detail";
 import { FLAGSHIP_BAR_COLORS } from "~/data/dummy-senior-dashboard";
 
@@ -50,38 +54,26 @@ function EmptyChart({ height = 280 }: { height?: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Investment progress row
+// Flagships status (every flagship from mv_flagship_summary)
 // ---------------------------------------------------------------------------
 
-interface ProgressRow {
-  id: string;
-  flagship: string;
-  targetLabel: string;
-  value: number;
-  status: "percentage" | "planning";
-}
-
-function InvestmentProgressList({ rows }: { rows: ProgressRow[] }) {
+function FlagshipStatusList({ flagships }: { flagships: FlagshipSummaryRow[] }) {
   return (
-    <div className="flex flex-col">
-      {rows.map((item, index) => (
-        <div key={item.id}>
+    <ul className="m-0 flex list-none flex-col p-0" data-testid="flagship-status-list">
+      {flagships.map((f, index) => (
+        <li key={f.flagshipId}>
           {index > 0 && <Separator />}
-          <div className="flex items-center justify-between gap-4 py-3">
+          <div className="flex items-start justify-between gap-3 py-3" data-testid={`flagship-status-${f.flagshipCode}`}>
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-(--foreground)">{item.flagship}</p>
-              <p className="text-xs text-(--muted)">Target: {item.targetLabel}</p>
+              <p className="text-sm font-semibold text-(--foreground)">{f.flagshipCode}</p>
+              <p className="text-sm leading-snug text-(--foreground)">{f.flagshipName}</p>
+              <p className="text-xs uppercase tracking-wide text-(--muted)">{f.flagshipCluster}</p>
             </div>
-            <span
-              className="shrink-0 text-sm font-bold"
-              style={{ color: item.status === "percentage" ? "var(--accent)" : "var(--warning)" }}
-            >
-              {item.status === "percentage" ? `${item.value}%` : "Planning"}
-            </span>
+            <FlagshipStatusBadge status={f.status} />
           </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -90,61 +82,40 @@ function InvestmentProgressList({ rows }: { rows: ProgressRow[] }) {
 // ---------------------------------------------------------------------------
 
 export default function SeniorDashboard() {
-  const flagshipsQuery = useQuery(flagshipsQueryOptions);
-  const individualsQuery = useQuery(individualsQueryOptions);
+  // Two independent aggregate queries, fetched in parallel; each section renders as soon as its own
+  // data arrives (nothing here downloads a full list).
   const vizQuery = useQuery(seniorDashboardQueryOptions());
-  const isLoading = flagshipsQuery.isLoading || individualsQuery.isLoading;
-
-  const flagships = flagshipsQuery.data ?? [];
-  const individuals = individualsQuery.data ?? [];
+  const individualsQuery = useQuery(seniorIndividualsQueryOptions);
+  const statusQuery = useQuery(flagshipStatusListQueryOptions);
   const viz = vizQuery.data;
+  const individualsStats = individualsQuery.data;
+  const vizLoading = vizQuery.isPending;
+  const individualsLoading = individualsQuery.isPending;
 
   // All values come from the visualizations API (materialized views). When there
   // is no underlying data the cards show 0 / "—" and the charts render empty —
   // never fabricated placeholder numbers.
   const dashboardStats = useMemo(() => {
-    const totalInvestmentRwf = viz?.cards.totalInvestmentRwf ?? null;
     return {
       totalFlagships: viz?.cards.totalFlagships ?? 0,
       totalJobsCreated: viz?.cards.totalJobsCreated ?? 0,
-      totalInvestors: viz?.cards.totalInvestors ?? 0,
-      totalIndividualsRegistered: individuals.length,
+      totalFunders: viz?.cards.totalFunders ?? 0,
+      totalIndividualsRegistered: individualsStats?.total ?? 0,
       totalCooperativesEngaged: viz?.cards.totalCooperativesEngaged ?? 0,
-      totalInvestment:
-        totalInvestmentRwf != null
-          ? `${(totalInvestmentRwf / 1_000_000_000).toFixed(1)}B RWF`
-          : "—",
     };
-  }, [individuals, viz]);
+  }, [individualsStats, viz]);
 
-  // 1.11 — investment progress (real data, empty when none).
-  const progressRows = useMemo<ProgressRow[]>(() => {
-    return (viz?.investmentProgress ?? []).map((p) => ({
-      id: String(p.flagshipId),
-      flagship: p.flagshipCode,
-      targetLabel:
-        p.budgetTotalRwf != null
-          ? `${(p.budgetTotalRwf / 1_000_000_000).toFixed(1)}B RWF`
-          : "—",
-      value: p.progressPercent ?? 0,
-      status: p.progressPercent != null ? "percentage" : "planning",
-    }));
-  }, [viz]);
-
-  // 1.6 — youth vs non-youth, computed from real individuals (empty when none).
+  // 1.6 — youth vs non-youth from individual.youth_status; individuals with no value are
+  // shown as "Unknown" (never dropped), and percentages are of all individuals.
   const genderData = useMemo(() => {
-    let youth = 0;
-    let nonYouth = 0;
-    for (const individual of individuals) {
-      if (individual.youthCategory) youth += 1;
-      else nonYouth += 1;
-    }
-    if (youth + nonYouth === 0) return [];
+    if (!individualsStats || individualsStats.total === 0) return [];
     return [
-      { name: "Youth", value: youth, fill: CHART.accent },
-      { name: "Non-Youth", value: nonYouth, fill: CHART.warning },
-    ];
-  }, [individuals]);
+      { name: "Youth", value: individualsStats.youth, fill: CHART.accent },
+      { name: "Non-Youth", value: individualsStats.nonYouth, fill: CHART.warning },
+      { name: "Unknown", value: individualsStats.unknown, fill: "var(--muted)" },
+    ].filter((d) => d.value > 0);
+  }, [individualsStats]);
+  const genderTotal = genderData.reduce((sum, d) => sum + d.value, 0);
 
   // 1.8 — jobs created by flagship (materialized view; empty when none).
   const jobsCreatedData = useMemo(
@@ -156,36 +127,6 @@ export default function SeniorDashboard() {
     [viz],
   );
 
-  // 1.9 — investment disaggregation by source (materialized view; empty when none).
-  const investmentSplitData = useMemo(() => {
-    const rows = viz?.investmentBySource ?? [];
-    const total = rows.reduce((s, r) => s + (r.value ?? 0), 0);
-    if (total <= 0) return [];
-    return rows.map((r, index) => ({
-      name: r.name.charAt(0).toUpperCase() + r.name.slice(1),
-      value: Math.round(((r.value ?? 0) / total) * 100),
-      fill: FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length],
-    }));
-  }, [viz]);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-16 rounded-xl" />
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-72 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
@@ -193,36 +134,46 @@ export default function SeniorDashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          color="var(--accent)"
-          icon={<IconFlag size={20} />}
-          stat={dashboardStats.totalFlagships}
-          label="Total Flagships"
-        />
-        <StatCard
-          color="var(--warning)"
-          icon={<IconBriefcase size={20} />}
-          stat={dashboardStats.totalJobsCreated.toLocaleString()}
-          label="Total Jobs Created"
-        />
-        <StatCard
-          color="var(--forest)"
-          icon={<IconUsers size={20} />}
-          stat={dashboardStats.totalInvestors}
-          label="Total Investors"
-        />
-        <StatCard
-          color="var(--danger)"
-          icon={<IconUsers size={20} />}
-          stat={dashboardStats.totalIndividualsRegistered.toLocaleString()}
-          label="Total Individuals Registered"
-        />
-        <StatCard
-          color="var(--success)"
-          icon={<IconBuildingCommunity size={20} />}
-          stat={dashboardStats.totalCooperativesEngaged.toLocaleString()}
-          label="Total Cooperatives Engaged"
-        />
+        {vizLoading ? <StatCardSkeleton /> : (
+          <StatCard
+            color="var(--accent)"
+            icon={<IconFlag size={20} />}
+            stat={dashboardStats.totalFlagships}
+            label="Total Flagships"
+          />
+        )}
+        {vizLoading ? <StatCardSkeleton /> : (
+          <StatCard
+            color="var(--warning)"
+            icon={<IconBriefcase size={20} />}
+            stat={dashboardStats.totalJobsCreated.toLocaleString()}
+            label="Total Jobs Created"
+          />
+        )}
+        {vizLoading ? <StatCardSkeleton /> : (
+          <StatCard
+            color="var(--forest)"
+            icon={<IconUsers size={20} />}
+            stat={dashboardStats.totalFunders}
+            label="Total Funders"
+          />
+        )}
+        {individualsLoading ? <StatCardSkeleton /> : (
+          <StatCard
+            color="var(--danger)"
+            icon={<IconUsers size={20} />}
+            stat={dashboardStats.totalIndividualsRegistered.toLocaleString()}
+            label="Total Individuals Registered"
+          />
+        )}
+        {vizLoading ? <StatCardSkeleton /> : (
+          <StatCard
+            color="var(--success)"
+            icon={<IconBuildingCommunity size={20} />}
+            stat={dashboardStats.totalCooperativesEngaged.toLocaleString()}
+            label="Total Cooperatives Engaged"
+          />
+        )}
       </div>
 
       {/* Charts 2×2 */}
@@ -233,7 +184,7 @@ export default function SeniorDashboard() {
             <Card.Title>Youth vs Non-Youth Participation</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-2">
-            {genderData.length === 0 ? <EmptyChart /> : (
+            {individualsLoading ? <ChartSkeleton height="h-[280px]" /> : genderData.length === 0 ? <EmptyChart /> : (
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
               <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <Pie
@@ -246,14 +197,19 @@ export default function SeniorDashboard() {
                   outerRadius={90}
                   paddingAngle={3}
                   stroke="none"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(1)}%`}
                   labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
                 >
                   {genderData.map((entry) => (
                     <Cell key={entry.name} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
+                <Tooltip
+                  formatter={(value) => {
+                    const n = Number(value ?? 0);
+                    return `${n.toLocaleString()} (${genderTotal ? ((n / genderTotal) * 100).toFixed(1) : 0}%)`;
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
             )}
@@ -266,7 +222,7 @@ export default function SeniorDashboard() {
             <Card.Title>Jobs Created by Flagships</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {jobsCreatedData.length === 0 ? <EmptyChart height={240} /> : (
+            {vizLoading ? <ChartSkeleton height="h-[240px]" /> : jobsCreatedData.length === 0 ? <EmptyChart height={240} /> : (
             <ResponsiveContainer width="100%" height={240} minWidth={0}>
               <BarChart data={jobsCreatedData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
@@ -283,53 +239,9 @@ export default function SeniorDashboard() {
             )}
           </Card.Content>
         </Card>
-
-        {/* Pie: Disaggregation of Total Investment */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Disaggregation of Total Investment</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            {investmentSplitData.length === 0 ? <EmptyChart /> : (
-            <ResponsiveContainer width="100%" height={280} minWidth={0}>
-              <PieChart margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
-                <Pie
-                  data={investmentSplitData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="40%"
-                  cy="50%"
-                  outerRadius={95}
-                  label={({ name, percent }) =>
-                    `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                  }
-                  labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
-                >
-                  {investmentSplitData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${Number(value ?? 0)}%`} />
-                <Legend
-                  layout="vertical"
-                  align="right"
-                  verticalAlign="middle"
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 12 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            )}
-            <p className="pt-2 text-sm text-(--foreground) text-center">
-              <span className="font-semibold">{dashboardStats.totalInvestment}</span>{" "}
-              investment in total
-            </p>
-          </Card.Content>
-        </Card>
       </div>
 
-      {/* Bottom section: map ~65% + investment progress ~35% */}
+      {/* Bottom section: map ~65% + flagships status ~35% */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[65fr_35fr]">
         {/* Rwanda map */}
         <Card>
@@ -337,6 +249,7 @@ export default function SeniorDashboard() {
             <Card.Title>Flagships and Where They Are Being Implemented</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
+            {vizLoading ? <Skeleton className="h-[380px] rounded-xl" /> : (
             <Suspense fallback={<Skeleton className="h-[380px] rounded-xl" />}>
               <RwandaMap
                 locations={(viz?.locations ?? []).map((l) => ({
@@ -346,19 +259,24 @@ export default function SeniorDashboard() {
                 }))}
               />
             </Suspense>
+            )}
           </Card.Content>
         </Card>
 
-        {/* Investment progress */}
+        {/* Flagships status */}
         <Card>
           <Card.Header>
-            <Card.Title>Investment Progress</Card.Title>
+            <Card.Title>Flagships Status</Card.Title>
           </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            {progressRows.length === 0 ? (
-              <p className="py-8 text-center text-sm text-(--muted)">No investment data yet.</p>
+          <Card.Content className="max-h-[420px] overflow-y-auto p-4 pt-0">
+            {statusQuery.isPending ? (
+              <ChartSkeleton height="h-48" />
+            ) : statusQuery.isError || !statusQuery.data ? (
+              <p className="py-8 text-center text-sm text-(--danger)">Could not load flagship statuses.</p>
+            ) : statusQuery.data.length === 0 ? (
+              <p className="py-8 text-center text-sm text-(--muted)">No flagships yet.</p>
             ) : (
-              <InvestmentProgressList rows={progressRows} />
+              <FlagshipStatusList flagships={statusQuery.data} />
             )}
           </Card.Content>
         </Card>

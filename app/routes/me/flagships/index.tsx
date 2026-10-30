@@ -11,6 +11,7 @@ export default function MeFlagships() {
       title="Flagship Projects"
       basePath="/me/flagships"
       addFlagshipPath="/me/flagships/add-flagship"
+      showDraftTab
     />
   );
 }

@@ -33,12 +33,21 @@ interface FlagshipsListProps {
 const CARD_CLASS =
   "group relative !rounded-4xl bg-(--surface) p-5 min-h-[300px] h-full shadow-none border border-(--separator) flex flex-col transition-shadow hover:shadow-md";
 
-const STATUS_COLOR: Record<FlagshipStatus, "success" | "warning" | "danger" | "default"> = {
+export const STATUS_COLOR: Record<FlagshipStatus, "success" | "warning" | "danger" | "default"> = {
   active: "success",
   planning: "warning",
   suspended: "danger",
   closed: "default",
 };
+
+/** Status badge shared by the cards, the table and the senior dashboard (same colours everywhere). */
+export function FlagshipStatusBadge({ status }: { status: string }) {
+  return (
+    <Chip size="sm" variant="soft" color={STATUS_COLOR[status as FlagshipStatus] ?? "default"}>
+      <Chip.Label className="capitalize">{status || "—"}</Chip.Label>
+    </Chip>
+  );
+}
 
 function StatRow({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   return (
@@ -120,9 +129,6 @@ function FlagshipListCard({
             <p className="text-[11px] uppercase tracking-wide text-(--muted) truncate">{item.cluster}</p>
           </div>
         </div>
-        <Chip size="sm" variant="soft" color={STATUS_COLOR[item.status] ?? "default"}>
-          <Chip.Label className="capitalize">{item.status}</Chip.Label>
-        </Chip>
       </div>
 
       {/* Title — always reserve 2 lines so stats/progress align across cards */}

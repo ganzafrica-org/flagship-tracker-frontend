@@ -49,6 +49,11 @@ const REGISTRATION_SOURCE_OPTIONS = [
   { value: "survey", label: "Survey" },
 ];
 
+const YOUTH_STATUS_OPTIONS = [
+  { value: "youth", label: "Youth" },
+  { value: "non_youth", label: "Non-youth" },
+];
+
 const DISABILITY_OPTIONS = [
   { value: "false", label: "No disability" },
   { value: "true", label: "Has registered disability" },
@@ -309,6 +314,7 @@ export async function importIndividualsFromSheet(rows: SpreadsheetRow[]): Promis
         firstName: pickCell(row, ["First Name"]),
         lastName: pickCell(row, ["Last Name"]),
         sex: matchOption(pickCell(row, ["Sex", "Gender"]), preferOptions(sexOptions, SEX_OPTIONS)),
+        youthStatus: matchOption(pickCell(row, ["Youth Status", "Youth"]), YOUTH_STATUS_OPTIONS),
         dateOfBirth: toIsoDate(pickCell(row, ["Date of Birth", "DOB"])) || undefined,
         youthCategory:
           matchOption(pickCell(row, ["Youth Category"]), preferOptions(youthOptions, YOUTH_CATEGORY_OPTIONS)) ||
@@ -336,13 +342,14 @@ export async function importIndividualsFromSheet(rows: SpreadsheetRow[]): Promis
           value.firstName.trim() &&
           value.lastName.trim() &&
           value.sex &&
+          value.youthStatus &&
           value.registrationSource &&
           value.province &&
           value.district &&
           value.sector,
       ),
     missingMessage:
-      "Each row needs Phone Number, First Name, Last Name, Sex, Registration Source, Province, District, and Sector.",
+      "Each row needs Phone Number, First Name, Last Name, Sex, Youth Status, Registration Source, Province, District, and Sector.",
     create: (value) => createIndividual(value).then(() => undefined),
   });
 }

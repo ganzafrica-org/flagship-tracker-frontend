@@ -1,17 +1,22 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 import { IconUpload } from "@tabler/icons-react";
 
 import TableComponent from "~/components/table-component";
-import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
-import { importUsersFromSheet } from "~/lib/entity-imports";
 import AppModal from "~/components/app-modal";
 import AppAlert, { toast } from "~/components/app-alert";
+import RecordDetailsDialog from "~/components/record-details-dialog";
 import { ApiError } from "~/lib/api";
-import { importUsersCsv, usersListQueryOptions, type ImportResult } from "~/lib/queries/users";
+import { useUserRecord } from "~/lib/record-details";
+import { useRecordDialog } from "~/lib/use-record-dialog";
+import {
+  usersListQueryOptions,
+  importUsersCsv,
+  type ImportResult,
+} from "~/lib/queries/users";
 
 function ImportUsersModal({
   isOpen,
@@ -100,9 +105,10 @@ function ImportUsersModal({
 
 export default function UsersManagementPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { data: users = [], isLoading, isError, error } = useQuery(usersListQueryOptions);
   const [importOpen, setImportOpen] = useState(false);
+  const view = useRecordDialog();
+  const record = useUserRecord(view.id);
 
   const rows = useMemo(
     () =>
@@ -125,14 +131,6 @@ export default function UsersManagementPage() {
             <Button variant="outline" className="!rounded-3xl" onPress={() => setImportOpen(true)}>
               <IconUpload size={16} /> Import CSV
             </Button>
-            <ExcelImportButton
-              variant="outline"
-              onImport={async (rows) => {
-                const outcome = await importUsersFromSheet(rows);
-                void queryClient.invalidateQueries({ queryKey: ["users"] });
-                notifySpreadsheetImport(outcome, outcome.created === 1 ? "user" : "users");
-              }}
-            />
             <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/users/add-user")}>
               Add A New User
             </Button>
@@ -167,9 +165,18 @@ export default function UsersManagementPage() {
         actions={(row) => [
           {
             label: "View Details",
-            onClick: () => navigate(`/admin/users/add-user?editId=${row.id}&mode=view`),
+            onClick: () => view.open(Number(row.id)),
           },
         ]}
+      />
+
+      {/* The backend has no user update endpoint, so there is no Edit here. */}
+      <RecordDetailsDialog
+        testId="user-details"
+        isOpen={view.id !== null}
+        onClose={view.close}
+        fallbackTitle="User Details"
+        {...record}
       />
 
       <ImportUsersModal isOpen={importOpen} onOpenChange={setImportOpen} />

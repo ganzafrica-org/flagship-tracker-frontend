@@ -10,6 +10,8 @@ export interface IndividualsPageItem {
   phoneNumber: string;
   sex: string;
   youthCategory: string | null;
+  /** 'youth' | 'non_youth'; null = unknown. */
+  youthStatus?: string | null;
   province: string;
   district: string;
   sector: string;
@@ -17,6 +19,8 @@ export interface IndividualsPageItem {
   village: string;
   registrationSource: string;
   flagshipNames: string[];
+  /** Distinct value-chain names this individual belongs to. */
+  valueChainNames?: string[];
   createdAt: string;
 }
 
@@ -70,6 +74,8 @@ export interface CreateIndividualRequest {
   dateOfBirth?: string;
   programEntryAge?: number;
   youthCategory?: string;
+  /** 'youth' | 'non_youth' (required when creating). */
+  youthStatus: string;
   educationLevel?: string;
   disabilityStatus?: boolean;
   registrationSource: string;

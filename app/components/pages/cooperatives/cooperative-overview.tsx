@@ -28,7 +28,7 @@ import AppSelect from "~/components/app-select";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import { CHART } from "~/data/dummy-flagship-detail";
 import { COOP_BAR_COLORS } from "~/data/dummy-cooperatives";
-import { flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
+import { cooperativeTypeNames, flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
 import { cooperativesDashboardQueryOptions } from "~/lib/queries/visualizations";
 
 const PROPORTION_FILLS = [CHART.accent, CHART.warning];
@@ -49,16 +49,17 @@ function hasChartData<T>(rows: T[]) {
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function CooperativeOverview() {
+export default function CooperativeOverview({ type }: { type?: string }) {
   // "" = all flagships (server-side filter via ?flagship=<code>).
   const [flagshipFilter, setFlagshipFilter] = useUrlState("flagship");
 
   const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
   const { data, isLoading } = useQuery(
-    cooperativesDashboardQueryOptions(flagshipFilter || undefined),
+    cooperativesDashboardQueryOptions(flagshipFilter || undefined, type || undefined),
   );
 
   const stats = data?.cards;
+  const typeLabel = type ? cooperativeTypeNames(type).plural : "Cooperatives";
 
   // Map the API payload onto the data-keys the charts already use.
   const proportionData = (data?.flagshipProportion ?? []).map((p, i) => ({
@@ -127,7 +128,7 @@ export default function CooperativeOverview() {
           color="var(--accent)"
           icon={<IconBuildingCommunity size={20} />}
           stat={stats?.totalCooperatives ?? "—"}
-          label="Total Cooperatives"
+          label={`Total ${typeLabel}`}
         />
         <StatCard
           color="var(--success)"
@@ -273,7 +274,7 @@ export default function CooperativeOverview() {
       {/* C.10 — Bar: Cooperatives enrolled per flagship (full-width) */}
       <Card>
         <Card.Header>
-          <Card.Title>Cooperatives Enrolled per Flagship</Card.Title>
+          <Card.Title>{typeLabel} Enrolled per Flagship</Card.Title>
         </Card.Header>
         <Card.Content className="p-4 pt-0">
           {!hasChartData(filteredPerFlagship) ? (
