@@ -34,6 +34,8 @@ export interface FlagshipDraft extends DraftBase {
 export interface CooperativeDraft extends DraftBase {
   entityType: "cooperative";
   payload: CooperativeRequest;
+  /** "sheet" when saved by a bulk upload; such drafts are checked against existing records before submitting. */
+  origin?: "sheet";
 }
 
 export type DraftRecord = IndividualDraft | FlagshipDraft | CooperativeDraft;

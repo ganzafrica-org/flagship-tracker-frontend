@@ -25,7 +25,7 @@ import { PageTitleCard } from "~/components/page-title-card";
 import { StatCard } from "~/components/stat-card";
 import TableComponent from "~/components/table-component";
 import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
-import ValueChainsByFlagship from "~/components/pages/dashboard/value-chains-by-flagship";
+// import ValueChainsByFlagship from "~/components/pages/dashboard/value-chains-by-flagship";
 import { dashboardQueryOptions, recentUsersQueryOptions } from "~/lib/queries/dashboard";
 
 function renderPieLabel(props: PieLabelRenderProps) {
@@ -170,7 +170,7 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      <ValueChainsByFlagship individualsPath="/admin/individuals" />
+      {/* <ValueChainsByFlagship individualsPath="/admin/individuals" /> */}
 
       <TableComponent
         tableSectionTitle="Recent Users"

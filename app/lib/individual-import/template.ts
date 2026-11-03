@@ -1,6 +1,8 @@
-import { buildTemplateWorkbook, type ListColumn } from "~/lib/import/template";
+import type { LookupOption } from "~/lib/import/schema";
+import { buildTemplateWorkbook, type ListColumn, type TemplateValue } from "~/lib/import/template";
+import type { IndividualDetailResponse } from "~/lib/queries/individuals";
 import { listAllRwandaDistricts, listRwandaDistricts, listRwandaProvinces } from "~/lib/rwanda-locations";
-import { listDistricts, listProvinces, listSectors } from "~/lib/rwanda-hierarchy";
+import { listCells, listDistricts, listProvinces, listSectors, listVillages, matchName } from "~/lib/rwanda-hierarchy";
 import type { IndividualImportLookups } from "./lookups";
 import { DISABILITY_OPTIONS, INDIVIDUALS_SHEET, INDIVIDUAL_COLUMNS, YOUTH_STATUS_OPTIONS } from "./schema";
 
@@ -35,7 +37,60 @@ function buildLists(lookups: IndividualImportLookups): ListColumn[] {
   ];
 }
 
-/** Builds the individuals import template: one Individuals sheet plus the Lists sheet. */
-export function buildIndividualImportTemplate(lookups: IndividualImportLookups): Promise<Blob> {
-  return buildTemplateWorkbook([{ name: INDIVIDUALS_SHEET, columns: INDIVIDUAL_COLUMNS }], buildLists(lookups));
+// Same normalisation the parser applies to these columns, so a written label always matches back.
+const underscored = (t: string) => t.toLowerCase().replace(/[\s-]+/g, "_");
+const lower = (t: string) => t.toLowerCase();
+
+/** The dropdown label for a stored value (what the template offers); unknown values are kept as-is. */
+function optionLabel(options: LookupOption[], value: string | null | undefined, normalize = lower): string | null {
+  if (value === null || value === undefined || value.trim() === "") return null;
+  const wanted = normalize(value.trim());
+  return options.find((o) => normalize(o.value) === wanted || normalize(o.label) === wanted)?.label ?? value;
+}
+
+/** Location names in the hierarchy's spelling (the parser matches case-insensitively, the dropdowns exactly). */
+function location(d: IndividualDetailResponse) {
+  const province = d.province ? (matchName(listProvinces(), d.province) ?? d.province) : "";
+  const district = d.district ? (matchName(listDistricts(province), d.district) ?? d.district) : "";
+  const sector = d.sector ? (matchName(listSectors(province, district), d.sector) ?? d.sector) : "";
+  const cell = d.cell ? (matchName(listCells(province, district, sector), d.cell) ?? d.cell) : "";
+  const village = d.village ? (matchName(listVillages(province, district, sector, cell), d.village) ?? d.village) : "";
+  return { province, district, sector, cell, village };
+}
+
+/** One template row for an existing individual, keyed like INDIVIDUAL_COLUMNS. */
+export function individualTemplateRow(d: IndividualDetailResponse, lookups: IndividualImportLookups): Record<string, TemplateValue> {
+  return {
+    nationalId: d.nationalId,
+    phoneNumber: d.phoneNumber,
+    firstName: d.firstName,
+    lastName: d.lastName,
+    sex: optionLabel(lookups.sex, d.sex),
+    dateOfBirth: d.dateOfBirth,
+    youthStatus: optionLabel(YOUTH_STATUS_OPTIONS, d.youthStatus, underscored),
+    youthCategory: optionLabel(lookups.youthCategory, d.youthCategory, underscored),
+    educationLevel: optionLabel(lookups.educationLevel, d.educationLevel, underscored),
+    disabilityStatus:
+      d.disabilityStatus === null || d.disabilityStatus === undefined
+        ? null
+        : optionLabel(DISABILITY_OPTIONS, String(d.disabilityStatus)),
+    registrationSource: optionLabel(lookups.registrationSource, d.registrationSource),
+    ...location(d),
+    latitude: d.latitude,
+    longitude: d.longitude,
+  };
+}
+
+/**
+ * Builds the individuals import template: one Individuals sheet plus the Lists sheet. Existing
+ * individuals are pre-filled one per row; with none, the sheet holds only the headers.
+ */
+export function buildIndividualImportTemplate(
+  lookups: IndividualImportLookups,
+  individuals: IndividualDetailResponse[] = [],
+): Promise<Blob> {
+  return buildTemplateWorkbook(
+    [{ name: INDIVIDUALS_SHEET, columns: INDIVIDUAL_COLUMNS, rows: individuals.map((d) => individualTemplateRow(d, lookups)) }],
+    buildLists(lookups),
+  );
 }

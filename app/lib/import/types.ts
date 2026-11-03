@@ -21,6 +21,11 @@ export interface ParsedEntity<TPayload> {
   errors: ImportIssue[];
   /** Notes that do not block the row (it can still be imported). */
   warnings?: ImportIssue[];
+  /**
+   * Set when the row is deliberately not imported and that is not a problem, e.g. it is an existing
+   * record from a pre-filled template. The text says why; such rows count neither as ready nor as errors.
+   */
+  skipped?: string;
 }
 
 export interface ParsedWorkbook<TPayload> {
@@ -42,7 +47,8 @@ export interface ServerImportError {
 export interface ServerImportResult {
   row: number;
   title: string | null;
-  outcome: "VALID" | "CREATED" | "FAILED";
+  /** DRAFT: not sent (no connection) and kept on this device as an offline draft instead. */
+  outcome: "VALID" | "CREATED" | "FAILED" | "DRAFT";
   errors: ServerImportError[];
   warnings?: ServerImportError[];
 }
