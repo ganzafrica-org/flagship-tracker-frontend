@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@heroui/react";
+import { Button, Dropdown, Label } from "@heroui/react";
+import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 
 import { PageTitleCard } from "~/components/page-title-card";
 import { ContentTab } from "~/components/content-tab";
@@ -17,6 +18,11 @@ import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_C
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
 import { useDrafts } from "~/lib/offline-drafts/use-drafts";
 import { buildCooperativesExportData } from "~/lib/cooperative-details";
+import CooperativeImportDialog from "~/components/pages/cooperatives/cooperative-import-dialog";
+import { toast } from "~/components/app-alert";
+import { useCooperativeImport } from "~/lib/cooperative-import/use-cooperative-import";
+import { saveBlob } from "~/lib/import/template";
+import { isNetworkError } from "~/lib/offline-drafts/network";
 
 type TabId = "overview" | "list" | "draft";
 
@@ -57,11 +63,6 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
     enabled: activeTab === "list",
   });
 
-  // DEBUG: remove once the cooperative list data has been inspected
-  useEffect(() => {
-    if (all.length > 0) console.log("[cooperatives] list data:", all.length, "items", all);
-  }, [all]);
-
   const [filters, setFilters] = useState<CooperativeListFilters>(EMPTY_COOPERATIVE_FILTERS);
   const setFilter = (key: keyof CooperativeListFilters) => (value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -78,6 +79,39 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
     [all, effectiveFilters],
   );
   const rows = useMemo(() => filteredCooperatives.map(cooperativeToTableRow), [filteredCooperatives]);
+
+  // Bulk upload + template (M&E only, like Add). The template holds the page's current records: the
+  // list query with this page's filters, loaded on demand so it also works from the Overview tab.
+  const canImport = role === "me";
+  const [importOpen, setImportOpen] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const importer = useCooperativeImport(
+    typeParam,
+    async () => {
+      // Offline, use the list already loaded instead of waiting for a connection.
+      const cached = queryClient.getQueryData(cooperativesListQueryOptions.queryKey);
+      const list =
+        cached ?? (await queryClient.fetchQuery({ ...cooperativesListQueryOptions, networkMode: "always", retry: false }));
+      return list.filter((c) => cooperativeMatchesFilters(c, effectiveFilters));
+    },
+    canImport && Boolean(typeParam),
+  );
+  async function downloadTemplate() {
+    setTemplateBusy(true);
+    try {
+      saveBlob(importer.templateFilename, await importer.buildTemplate());
+    } catch (e) {
+      toast.error(
+        isNetworkError(e)
+          ? "You're offline and this list has not been loaded yet. Open the list once while online to download the template with its records."
+          : e instanceof Error && e.message
+            ? e.message
+            : "Could not create the template",
+      );
+    } finally {
+      setTemplateBusy(false);
+    }
+  }
 
 
   const names = cooperativeTypeNames(typeParam);
@@ -108,8 +142,40 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title={names.plural}
-        actionLabel={addPath ? `Add ${names.singular}` : undefined}
-        onActionPress={addPath ? () => navigate(addPath) : undefined}
+        actionSlot={
+          addPath && canImport ? (
+            // Same control as the Individuals page: one "Add …" button with the manual form and the sheet options.
+            <Dropdown>
+              <Button variant="primary" className="!rounded-3xl font-medium" aria-label={`Add ${names.singular}`}>
+                <IconPlus size={16} />
+                {`Add ${names.singular}`}
+                <IconChevronDown size={14} />
+              </Button>
+              <Dropdown.Popover className="min-w-max">
+                <Dropdown.Menu
+                  disabledKeys={importer.ready && !templateBusy ? [] : ["template"]}
+                  onAction={(key) => {
+                    if (key === "manual") navigate(addPath);
+                    else if (key === "upload") setImportOpen(true);
+                    else if (key === "template") void downloadTemplate();
+                  }}
+                >
+                  <Dropdown.Item id="manual" textValue="Add manually">
+                    <Label>Add manually</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="upload" textValue="Upload sheet">
+                    <Label>Upload sheet</Label>
+                  </Dropdown.Item>
+                  <Dropdown.Item id="template" textValue="Download template">
+                    <Label>{templateBusy ? "Preparing template…" : "Download template"}</Label>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
+          ) : undefined
+        }
+        actionLabel={addPath && !canImport ? `Add ${names.singular}` : undefined}
+        onActionPress={addPath && !canImport ? () => navigate(addPath) : undefined}
       />
 
       <ContentTab
@@ -198,6 +264,10 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
           />
         </>
       )}
+
+      {canImport ? (
+        <CooperativeImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} type={typeParam} importer={importer} />
+      ) : null}
     </div>
   );
 }

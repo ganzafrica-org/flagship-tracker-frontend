@@ -3,7 +3,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import { api } from "~/lib/api";
 import { createIndividual, individualsQueryOptions } from "~/lib/queries/individuals";
 import { createFlagship, createFlagshipKpi, flagshipsQueryOptions } from "~/lib/queries/flagships";
-import type { CooperativeDetail } from "~/lib/queries/cooperatives";
+import { cooperativesListQueryOptions, type CooperativeDetail } from "~/lib/queries/cooperatives";
+import { isSameCooperative } from "~/lib/cooperative-import/match";
 import type { CooperativeDraft, FlagshipDraft, IndividualDraft } from "./db";
 import { deleteDraft, updateDraft } from "./repository";
 
@@ -12,6 +13,18 @@ import { deleteDraft, updateDraft } from "./repository";
  * flagship link (the backend links it in the same create transaction). Deletes the draft on success.
  */
 export async function replayCooperativeDraft(draft: CooperativeDraft, queryClient: QueryClient): Promise<void> {
+  // A row uploaded offline may not have been checked against the saved records (or one may have
+  // been added since): never create it a second time.
+  if (draft.origin === "sheet") {
+    // "always" + no retry: still offline → fails at once (like the POST below) instead of waiting for a connection.
+    const existing = await queryClient.fetchQuery({ ...cooperativesListQueryOptions, staleTime: 0, networkMode: "always", retry: false });
+    const match = existing.find((c) => isSameCooperative(c, draft.payload));
+    if (match) {
+      const message = `"${match.cooperativeName}" already exists${match.district ? ` in ${match.district}` : ""}, so it was not submitted again. You can discard this draft.`;
+      await updateDraft(draft.id!, { status: "error", lastError: message });
+      throw new Error(message);
+    }
+  }
   await api.post<CooperativeDetail>("/api/cooperatives", draft.payload);
   void queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
   void queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });

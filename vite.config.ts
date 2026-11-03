@@ -4,6 +4,10 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
 
+// WSL working on a Windows drive (/mnt/c/...) does not deliver file-change events, so the dev
+// server never sees edits; poll there instead. Native Linux/macOS/Windows keep the normal watcher.
+const onWslWindowsDrive = process.platform === "linux" && /^\/mnt\/[a-z]\//.test(process.cwd());
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
@@ -57,5 +61,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    watch: onWslWindowsDrive ? { usePolling: true, interval: 300 } : undefined,
   },
 });

@@ -7,6 +7,8 @@ interface AppModalProps {
   title: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** Small icon action shown beside the heading (e.g. an Edit pencil). */
+  headerAction?: ReactNode;
   /** Tailwind classes controlling dialog width. */
   dialogClassName?: string;
   /** Fill the whole screen below the `sm` breakpoint instead of floating as a card. */
@@ -25,6 +27,7 @@ export default function AppModal({
   title,
   children,
   footer,
+  headerAction,
   dialogClassName = "sm:max-w-lg w-full",
   fullScreenOnMobile = false,
 }: AppModalProps) {
@@ -33,11 +36,12 @@ export default function AppModal({
       <Modal.Container className={fullScreenOnMobile ? "max-sm:!p-0" : undefined}>
         <Modal.Dialog className={fullScreenOnMobile ? `${dialogClassName} ${FULL_SCREEN_DIALOG}` : dialogClassName}>
           <Modal.CloseTrigger />
-          <Modal.Header>
-            <Modal.Heading>{title}</Modal.Heading>
+          <Modal.Header className="flex-row items-center justify-between gap-3 pr-10">
+            <Modal.Heading className="min-w-0 text-xl font-bold tracking-tight text-(--dialog-heading)">{title}</Modal.Heading>
+            {headerAction ? <div className="flex shrink-0 items-center">{headerAction}</div> : null}
           </Modal.Header>
-          <Modal.Body className="space-y-4">{children}</Modal.Body>
-          {footer ? <Modal.Footer className="gap-3">{footer}</Modal.Footer> : null}
+          <Modal.Body className="space-y-4 pt-2">{children}</Modal.Body>
+          {footer ? <Modal.Footer className="gap-3 pt-2">{footer}</Modal.Footer> : null}
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>

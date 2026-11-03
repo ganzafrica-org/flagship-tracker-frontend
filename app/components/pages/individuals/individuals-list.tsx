@@ -517,22 +517,6 @@ export default function IndividualsList({
       }));
   }, [viz, valueChainRank]);
 
-  // DEBUG: remove once the individuals overview data has been inspected
-  useEffect(() => {
-    if (!viz) return;
-    console.log("[Individuals] raw overview API response (/api/visualizations/individuals):", viz);
-  }, [viz]);
-
-  useEffect(() => {
-    if (isLoading) return;
-    console.log("[Individuals] raw individuals list:", individuals.length, "items", individuals);
-    console.log("[Individuals] cards (kpis):", kpis);
-    console.log("[Individuals] chart data — Individuals by value chain:", valueChainData);
-    console.log("[Individuals] chart data — by sex:", sexData);
-  }, [
-    isLoading, individuals, kpis, valueChainData, sexData,
-  ]);
-
   async function handleDownload(individualId: number, format: ExportFormat) {
     try {
       await downloadIndividual(queryClient, individualId, format);
@@ -830,7 +814,12 @@ export default function IndividualsList({
         onEdit={!readOnly && updatePath && view.id !== null ? () => navigate(`${updatePath}?editId=${view.id}`, { viewTransition: true }) : undefined}
       />
       {!readOnly && addPath ? (
-        <IndividualImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} individualsPath={pathname} />
+        <IndividualImportDialog
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          individualsPath={pathname}
+          individuals={filteredIndividuals}
+        />
       ) : null}
     </div>
   );

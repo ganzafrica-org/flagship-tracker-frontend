@@ -68,7 +68,7 @@ export default function FlagshipsIndexPage({
 
   const { data: flagships = [], isLoading, isError, error } = useQuery(flagshipsQueryOptions);
   // Card figures come from mv_flagship_summary; funders still come from the flagship list.
-  const { data: summaryRows = [], isLoading: summaryLoading } = useQuery(flagshipSummaryQueryOptions);
+  const { data: summaryRows = [], isLoading: summaryLoading, error: summaryError } = useQuery(flagshipSummaryQueryOptions);
 
   const deleteMutation = useMutation({
     mutationFn: deleteFlagship,
@@ -102,47 +102,20 @@ export default function FlagshipsIndexPage({
     [filteredFlagships, summaryById],
   );
 
-  // DEBUG: remove once flagship card data has been inspected
-  useEffect(() => {
-    if (isLoading) return;
-    console.log("[Flagships] raw API response:", flagships.length, "items", flagships);
-    console.table(
-      flagships.map((f) => ({
-        id: f.flagshipId,
-        name: f.flagshipName,
-        jobsCreated: f.jobsCreated,
-        budgetTotalRwf: f.budgetTotalRwf,
-        primaryValueChain: f.primaryValueChain,
-        progressPercent: f.progressPercent,
-        funders: f.funders,
-        fundingContributions: f.fundingContributions?.length ?? 0,
-      })),
-    );
-  }, [flagships, isLoading]);
-
+  // DEBUG (jobs created = 0): what /api/visualizations/flagship-summary returns. Remove once resolved.
   useEffect(() => {
     if (summaryLoading) return;
-    console.log("[Flagships] mv_flagship_summary rows:", summaryRows.length, "items", summaryRows);
-    console.table(summaryRows);
-  }, [summaryRows, summaryLoading]);
-
-  useEffect(() => {
-    if (flagshipCards.length === 0) return;
     console.log(
-      "[Flagships] data rendered per card:",
-      flagshipCards.map((c) => ({
-        id: c.id,
-        title: c.title,
-        jobsCreated: c.jobsCreated,
-        totalBudget: c.totalBudget,
-        valueChain: c.valueChain,
-        progress: c.progress,
-        progressText: c.progressText,
-        numberOfFunders: c.numberOfFunders,
-        funderNames: c.funderNames,
+      "[Flagships] /api/visualizations/flagship-summary:",
+      summaryError ? { error: summaryError } : summaryRows.map((r) => ({
+        flagshipId: r.flagshipId,
+        flagshipCode: r.flagshipCode,
+        jobsCreatedActual: r.jobsCreatedActual,
+        jobsCreatedFemale: r.jobsCreatedFemale,
+        targetYouthCount: r.targetYouthCount,
       })),
     );
-  }, [flagshipCards]);
+  }, [summaryRows, summaryLoading, summaryError]);
 
   const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships, summaryById), [filteredFlagships, summaryById]);
 

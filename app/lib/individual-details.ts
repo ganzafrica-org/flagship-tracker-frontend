@@ -237,7 +237,7 @@ export const INDIVIDUAL_EXPORT_COLUMNS: ExportColumn[] = [
 ];
 
 /** Runs `fn` over `items` with at most `limit` in flight at once. */
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
   async function worker() {

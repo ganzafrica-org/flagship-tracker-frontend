@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Button } from "@heroui/react";
+import { IconPencil } from "@tabler/icons-react";
 
 import AppModal from "~/components/app-modal";
 import AppSkeleton from "~/components/app-skeleton";
@@ -9,32 +10,39 @@ import type { ExportSection } from "~/lib/export/table-export";
 function SectionView({ section, testId }: { section: ExportSection; testId: string }) {
   const isFieldList = section.columns.length === 2 && section.columns[0].key === "field";
   return (
-    <section className="space-y-2" data-testid={`${testId}-section-${(section.title ?? "").toLowerCase().replace(/\s+/g, "-")}`}>
-      <h3 className="text-sm font-semibold text-(--foreground)">{section.title}</h3>
+    <section className="space-y-3" data-testid={`${testId}-section-${(section.title ?? "").toLowerCase().replace(/\s+/g, "-")}`}>
+      <h3 className="text-base font-bold tracking-tight text-(--dialog-heading)">{section.title}</h3>
       {isFieldList ? (
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
-          {section.rows.map((row) => (
-            <div key={String(row.field)} className="min-w-0">
-              <dt className="text-xs text-(--muted)">{String(row.field)}</dt>
-              <dd className="break-words text-sm text-(--foreground)">{String(row.value)}</dd>
-            </div>
-          ))}
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+          {section.rows.map((row) => {
+            const value = String(row.value);
+            return (
+              <div
+                key={String(row.field)}
+                // Long values get the full row, like the wide fields in the reference layout.
+                className={`min-w-0 rounded-lg bg-(--field-tile) px-3.5 py-2.5 ${value.length > 40 ? "sm:col-span-2" : ""}`}
+              >
+                <dt className="text-[11px] leading-4 text-(--field-tile-label)">{String(row.field)}</dt>
+                <dd className="mt-0.5 break-words text-sm font-medium text-(--foreground)">{value}</dd>
+              </div>
+            );
+          })}
         </dl>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-(--separator)">
+        <div className="overflow-x-auto rounded-lg bg-(--field-tile)">
           <table className="w-full text-left text-sm">
-            <thead className="bg-(--default)">
+            <thead>
               <tr>
                 {section.columns.map((c) => (
-                  <th key={c.key} className="whitespace-nowrap px-3 py-2 font-semibold">{c.label}</th>
+                  <th key={c.key} className="whitespace-nowrap px-3.5 py-2.5 text-[11px] font-normal text-(--field-tile-label)">{c.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {section.rows.map((row, i) => (
-                <tr key={i} className="border-t border-(--separator)">
+                <tr key={i} className="border-t border-(--background)">
                   {section.columns.map((c) => (
-                    <td key={c.key} className="px-3 py-2 align-top">{String(row[c.key] ?? "—")}</td>
+                    <td key={c.key} className="px-3.5 py-2.5 align-top font-medium text-(--foreground)">{String(row[c.key] ?? "—")}</td>
                   ))}
                 </tr>
               ))}
@@ -52,9 +60,9 @@ function LoadingSkeleton() {
       {[0, 1].map((section) => (
         <div key={section} className="space-y-3">
           <AppSkeleton className="h-4 w-32" />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             {[0, 1, 2, 3].map((field) => (
-              <div key={field} className="space-y-1.5">
+              <div key={field} className="space-y-1.5 rounded-lg bg-(--field-tile) px-3.5 py-2.5">
                 <AppSkeleton className="h-3 w-20" />
                 <AppSkeleton className="h-4 w-full" />
               </div>
@@ -117,14 +125,23 @@ export default function RecordDetailsDialog({
       title={title || fallbackTitle}
       dialogClassName="w-full sm:max-w-4xl"
       fullScreenOnMobile
+      headerAction={
+        onEdit && !isLoading && !isError ? (
+          <Button
+            isIconOnly
+            variant="ghost"
+            size="sm"
+            aria-label="Edit"
+            className="!rounded-full text-(--dialog-heading)"
+            onPress={onEdit}
+          >
+            <IconPencil size={18} stroke={2} />
+          </Button>
+        ) : undefined
+      }
       footer={
         <>
           {!isLoading && !isError ? actions : null}
-          {onEdit && !isLoading && !isError ? (
-            <Button variant="outline" className="!rounded-3xl" onPress={onEdit}>
-              Edit
-            </Button>
-          ) : null}
           <Button variant="primary" className="!rounded-3xl" onPress={onClose}>
             Close
           </Button>

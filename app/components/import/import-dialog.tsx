@@ -8,6 +8,7 @@ import AppModal from "~/components/app-modal";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { saveBlob } from "~/lib/import/template";
+import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import type {
   ImportIssue,
   ParsedEntity,
@@ -80,6 +81,8 @@ interface RowState<TPayload> {
   issues: ImportIssue[];
   warnings: ImportIssue[];
   ready: boolean;
+  /** Deliberately not imported (see ParsedEntity.skipped); not an error. */
+  skipped: boolean;
 }
 
 /**
@@ -108,7 +111,7 @@ export default function ImportDialog<TPayload extends { row: number }>({
   const [serverResults, setServerResults] = useState<Map<number, ServerImportResult>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [validationFailed, setValidationFailed] = useState(false);
-  const [final, setFinal] = useState<{ response: ServerImportResponse; notSent: RowState<TPayload>[] } | null>(null);
+  const [final, setFinal] = useState<{ response: ServerImportResponse; notSent: RowState<TPayload>[]; skipped: number } | null>(null);
   const [templateBusy, setTemplateBusy] = useState(false);
 
   const dryRun = useMutation({ mutationFn: (items: TPayload[]) => send(items, true) });
@@ -193,11 +196,13 @@ export default function ImportDialog<TPayload extends { row: number }>({
         const server = serverResults.get(entity.row);
         const issues = [...entity.errors, ...serverIssues(server)];
         const warnings = [...(entity.warnings ?? []), ...serverIssues(server, "warnings")];
-        return { entity, issues, warnings, ready: entity.payload !== null && server?.outcome === "VALID" && issues.length === 0 };
+        const skipped = Boolean(entity.skipped);
+        return { entity, issues, warnings, skipped, ready: !skipped && entity.payload !== null && server?.outcome === "VALID" && issues.length === 0 };
       })
     : [];
   const readyRows = rowStates.filter((r) => r.ready);
-  const blockedRows = rowStates.filter((r) => !r.ready);
+  const skippedRows = rowStates.filter((r) => r.skipped);
+  const blockedRows = rowStates.filter((r) => !r.ready && !r.skipped);
   const warnedCount = readyRows.filter((r) => r.warnings.length > 0).length;
   const canConfirm = phase === "preview" && !validationFailed && parsed?.fileProblems.length === 0 && readyRows.length > 0;
 
@@ -206,8 +211,9 @@ export default function ImportDialog<TPayload extends { row: number }>({
     setPhase("importing");
     try {
       const response = await commit.mutateAsync(readyRows.map((r) => r.entity.payload as TPayload));
-      setFinal({ response, notSent: blockedRows });
+      setFinal({ response, notSent: blockedRows, skipped: skippedRows.length });
       for (const queryKey of config.invalidate) void queryClient.invalidateQueries({ queryKey });
+      if (response.results.some((r) => r.outcome === "DRAFT")) showDraftSavedToast();
       setPhase("done");
     } catch (e) {
       setError(`Import failed: ${errorText(e, "request failed")}. Check the list before trying again.`);
@@ -258,6 +264,7 @@ export default function ImportDialog<TPayload extends { row: number }>({
 
   const created = final?.response.results.filter((r) => r.outcome === "CREATED") ?? [];
   const failedOnSave = final?.response.results.filter((r) => r.outcome === "FAILED") ?? [];
+  const drafted = final?.response.results.filter((r) => r.outcome === "DRAFT") ?? [];
   const entityByRow = new Map((parsed?.entities ?? []).map((e) => [e.row, e]));
 
   return (
@@ -310,7 +317,7 @@ export default function ImportDialog<TPayload extends { row: number }>({
             <p className="text-sm text-(--foreground-600)">
               <span className="font-medium text-(--foreground)">{fileName}</span>
               {parsed.fileProblems.length === 0
-                ? ` — ${rowStates.length} ${plural(rowStates.length)}: ${readyRows.length} ready${warnedCount > 0 ? ` (${warnedCount} with warnings)` : ""}, ${blockedRows.length} with errors. Nothing has been saved yet.`
+                ? ` — ${rowStates.length} ${plural(rowStates.length)}: ${readyRows.length} ready${warnedCount > 0 ? ` (${warnedCount} with warnings)` : ""}, ${blockedRows.length} with errors${skippedRows.length > 0 ? `, ${skippedRows.length} already exist (skipped)` : ""}. Nothing has been saved yet.`
                 : ""}
             </p>
             {parsed.fileProblems.length > 0 ? (
@@ -326,17 +333,25 @@ export default function ImportDialog<TPayload extends { row: number }>({
             {blockedRows.length > 0 && readyRows.length > 0 ? (
               <p className="text-xs text-(--muted)">Rows with errors are skipped; only the ready ones are imported.</p>
             ) : null}
+            {skippedRows.length > 0 ? (
+              <p className="text-xs text-(--muted)" data-testid="import-skipped-note">
+                Rows that match an existing record are left unchanged and are not imported again.
+                {readyRows.length === 0 && blockedRows.length === 0 ? " Add new rows to the sheet to import them." : ""}
+              </p>
+            ) : null}
 
             <div className="space-y-3">
-              {rowStates.map(({ entity, issues, warnings, ready: isReady }) => (
+              {rowStates.map(({ entity, issues, warnings, ready: isReady, skipped }) => (
                 <div key={entity.row} className="rounded-lg border border-(--separator) p-3" data-testid={`import-row-${entity.row}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-(--foreground)">{entity.title}</p>
                       <p className="text-xs text-(--muted)">{entity.subtitle}</p>
                     </div>
-                    <Chip size="sm" variant="soft" color={isReady ? "success" : "danger"}>
-                      {isReady
+                    <Chip size="sm" variant="soft" color={skipped ? "default" : isReady ? "success" : "danger"}>
+                      {skipped
+                        ? entity.skipped
+                        : isReady
                         ? warnings.length > 0
                           ? `Ready · ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}`
                           : "Ready"
@@ -362,8 +377,28 @@ export default function ImportDialog<TPayload extends { row: number }>({
           <>
             <p className="text-sm text-(--foreground)" data-testid="import-summary">
               <span className="font-semibold">{created.length}</span> {plural(created.length)} created
-              {failedOnSave.length + final.notSent.length > 0 ? `, ${failedOnSave.length + final.notSent.length} not created` : ""}.
+              {failedOnSave.length + final.notSent.length > 0 ? `, ${failedOnSave.length + final.notSent.length} not created` : ""}
+              {drafted.length > 0 ? `, ${drafted.length} saved as ${drafted.length === 1 ? "draft" : "drafts"}` : ""}
+              {final.skipped > 0 ? `, ${final.skipped} already existed (left unchanged)` : ""}.
             </p>
+            {drafted.length > 0 ? (
+              <div className="rounded-lg border border-(--warning) p-3" data-testid="import-drafted">
+                <p className="text-sm font-semibold text-(--foreground)">
+                  Saved as {drafted.length === 1 ? "a draft" : "drafts"}: no internet connection
+                </p>
+                <p className="mt-1 text-xs text-(--muted)">
+                  {drafted.length === 1 ? "This row was" : "These rows were"} kept on this device. Open the Draft tab and
+                  submit {drafted.length === 1 ? "it" : "them"} once you are back online.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {drafted.map((r) => (
+                    <li key={r.row}>
+                      <Chip size="sm" variant="soft" color="warning">Draft</Chip> {r.title ?? entityByRow.get(r.row)?.title ?? `Row ${r.row}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {created.length > 0 ? (
               <ul className="space-y-1 text-sm">
                 {created.map((r) => (
