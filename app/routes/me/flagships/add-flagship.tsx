@@ -23,8 +23,13 @@ import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import {
   buildCreateFlagshipRequest,
   createFlagship,
+  createFlagshipInvestment,
   createFlagshipKpi,
+  createFlagshipLocation,
+  ensureFlagshipKpiDefinition,
+  type CreateFlagshipInvestmentRequest,
   type CreateFlagshipKpiRequest,
+  type CreateFlagshipLocationRequest,
   type CreateFlagshipRequest,
   flagshipDetailQueryOptions,
   flagshipsQueryOptions,
@@ -38,6 +43,14 @@ import {
 } from "~/lib/queries/lookups";
 
 interface PendingKpi extends CreateFlagshipKpiRequest {
+  displayLabel: string;
+}
+
+interface PendingInvestment extends CreateFlagshipInvestmentRequest {
+  displayLabel: string;
+}
+
+interface PendingLocation extends CreateFlagshipLocationRequest {
   displayLabel: string;
 }
 
@@ -89,6 +102,9 @@ export default function MeAddFlagshipPage() {
   const [draftData, setDraftData] = useState<{
     payload: CreateFlagshipRequest;
     pendingKpis: PendingKpi[];
+    pendingInvestments: PendingInvestment[];
+    pendingLocations: PendingLocation[];
+    createdEntityId?: number;
   } | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
   useEffect(() => {
@@ -99,7 +115,15 @@ export default function MeAddFlagshipPage() {
     setDraftLoading(true);
     void getDraft(draftId).then((draft) => {
       setDraftData(
-        draft && draft.entityType === "flagship" ? { payload: draft.payload, pendingKpis: draft.pendingKpis } : null,
+        draft && draft.entityType === "flagship"
+          ? {
+              payload: draft.payload,
+              pendingKpis: draft.pendingKpis,
+              pendingInvestments: draft.pendingInvestments ?? [],
+              pendingLocations: draft.pendingLocations ?? [],
+              createdEntityId: draft.createdEntityId,
+            }
+          : null,
       );
       setDraftLoading(false);
     });
@@ -129,12 +153,12 @@ export default function MeAddFlagshipPage() {
   const [investmentAmount, setInvestmentAmount] = useState("");
   const [investmentCurrency, setInvestmentCurrency] = useState("");
   const [investmentSourceType, setInvestmentSourceType] = useState("");
-  const [investorName, setInvestorName] = useState("");
   const [investmentDate, setInvestmentDate] = useState<DateValue | null>(null);
   const [investmentYear, setInvestmentYear] = useState("");
   const [investmentDisbursementType, setInvestmentDisbursementType] = useState("");
   const [investmentNotes, setInvestmentNotes] = useState("");
-  const [investments, setInvestments] = useState<string[]>([]);
+  const [investmentFunderId, setInvestmentFunderId] = useState("");
+  const [investments, setInvestments] = useState<PendingInvestment[]>([]);
 
   // Step 2 fields
   const [kpiIndicatorName, setKpiIndicatorName] = useState("");
@@ -151,7 +175,7 @@ export default function MeAddFlagshipPage() {
   // Step 3 fields
   const [location, setLocation] = useState<RwandaLocationValue>(DEFAULT_LOCATION);
   const [locationLabel, setLocationLabel] = useState("");
-  const [locations, setLocations] = useState<string[]>([]);
+  const [locations, setLocations] = useState<PendingLocation[]>([]);
 
   const {
     clusterOptions,
@@ -159,6 +183,7 @@ export default function MeAddFlagshipPage() {
     valueChainOptions,
     implementingAgencyOptions,
     funderOptions,
+    funderIdOptions,
     sourceTypeOptions,
     disbursementTypeOptions,
     currencyOptions,
@@ -172,6 +197,8 @@ export default function MeAddFlagshipPage() {
     reportingPeriodOptions,
     tierLabels,
     valueTypeLabels,
+    tierOptions,
+    valueTypeOptions,
     isLoading: kpiLookupsLoading,
     isError: kpiLookupsError,
     hasCode: hasFlagshipCodeForKpi,
@@ -228,8 +255,11 @@ export default function MeAddFlagshipPage() {
         setEndDate(null);
       }
     }
-    if (!isUpdateMode && draftData?.pendingKpis) {
+    if (!isUpdateMode && draftData) {
       setPendingKpis(draftData.pendingKpis);
+      setInvestments(draftData.pendingInvestments);
+      setLocations(draftData.pendingLocations);
+      if (draftData.createdEntityId) setServerFlagshipId(draftData.createdEntityId);
     }
 
     setPrefilled(true);
@@ -267,16 +297,83 @@ export default function MeAddFlagshipPage() {
     setCurrentStep((s) => s + 1);
   }
 
+  function currentInvestment(): PendingInvestment | null {
+    const amount = Number(investmentAmount.replace(/,/g, "").trim());
+    const year = Number.parseInt(investmentYear, 10);
+    const funderId = Number.parseInt(investmentFunderId, 10);
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    if (!investmentCurrency || !investmentSourceType) return null;
+    if (!Number.isFinite(funderId) || funderId < 1) return null;
+    if (!Number.isFinite(year) || year < 2000 || year > 2100) return null;
+    const funderLabel = funderIdOptions.find((option) => option.value === investmentFunderId)?.label ?? "Funder";
+    return {
+      amount,
+      currency: investmentCurrency,
+      sourceType: investmentSourceType,
+      funderId,
+      investmentDate: formatDateValue(investmentDate) ?? null,
+      year,
+      disbursementType: investmentDisbursementType || null,
+      notes: investmentNotes.trim() || null,
+      displayLabel: `${year}: ${amount} ${investmentCurrency} — ${funderLabel}`,
+    };
+  }
+
   function addInvestmentEntry() {
-    if (!investmentAmount || !investmentCurrency || !investmentSourceType || !investmentYear) return;
-    const entry = `${investmentYear}: ${investmentAmount} ${investmentCurrency} (${investmentSourceType})`;
-    setInvestments((prev) => [...prev, entry]);
+    const row = currentInvestment();
+    if (!row) return;
+    setInvestments((prev) => [...prev, row]);
+    setInvestmentAmount("");
+    setInvestmentCurrency("");
+    setInvestmentSourceType("");
+    setInvestmentFunderId("");
+    setInvestmentDate(null);
+    setInvestmentYear("");
+    setInvestmentDisbursementType("");
+    setInvestmentNotes("");
+  }
+
+  function currentLocation(): PendingLocation | null {
+    if (!location.province || !location.district) return null;
+    const sector = location.sector.trim() || null;
+    const parts = [location.province, location.district, sector, locationLabel.trim()].filter(Boolean);
+    return {
+      province: location.province,
+      district: location.district,
+      sector,
+      displayLabel: parts.join(" / "),
+    };
+  }
+
+  function addLocationEntry() {
+    const row = currentLocation();
+    if (!row) return;
+    setLocations((prev) => [...prev, row]);
+    setLocation(DEFAULT_LOCATION);
+    setLocationLabel("");
+  }
+
+  /** Queued rows plus the row currently on the form, so Submit saves it without a separate Add click. */
+  function collectInvestments(): PendingInvestment[] {
+    const current = currentInvestment();
+    return current ? [...investments, current] : investments;
+  }
+
+  function collectLocations(): PendingLocation[] {
+    const current = currentLocation();
+    return current ? [...locations, current] : locations;
   }
 
   function addKpiEntry() {
     const definition = definitionByName.get(kpiIndicatorName);
+    const indicatorName = definition?.indicatorName
+      ?? kpiIndicatorName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    const indicatorTier = definition?.indicatorTier ?? kpiIndicatorTier;
+    const indicatorValueType = definition?.indicatorValueType ?? kpiValueType;
     if (
-      !definition ||
+      !indicatorName ||
+      !indicatorTier ||
+      !indicatorValueType ||
       !kpiMeasurementPoint ||
       !kpiYear ||
       !kpiReportingPeriod
@@ -290,9 +387,9 @@ export default function MeAddFlagshipPage() {
     if (!Number.isFinite(year)) return;
 
     const row: PendingKpi = {
-      indicatorName: definition.indicatorName,
-      indicatorTier: definition.indicatorTier,
-      indicatorValueType: definition.indicatorValueType,
+      indicatorName,
+      indicatorTier,
+      indicatorValueType,
       baselineValue: parseOptionalNumber(kpiBaselineValue),
       targetValue: parseOptionalNumber(kpiTargetValue),
       actualValue: parseOptionalNumber(kpiActualValue),
@@ -300,7 +397,7 @@ export default function MeAddFlagshipPage() {
       year,
       reportingPeriod: kpiReportingPeriod,
       verified: false,
-      displayLabel: formatIndicatorNameLabel(definition.indicatorName),
+      displayLabel: formatIndicatorNameLabel(indicatorName),
     };
 
     setPendingKpis((prev) => [...prev, row]);
@@ -313,12 +410,6 @@ export default function MeAddFlagshipPage() {
     setKpiMeasurementPoint("");
     setKpiYear("");
     setKpiReportingPeriod("");
-  }
-
-  function addLocationEntry() {
-    if (!location.province || !location.district) return;
-    const entry = [location.province, location.district, location.sector, locationLabel].filter(Boolean).join(" / ");
-    setLocations((prev) => [...prev, entry]);
   }
 
   function buildFlagshipPayload(): CreateFlagshipRequest {
@@ -340,16 +431,35 @@ export default function MeAddFlagshipPage() {
   }
 
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [serverFlagshipId, setServerFlagshipId] = useState<number | undefined>();
+
+  function draftExtras(body: CreateFlagshipRequest, createdEntityId?: number) {
+    return {
+      payload: body,
+      pendingKpis,
+      pendingInvestments: collectInvestments(),
+      pendingLocations: collectLocations(),
+      ...(createdEntityId ? { createdEntityId } : {}),
+    };
+  }
+
+  async function rememberDraft(body: CreateFlagshipRequest, createdEntityId?: number) {
+    const extras = draftExtras(body, createdEntityId);
+    if (draftId) {
+      await updateDraft(draftId, extras);
+    } else {
+      await createFlagshipDraft(body, extras.pendingKpis, {
+        pendingInvestments: extras.pendingInvestments,
+        pendingLocations: extras.pendingLocations,
+        createdEntityId,
+      });
+    }
+  }
 
   async function handleSaveDraft() {
     setIsSavingDraft(true);
     try {
-      const body = buildFlagshipPayload();
-      if (draftId) {
-        await updateDraft(draftId, { payload: body, pendingKpis });
-      } else {
-        await createFlagshipDraft(body, pendingKpis);
-      }
+      await rememberDraft(buildFlagshipPayload(), draftData?.createdEntityId);
       showDraftSavedToast();
       navigate(returnTo, { viewTransition: true });
     } catch (err) {
@@ -368,31 +478,90 @@ export default function MeAddFlagshipPage() {
 
     setSubmitError(null);
     const body = buildFlagshipPayload();
+    const kpis = [...pendingKpis];
+    const investmentRows = collectInvestments();
+    const locationRows = collectLocations();
+    setInvestments(investmentRows);
+    setLocations(locationRows);
+    setInvestmentAmount("");
+    setInvestmentFunderId("");
+    setInvestmentYear("");
+    setLocation(DEFAULT_LOCATION);
+    setLocationLabel("");
+    let flagshipId = isUpdateMode ? editId : serverFlagshipId;
+    let kpiIndex = 0;
+    let investmentIndex = 0;
+    let locationIndex = 0;
 
     try {
-      const saved = await saveMutation.mutateAsync(body);
+      if (isUpdateMode) {
+        const saved = await saveMutation.mutateAsync(body);
+        flagshipId = saved.flagshipId;
+      } else if (flagshipId) {
+        const saved = await updateFlagship(flagshipId, body);
+        flagshipId = saved.flagshipId;
+      } else {
+        const saved = await saveMutation.mutateAsync(body);
+        flagshipId = saved.flagshipId;
+        setServerFlagshipId(flagshipId);
+      }
 
-      if (!isUpdateMode) {
-        for (const kpi of pendingKpis) {
-          const { displayLabel: _displayLabel, ...kpiBody } = kpi;
-          await createFlagshipKpi(saved.flagshipId, kpiBody);
+      if (!isUpdateMode && flagshipId) {
+        for (; kpiIndex < kpis.length; kpiIndex++) {
+          const { displayLabel: _displayLabel, ...kpiBody } = kpis[kpiIndex];
+          await ensureFlagshipKpiDefinition(body.flagshipCode, {
+            indicatorName: kpiBody.indicatorName,
+            indicatorTier: kpiBody.indicatorTier,
+            indicatorValueType: kpiBody.indicatorValueType,
+          });
+          await createFlagshipKpi(flagshipId, kpiBody);
+        }
+        for (; investmentIndex < investmentRows.length; investmentIndex++) {
+          const { displayLabel: _displayLabel, ...investmentBody } = investmentRows[investmentIndex];
+          await createFlagshipInvestment(flagshipId, investmentBody);
+        }
+        for (; locationIndex < locationRows.length; locationIndex++) {
+          const { displayLabel: _displayLabel, ...locationBody } = locationRows[locationIndex];
+          await createFlagshipLocation(flagshipId, locationBody);
         }
       }
 
       void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });
-      void queryClient.invalidateQueries({ queryKey: ["flagships", saved.flagshipId] });
-      void queryClient.invalidateQueries({ queryKey: ["flagships", saved.flagshipId, "detail"] });
+      void queryClient.invalidateQueries({ queryKey: ["flagships", flagshipId] });
+      void queryClient.invalidateQueries({ queryKey: ["flagships", flagshipId, "detail"] });
       if (draftId) void deleteDraft(draftId);
       navigate(
-        isUpdateMode ? returnTo : `/me/flagships/${saved.flagshipId}`,
+        isUpdateMode ? returnTo : `/me/flagships/${flagshipId}`,
         { viewTransition: true },
       );
     } catch (error) {
-      if (isNetworkError(error)) {
-        void (draftId ? updateDraft(draftId, { payload: body, pendingKpis }) : createFlagshipDraft(body, pendingKpis));
-        showDraftSavedToast();
-        navigate(returnTo, { viewTransition: true });
-        return;
+      if (!isUpdateMode) {
+        const remainingKpis = kpis.slice(kpiIndex);
+        const remainingInvestments = investmentRows.slice(investmentIndex);
+        const remainingLocations = locationRows.slice(locationIndex);
+        setPendingKpis(remainingKpis);
+        setInvestments(remainingInvestments);
+        setLocations(remainingLocations);
+        if (flagshipId) setServerFlagshipId(flagshipId);
+        const remaining = {
+          payload: body,
+          pendingKpis: remainingKpis,
+          pendingInvestments: remainingInvestments,
+          pendingLocations: remainingLocations,
+          ...(flagshipId ? { createdEntityId: flagshipId } : {}),
+        };
+        if (isNetworkError(error) || flagshipId) {
+          void (draftId ? updateDraft(draftId, remaining) : createFlagshipDraft(body, remaining.pendingKpis, {
+            pendingInvestments: remaining.pendingInvestments,
+            pendingLocations: remaining.pendingLocations,
+            createdEntityId: flagshipId,
+          }));
+        }
+        if (isNetworkError(error)) {
+          showDraftSavedToast();
+          navigate(returnTo, { viewTransition: true });
+          return;
+        }
       }
       if (error instanceof ApiError) {
         setSubmitError(formatApiErrorMessage(error.message));
@@ -635,13 +804,16 @@ export default function MeAddFlagshipPage() {
                       isRequired
                       isDisabled={lookupsLoading}
                     />
-                    <AppTextField
-                      name="investorName"
-                      label="Investor Name"
-                      placeholder="Investor or organisation"
+                    <AppSelect
+                      name="investmentFunderId"
+                      label="Funder"
+                      placeholder="Select funder"
                       className="sm:col-span-5 w-full"
-                      value={investorName}
-                      onChange={setInvestorName}
+                      selectedKey={investmentFunderId}
+                      onSelectionChange={setInvestmentFunderId}
+                      options={selectOptions(funderIdOptions, lookupsLoading)}
+                      isRequired
+                      isDisabled={lookupsLoading}
                     />
                     <AppDate
                       name="investmentDate"
@@ -691,8 +863,8 @@ export default function MeAddFlagshipPage() {
                     {investments.length > 0 ? (
                       <div className="sm:col-span-10 space-y-1 rounded-lg border border-(--border) p-3">
                         {investments.map((entry, index) => (
-                          <p key={`${entry}-${index}`} className="text-sm text-(--foreground-700)">
-                            {index + 1}. {entry}
+                          <p key={`${entry.displayLabel}-${index}`} className="text-sm text-(--foreground-700)">
+                            {index + 1}. {entry.displayLabel}
                           </p>
                         ))}
                       </div>
@@ -707,41 +879,82 @@ export default function MeAddFlagshipPage() {
                         Enter a flagship code on Basic Flagship Details (e.g. YEPA) to load approved KPI indicators.
                       </p>
                     ) : definitionsEmpty ? (
-                      <p className="sm:col-span-10 text-sm text-(--warning)">
-                        No KPI definitions found for code {flagshipCode.trim().toUpperCase()}. Add definitions in the backend or use a different code.
+                      <p className="sm:col-span-10 text-sm text-(--foreground-600)">
+                        This flagship code has no saved indicators yet. Enter one below and it is saved with the flagship.
                       </p>
                     ) : null}
-                    <AppSelect
-                      name="kpiIndicatorName"
-                      label="KPI Indicator Name"
-                      placeholder={
-                        hasFlagshipCodeForKpi ? "Select approved KPI name" : "Enter flagship code first"
-                      }
-                      className="sm:col-span-5 w-full"
-                      selectedKey={kpiIndicatorName}
-                      onSelectionChange={handleKpiIndicatorChange}
-                      options={selectOptions(kpiIndicatorOptions, kpiLookupsLoading)}
-                      isRequired
-                      isDisabled={!hasFlagshipCodeForKpi || kpiLookupsLoading || definitionsEmpty}
-                    />
-                    <AppTextField
-                      name="kpiIndicatorTier"
-                      label="Indicator Tier"
-                      placeholder="Set automatically from indicator"
-                      className="sm:col-span-5 w-full"
-                      value={tierLabels.get(kpiIndicatorTier) ?? kpiIndicatorTier}
-                      onChange={() => {}}
-                      isDisabled
-                    />
-                    <AppTextField
-                      name="kpiValueType"
-                      label="Indicator Value Type"
-                      placeholder="Set automatically from indicator"
-                      className="sm:col-span-5 w-full"
-                      value={valueTypeLabels.get(kpiValueType) ?? kpiValueType}
-                      onChange={() => {}}
-                      isDisabled
-                    />
+                    {definitionsEmpty ? (
+                      <AppTextField
+                        name="kpiIndicatorName"
+                        label="KPI Indicator Name"
+                        placeholder="Jobs created"
+                        className="sm:col-span-5 w-full"
+                        value={kpiIndicatorName}
+                        onChange={setKpiIndicatorName}
+                        isRequired
+                        isDisabled={!hasFlagshipCodeForKpi}
+                      />
+                    ) : (
+                      <AppSelect
+                        name="kpiIndicatorName"
+                        label="KPI Indicator Name"
+                        placeholder={
+                          hasFlagshipCodeForKpi ? "Select approved KPI name" : "Enter flagship code first"
+                        }
+                        className="sm:col-span-5 w-full"
+                        selectedKey={kpiIndicatorName}
+                        onSelectionChange={handleKpiIndicatorChange}
+                        options={selectOptions(kpiIndicatorOptions, kpiLookupsLoading)}
+                        isRequired
+                        isDisabled={!hasFlagshipCodeForKpi || kpiLookupsLoading}
+                      />
+                    )}
+                    {definitionsEmpty ? (
+                      <AppSelect
+                        name="kpiIndicatorTier"
+                        label="Indicator Tier"
+                        placeholder="Select tier"
+                        className="sm:col-span-5 w-full"
+                        selectedKey={kpiIndicatorTier}
+                        onSelectionChange={setKpiIndicatorTier}
+                        options={selectOptions(tierOptions, kpiLookupsLoading)}
+                        isRequired
+                        isDisabled={!hasFlagshipCodeForKpi || kpiLookupsLoading}
+                      />
+                    ) : (
+                      <AppTextField
+                        name="kpiIndicatorTier"
+                        label="Indicator Tier"
+                        placeholder="Set automatically from indicator"
+                        className="sm:col-span-5 w-full"
+                        value={tierLabels.get(kpiIndicatorTier) ?? kpiIndicatorTier}
+                        onChange={() => {}}
+                        isDisabled
+                      />
+                    )}
+                    {definitionsEmpty ? (
+                      <AppSelect
+                        name="kpiValueType"
+                        label="Indicator Value Type"
+                        placeholder="Select value type"
+                        className="sm:col-span-5 w-full"
+                        selectedKey={kpiValueType}
+                        onSelectionChange={setKpiValueType}
+                        options={selectOptions(valueTypeOptions, kpiLookupsLoading)}
+                        isRequired
+                        isDisabled={!hasFlagshipCodeForKpi || kpiLookupsLoading}
+                      />
+                    ) : (
+                      <AppTextField
+                        name="kpiValueType"
+                        label="Indicator Value Type"
+                        placeholder="Set automatically from indicator"
+                        className="sm:col-span-5 w-full"
+                        value={valueTypeLabels.get(kpiValueType) ?? kpiValueType}
+                        onChange={() => {}}
+                        isDisabled
+                      />
+                    )}
                     <AppTextField
                       name="kpiBaselineValue"
                       label="Baseline Value"
@@ -784,7 +997,7 @@ export default function MeAddFlagshipPage() {
                       onSelectionChange={setKpiMeasurementPoint}
                       options={MEASUREMENT_POINT_OPTIONS}
                       isRequired
-                      isDisabled={!hasFlagshipCodeForKpi || definitionsEmpty}
+                      isDisabled={!hasFlagshipCodeForKpi}
                     />
                     <AppTextField
                       name="kpiYear"
@@ -807,7 +1020,7 @@ export default function MeAddFlagshipPage() {
                       onSelectionChange={setKpiReportingPeriod}
                       options={selectOptions(reportingPeriodOptions, kpiLookupsLoading)}
                       isRequired
-                      isDisabled={!hasFlagshipCodeForKpi || definitionsEmpty}
+                      isDisabled={!hasFlagshipCodeForKpi}
                     />
                     <div className="sm:col-span-10 flex items-center justify-between rounded-lg border border-(--border) p-3">
                       <p className="text-sm text-(--foreground-600)">
@@ -856,8 +1069,8 @@ export default function MeAddFlagshipPage() {
                     {locations.length > 0 ? (
                       <div className="sm:col-span-10 space-y-1 rounded-lg border border-(--border) p-3">
                         {locations.map((entry, index) => (
-                          <p key={`${entry}-${index}`} className="text-sm text-(--foreground-700)">
-                            {index + 1}. {entry}
+                          <p key={`${entry.displayLabel}-${index}`} className="text-sm text-(--foreground-700)">
+                            {index + 1}. {entry.displayLabel}
                           </p>
                         ))}
                       </div>

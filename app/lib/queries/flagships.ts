@@ -4,6 +4,7 @@ import { queryOptions, useQuery } from "@tanstack/react-query";
 import { countFunders, parseFunderNames } from "../flagship-funders";
 import { ApiError, api } from "../api";
 import { getAccessToken } from "../auth";
+import { queryClient } from "../query-client";
 import type { FlagshipSummaryRow } from "./visualizations";
 
 export type FlagshipStatus = "planning" | "active" | "suspended" | "closed";
@@ -73,6 +74,7 @@ export interface FlagshipKpi {
   dataSource: string | null;
   verified: boolean | null;
   notes: string | null;
+  valueChain: string | null;
 }
 
 export interface FlagshipDetailResponse {
@@ -98,6 +100,7 @@ export interface FlagshipDetailResponse {
   investments: FlagshipInvestment[];
   kpis: FlagshipKpi[];
   locations: FlagshipLocation[];
+  valueChains?: { valueChain: string; cluster: string | null; primary: boolean }[];
 }
 
 export interface FlagshipsPageResponse {
@@ -119,6 +122,9 @@ export interface Flagship {
   managementModel: string | null;
   jobsCreated: number;
   progressPercent: number;
+  targetYouthCount: number | null;
+  startDate: string | null;
+  endDate: string | null;
   budgetTotalRwf: number | null;
   funders: string | null;
   fundingContributions: FundingContribution[];
@@ -127,6 +133,7 @@ export interface Flagship {
   investments: FlagshipInvestment[];
   kpis: FlagshipKpi[];
   locations: FlagshipLocation[];
+  valueChains: { valueChain: string; cluster: string | null; primary: boolean }[];
 }
 
 /** Card grid / table row shape used by `FlagshipsList`. */
@@ -137,6 +144,8 @@ export interface FlagshipListItem {
   code: string;
   cluster: string;
   jobsCreated: number;
+  /** Youth jobs target used by the card progress bar. Null when the flagship has no target. */
+  jobsTarget: number | null;
   totalBudget: string;
   numberOfFunders: number;
   valueChain: string;
@@ -180,10 +189,16 @@ export function formatDateLabel(iso: string): string {
   });
 }
 
-/** Plain number formatting — no currency code unless the API provides one separately. */
 /** Budget with its currency, e.g. "18,089,904,359 RWF" (budgets are stored in RWF). */
 export function formatBudgetRwf(amount: number): string {
   return `${amount.toLocaleString("en-US", { maximumFractionDigits: 0 })} RWF`;
+}
+
+/** Text beside the flagship progress bar: jobs created, and the youth target when one exists. */
+function jobsTowardTargetText(jobs: number, target: number | null | undefined): string {
+  const jobsLabel = jobs.toLocaleString("en-US");
+  if (target == null || target <= 0) return jobsLabel;
+  return `${jobsLabel} of ${target.toLocaleString("en-US")}`;
 }
 
 function formatLocations(locations: FlagshipLocation[]): string {
@@ -209,13 +224,15 @@ export function mapFlagshipToListItem(
     code: detail.flagshipCode,
     cluster: detail.flagshipCluster,
     jobsCreated: detail.jobsCreated ?? 0,
+    jobsTarget: detail.targetYouthCount,
     totalBudget:
       detail.budgetTotalRwf != null && detail.budgetTotalRwf > 0
         ? formatBudgetRwf(detail.budgetTotalRwf)
         : "—",
     numberOfFunders: funderCount,
     valueChain: detail.primaryValueChain?.trim() || "—",
-    progress: Math.round(detail.progressPercent ?? 0),
+    progress: detail.progressPercent == null ? 0 : Math.round(detail.progressPercent),
+    progressText: jobsTowardTargetText(detail.jobsCreated ?? 0, detail.targetYouthCount),
     location: formatLocations(detail.locations),
     dateLabel: formatDateLabel(detail.createdAt),
     accentColor: getFlagshipCardAccent(cardIndex),
@@ -230,8 +247,8 @@ export function mapFlagshipToListItem(
  */
 export function applySummaryRow(item: FlagshipListItem, row: FlagshipSummaryRow): FlagshipListItem {
   const target = row.targetYouthCount;
-  const jobs = row.jobsCreatedActual;
-  const pct = target ? Math.round(((jobs ?? 0) / target) * 100) : null;
+  const jobsCreated = row.jobsCreatedActual == null ? item.jobsCreated : Math.round(row.jobsCreatedActual);
+  const pct = target == null || target <= 0 ? null : Math.round((jobsCreated / target) * 100);
 
   return {
     ...item,
@@ -240,13 +257,14 @@ export function applySummaryRow(item: FlagshipListItem, row: FlagshipSummaryRow)
     title: row.flagshipName,
     code: row.flagshipCode,
     cluster: row.flagshipCluster,
-    jobsCreated: Math.round(jobs ?? 0),
+    jobsCreated,
+    jobsTarget: target ?? null,
     totalBudget:
-      row.budgetTotalRwf != null && row.budgetTotalRwf > 0 ? formatBudgetRwf(row.budgetTotalRwf) : "—",
-    valueChain: row.primaryValueChain?.length ? row.primaryValueChain.join(", ") : "—",
-    progress: pct == null ? 0 : Math.min(100, pct),
-    progressText: pct == null ? "—" : `${pct}%`,
-    dateLabel: row.startDate ? formatDateLabel(row.startDate) : "—",
+      row.budgetTotalRwf != null && row.budgetTotalRwf > 0 ? formatBudgetRwf(row.budgetTotalRwf) : item.totalBudget,
+    valueChain: row.primaryValueChain?.length ? row.primaryValueChain.join(", ") : item.valueChain,
+    progress: pct == null ? 0 : Math.min(100, Math.max(0, pct)),
+    progressText: jobsTowardTargetText(jobsCreated, target),
+    dateLabel: row.startDate ? formatDateLabel(row.startDate) : item.dateLabel,
   };
 }
 
@@ -263,6 +281,9 @@ export function mapDetailToFlagship(detail: FlagshipDetailResponse): Flagship {
     managementModel: detail.managementModel,
     jobsCreated: detail.jobsCreated ?? 0,
     progressPercent: detail.progressPercent ?? 0,
+    targetYouthCount: detail.targetYouthCount,
+    startDate: detail.startDate,
+    endDate: detail.endDate,
     budgetTotalRwf: detail.budgetTotalRwf,
     funders: detail.funders,
     fundingContributions: detail.fundingContributions ?? [],
@@ -271,6 +292,7 @@ export function mapDetailToFlagship(detail: FlagshipDetailResponse): Flagship {
     investments: detail.investments,
     kpis: detail.kpis,
     locations: detail.locations,
+    valueChains: detail.valueChains ?? [],
   };
 }
 
@@ -305,9 +327,13 @@ export async function fetchAllFlagships(
   return all;
 }
 
+/** Revisits paint from cache immediately; a background refresh keeps figures current. */
+const FLAGSHIP_CACHE = { staleTime: 60_000, gcTime: 30 * 60_000 } as const;
+
 export const flagshipsQueryOptions = queryOptions({
   queryKey: ["flagships"],
   queryFn: ({ signal }) => fetchAllFlagships(signal),
+  ...FLAGSHIP_CACHE,
 });
 
 export async function fetchFlagshipDetail(
@@ -323,6 +349,7 @@ export const flagshipDetailQueryOptions = (id: number) =>
     queryKey: ["flagships", id, "detail"],
     queryFn: ({ signal }) => fetchFlagshipDetail(id, signal),
     enabled: Number.isFinite(id) && id > 0,
+    ...FLAGSHIP_CACHE,
   });
 
 export const flagshipQueryOptions = (id: number) =>
@@ -330,6 +357,13 @@ export const flagshipQueryOptions = (id: number) =>
     queryKey: ["flagships", id],
     queryFn: async ({ signal }) => mapDetailToFlagship(await fetchFlagshipDetail(id, signal)),
     enabled: Number.isFinite(id) && id > 0,
+    /** Paint the page from the list the user is already looking at, then replace it with the full record. */
+    placeholderData: () => {
+      const list = queryClient.getQueryData<FlagshipDetailResponse[]>(flagshipsQueryOptions.queryKey);
+      const row = list?.find((item) => item.flagshipId === id);
+      return row ? mapDetailToFlagship(row) : undefined;
+    },
+    ...FLAGSHIP_CACHE,
   });
 
 export interface FlagshipTableRow {
@@ -502,6 +536,25 @@ export interface CreateFlagshipKpiRequest {
   verified?: boolean;
 }
 
+/** Creates the approved indicator for this flagship code. A 409 means it already exists. */
+export async function ensureFlagshipKpiDefinition(
+  flagshipCode: string,
+  body: { indicatorName: string; indicatorTier: string; indicatorValueType: string },
+): Promise<void> {
+  assertAccessToken();
+  try {
+    await api.post("/api/lookups/kpi-definitions", {
+      flagshipCode: flagshipCode.trim().toUpperCase(),
+      indicatorName: body.indicatorName,
+      indicatorTier: body.indicatorTier,
+      indicatorValueType: body.indicatorValueType,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) return;
+    throw error;
+  }
+}
+
 export async function createFlagshipKpi(
   flagshipId: number,
   body: CreateFlagshipKpiRequest,
@@ -511,6 +564,41 @@ export async function createFlagshipKpi(
     ...body,
     verified: body.verified ?? false,
   });
+}
+
+/** Body for POST /api/flagships/{flagshipId}/investments. */
+export interface CreateFlagshipInvestmentRequest {
+  amount: number;
+  currency: string;
+  sourceType: string;
+  funderId: number;
+  investmentDate?: string | null;
+  year?: number | null;
+  disbursementType?: string | null;
+  notes?: string | null;
+}
+
+export async function createFlagshipInvestment(
+  flagshipId: number,
+  body: CreateFlagshipInvestmentRequest,
+): Promise<FlagshipInvestment> {
+  assertAccessToken();
+  return api.post<FlagshipInvestment>(`/api/flagships/${flagshipId}/investments`, body);
+}
+
+/** Body for POST /api/flagships/{flagshipId}/locations. */
+export interface CreateFlagshipLocationRequest {
+  province: string;
+  district: string;
+  sector?: string | null;
+}
+
+export async function createFlagshipLocation(
+  flagshipId: number,
+  body: CreateFlagshipLocationRequest,
+): Promise<unknown> {
+  assertAccessToken();
+  return api.post(`/api/flagships/${flagshipId}/locations`, body);
 }
 
 export type UpdateFlagshipRequest = Partial<CreateFlagshipRequest>;

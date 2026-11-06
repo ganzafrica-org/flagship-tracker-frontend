@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { IconHomeFilled, IconLayoutGrid, IconTable } from "@tabler/icons-react";
@@ -21,6 +21,7 @@ import {
   buildFlagshipTableRows,
   deleteFlagship,
   filterFlagshipsByStatusTab,
+  flagshipQueryOptions,
   flagshipsQueryOptions,
   mapFlagshipCard,
   FLAGSHIP_STATUS_TAB_ITEMS,
@@ -103,48 +104,6 @@ export default function FlagshipsIndexPage({
       })),
     [filteredFlagships, summaryById],
   );
-
-  // DEBUG: remove once flagship card data has been inspected
-  useEffect(() => {
-    if (isLoading) return;
-    console.log("[Flagships] raw API response:", flagships.length, "items", flagships);
-    console.table(
-      flagships.map((f) => ({
-        id: f.flagshipId,
-        name: f.flagshipName,
-        jobsCreated: f.jobsCreated,
-        budgetTotalRwf: f.budgetTotalRwf,
-        primaryValueChain: f.primaryValueChain,
-        progressPercent: f.progressPercent,
-        funders: f.funders,
-        fundingContributions: f.fundingContributions?.length ?? 0,
-      })),
-    );
-  }, [flagships, isLoading]);
-
-  useEffect(() => {
-    if (summaryLoading) return;
-    console.log("[Flagships] mv_flagship_summary rows:", summaryRows.length, "items", summaryRows);
-    console.table(summaryRows);
-  }, [summaryRows, summaryLoading]);
-
-  useEffect(() => {
-    if (flagshipCards.length === 0) return;
-    console.log(
-      "[Flagships] data rendered per card:",
-      flagshipCards.map((c) => ({
-        id: c.id,
-        title: c.title,
-        jobsCreated: c.jobsCreated,
-        totalBudget: c.totalBudget,
-        valueChain: c.valueChain,
-        progress: c.progress,
-        progressText: c.progressText,
-        numberOfFunders: c.numberOfFunders,
-        funderNames: c.funderNames,
-      })),
-    );
-  }, [flagshipCards]);
 
   const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships, summaryById), [filteredFlagships, summaryById]);
 
@@ -255,6 +214,9 @@ export default function FlagshipsIndexPage({
         <FlagshipsList
           items={flagshipCards}
           className="w-full"
+          onPrefetch={(item) => {
+            void queryClient.prefetchQuery(flagshipQueryOptions(item.id));
+          }}
           onViewMore={(item) => navigate(`${basePath}/${item.id}`, { viewTransition: true })}
         />
       ) : (

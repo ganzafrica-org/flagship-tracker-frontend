@@ -28,6 +28,8 @@ interface FlagshipsListProps {
   className?: string;
   cardClassName?: string;
   onViewMore?: (item: FlagshipCardItem) => void;
+  /** Start the detail request when the pointer reaches a card, so the click is usually already cached. */
+  onPrefetch?: (item: FlagshipCardItem) => void;
 }
 
 const CARD_CLASS =
@@ -108,12 +110,15 @@ function FlagshipListCard({
   item,
   cardClassName,
   onViewMore,
+  onPrefetch,
 }: {
   item: FlagshipCardItem;
   cardClassName?: string;
   onViewMore?: (item: FlagshipCardItem) => void;
+  onPrefetch?: (item: FlagshipCardItem) => void;
 }) {
   return (
+    <div className="h-full" onPointerEnter={() => onPrefetch?.(item)}>
     <Card className={`${CARD_CLASS} ${cardClassName ?? ""}`}>
       {/* Header: icon + code/cluster, status chip */}
       <div className="flex items-start justify-between gap-3">
@@ -152,7 +157,13 @@ function FlagshipListCard({
 
       {/* Progress — its own row with clear spacing */}
       <div className="mt-4">
-        <AppProgressBar value={item.progress} color={statusToProgressColor(item.status)} showLabel />
+        <AppProgressBar
+          value={item.progress}
+          color={statusToProgressColor(item.status)}
+          showLabel
+          label="Jobs created vs the target"
+          valueText={item.progressText}
+        />
       </div>
 
       {/* Footer — funders (left) and date (right), balanced on one line */}
@@ -174,6 +185,7 @@ function FlagshipListCard({
         {item.viewMoreLabel ?? "View More"}
       </button>
     </Card>
+    </div>
   );
 }
 
@@ -182,6 +194,7 @@ export default function FlagshipsList({
   className,
   cardClassName,
   onViewMore,
+  onPrefetch,
 }: FlagshipsListProps) {
   const cards = items ?? [];
 
@@ -197,6 +210,7 @@ export default function FlagshipsList({
             item={item}
             cardClassName={cardClassName}
             onViewMore={onViewMore}
+            onPrefetch={onPrefetch}
           />
         ))}
       </div>

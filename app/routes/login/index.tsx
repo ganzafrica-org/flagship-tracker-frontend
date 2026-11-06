@@ -58,7 +58,7 @@ export default function Login() {
 
   return (
     <AuthShell title="Welcome Back" description="Log in to access your dashboard">
-      <form className="mt-5 space-y-3" onSubmit={handleSubmit}>
+      <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
         <AppInput
           label="Email"
           type="email"
@@ -111,7 +111,7 @@ export default function Login() {
       <Link
         to="/login/forgot-password"
         viewTransition
-        className="mt-3 self-center text-sm font-medium text-[color:var(--accent)] transition hover:opacity-80"
+        className="mt-2 self-center text-sm font-medium text-[color:var(--accent)] transition hover:opacity-80"
       >
         Forgot the password?
       </Link>

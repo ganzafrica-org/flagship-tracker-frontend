@@ -115,6 +115,8 @@ export const flagshipSummaryQueryOptions = queryOptions({
   queryKey: ["viz", "flagship-summary"],
   queryFn: ({ signal }) =>
     api.get<FlagshipSummaryRow[]>("/api/visualizations/flagship-summary", undefined, signal),
+  staleTime: 60_000,
+  gcTime: 30 * 60_000,
 });
 
 const STATUS_ORDER = ["active", "planning", "suspended", "closed"];
@@ -178,6 +180,7 @@ export interface FlagshipDashboard {
     targetValue: number | null;
     actualValue: number | null;
     disaggregation: string | null;
+    notes: string | null;
   }[];
   gender: {
     jobsKpiYear: number | null;
@@ -217,37 +220,6 @@ export const flagshipDashboardQueryOptions = (id: number | string) =>
     queryKey: ["viz", "flagship", String(id)],
     queryFn: ({ signal }) =>
       api.get<FlagshipDashboard>(`/api/visualizations/flagships/${id}`, undefined, signal),
+    staleTime: 60_000,
+    gcTime: 30 * 60_000,
   });
-
-// ─── Value chains by flagship (admin dashboard) ─────────────────────────────────
-
-export interface FlagshipValueChain {
-  name: string;
-  totalIndividuals: number;
-  stages: { stage: string; count: number }[];
-  female: number;
-  male: number;
-  youth: number;
-  nonYouth: number;
-  unknownYouth: number;
-  cooperatives: number;
-}
-
-export interface FlagshipValueChains {
-  flagships: {
-    flagshipId: number;
-    flagshipCode: string;
-    flagshipName: string;
-    /** Flagship-level only: jobs are not tracked per value chain. */
-    jobsCreated: number | null;
-    /** Individuals linked to this flagship through individual_flagship (any value chain). */
-    linkedIndividuals: number;
-    valueChains: FlagshipValueChain[];
-  }[];
-}
-
-export const flagshipValueChainsQueryOptions = queryOptions({
-  queryKey: ["viz", "flagship-value-chains"],
-  queryFn: ({ signal }) =>
-    api.get<FlagshipValueChains>("/api/visualizations/flagship-value-chains", undefined, signal),
-});
