@@ -23,7 +23,7 @@ import {
 } from "@tabler/icons-react";
 
 import { StatCard } from "~/components/stat-card";
-import { StatCardSkeleton } from "~/components/app-skeleton";
+import { ChartSkeleton, StatCardSkeleton } from "~/components/app-skeleton";
 import AppSelect from "~/components/app-select";
 import VizRefreshButton from "~/components/viz-refresh-button";
 import { CHART } from "~/data/dummy-flagship-detail";
@@ -105,7 +105,7 @@ export default function CooperativeOverview({ type }: { type?: string }) {
     <div className="space-y-6 w-full min-w-0">
       {/* Flagship filter + refresh */}
       <div className="flex items-end justify-between gap-3">
-        <div className="max-w-xs flex-1">
+        <div className="min-w-0 flex-1">
           <AppSelect
             name="flagshipFilter"
             label="Filter by Flagship"
@@ -166,7 +166,9 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             <Card.Title>Flagship vs Non-Flagship Proportion</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {(stats?.totalCooperatives ?? 0) === 0 ? (
+            {isLoading ? (
+              <ChartSkeleton height="h-64" />
+            ) : (stats?.totalCooperatives ?? 0) === 0 ? (
               <ChartEmptyState message="No cooperatives in the system yet." />
             ) : (
             <ResponsiveContainer width="100%" height={280} minWidth={0}>
@@ -201,7 +203,9 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             <Card.Title>Cooperative Members by Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {!hasChartData(filteredMembers) ? (
+            {isLoading ? (
+              <ChartSkeleton height="h-64" />
+            ) : !hasChartData(filteredMembers) ? (
               <ChartEmptyState message={flagshipChartEmptyMessage} />
             ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
@@ -227,7 +231,9 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             <Card.Title>Engagement Type per Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {!hasChartData(filteredEngagement) ? (
+            {isLoading ? (
+              <ChartSkeleton height="h-64" />
+            ) : !hasChartData(filteredEngagement) ? (
               <ChartEmptyState message={flagshipChartEmptyMessage} />
             ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
@@ -252,7 +258,9 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             <Card.Title>Female &amp; Youth Members Share (%)</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {!hasChartData(filteredInclusion) ? (
+            {isLoading ? (
+              <ChartSkeleton height="h-64" />
+            ) : !hasChartData(filteredInclusion) ? (
               <ChartEmptyState message={flagshipChartEmptyMessage} />
             ) : (
             <ResponsiveContainer width="100%" height={260} minWidth={0}>
@@ -277,7 +285,9 @@ export default function CooperativeOverview({ type }: { type?: string }) {
           <Card.Title>{typeLabel} Enrolled per Flagship</Card.Title>
         </Card.Header>
         <Card.Content className="p-4 pt-0">
-          {!hasChartData(filteredPerFlagship) ? (
+          {isLoading ? (
+            <ChartSkeleton height="h-64" />
+          ) : !hasChartData(filteredPerFlagship) ? (
             <ChartEmptyState message={flagshipChartEmptyMessage} />
           ) : (
           <ResponsiveContainer width="100%" height={240} minWidth={0}>

@@ -13,6 +13,8 @@ export default [
   // Admin
   layout("routes/admin/layout.tsx", [
     route("admin/dashboard",          "routes/admin/dashboard/index.tsx"),
+    route("admin/flagship/individuals", "routes/admin/flagship/individuals.tsx"),
+    route("admin/youth/dashboard",    "routes/admin/youth/dashboard.tsx"),
     route("admin/flagships",          "routes/admin/flagships/index.tsx"),
     route("admin/flagships/:id",      "routes/admin/flagships/$id/index.tsx"),
     route("admin/reports",            "routes/admin/reports/index.tsx"),
@@ -34,6 +36,8 @@ export default [
 
   // M&E
   layout("routes/me/layout.tsx", [
+    route("me/flagship/individuals",  "routes/me/flagship/individuals.tsx"),
+    route("me/youth/dashboard",       "routes/me/youth/dashboard.tsx"),
     route("me/flagships",             "routes/me/flagships/index.tsx"),
     route("me/flagships/add-flagship", "routes/me/flagships/add-flagship.tsx"),
     route("me/flagships/:id",         "routes/me/flagships/$id/index.tsx"),
@@ -55,6 +59,8 @@ export default [
   // Senior Officials
   layout("routes/senior/layout.tsx", [
     route("senior/dashboard",         "routes/senior/dashboard/index.tsx"),
+    route("senior/flagship/individuals", "routes/senior/flagship/individuals.tsx"),
+    route("senior/youth/dashboard",   "routes/senior/youth/dashboard.tsx"),
     route("senior/flagships",         "routes/senior/flagships/index.tsx"),
     route("senior/flagships/:id",     "routes/senior/flagships/$id/index.tsx"),
     route("senior/reports",           "routes/senior/reports/index.tsx"),

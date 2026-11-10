@@ -372,7 +372,7 @@ export default function TableComponent({
                 </Table.Header>
                 <Table.Body>
                   {loading ? (
-                    Array.from({ length: 5 }).map((_, r) => (
+                    Array.from({ length: Math.min(itemsPerPage, 10) }).map((_, r) => (
                       <Table.Row key={`sk-${r}`}>
                         {columns.map((column) => (
                           <Table.Cell key={`sk-${r}-${column.key}`}>

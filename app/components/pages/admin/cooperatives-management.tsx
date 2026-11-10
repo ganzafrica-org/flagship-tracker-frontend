@@ -78,6 +78,7 @@ export default function CooperativesManagement() {
         loading={isLoading}
         emptyMessage={`No ${names.plural.toLowerCase()} yet`}
         rows={rows}
+        itemsPerPage={10}
         searchPlaceholder={COOPERATIVE_SEARCH_PLACEHOLDER}
         searchKeys={[...COOPERATIVE_LIST_SEARCH_KEYS]}
         columns={[...COOPERATIVE_LIST_COLUMNS]}

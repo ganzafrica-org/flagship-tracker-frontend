@@ -1,3 +1,22 @@
+/** The same sections shown on the flagship details page. */
+export type FlagshipReportContent = {
+  title: string;
+  stats: { label: string; value: string }[];
+  jobsCreated: number;
+  jobsTarget: number | null;
+  jobsPercent: number | null;
+  jobsByYear: { year: string; total: number }[];
+  genderTotal: number | null;
+  gender: { name: string; value: number; share: number }[];
+  description: string;
+  startDate: string | null;
+  endDate: string | null;
+  locations: { province: string; districts: string }[];
+  notes: { when: string; text: string }[];
+  valueChains: string;
+  funders: string[];
+};
+
 export type ReportDownloadRow = {
   id: number;
   name: string;
@@ -6,6 +25,7 @@ export type ReportDownloadRow = {
   createdOn: string;
   createdBy: string;
   origin: string;
+  content?: FlagshipReportContent;
 };
 
 export function downloadBlob(filename: string, content: string, mimeType: string) {

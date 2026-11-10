@@ -21,6 +21,7 @@ import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
 import { parseFunderNames } from "~/lib/flagship-funders";
 import { type Flagship, type FlagshipKpi, type FundingContribution } from "~/lib/queries/flagships";
+import type { FlagshipReportContent } from "~/components/pages/reports/report-download-utils";
 import { useQuery } from "@tanstack/react-query";
 import { flagshipDashboardQueryOptions } from "~/lib/queries/visualizations";
 
@@ -48,7 +49,7 @@ interface SingleFlagshipDetailsProps {
   flagshipPageId?: number;
   /** True while the full record (notes, locations, charts) is still on the way. The card fields are already shown. */
   pending?: boolean;
-  onViewSummaryPress?: () => void;
+  onViewSummaryPress?: (content: FlagshipReportContent) => void;
 }
 
 function labelize(name: string): string {
@@ -259,7 +260,45 @@ export function SingleFlagshipDetails({
         actionSlot={
           <div className="flex items-center gap-3">
             <VizRefreshButton />
-            <Button variant="primary" className="!rounded-3xl" onPress={onViewSummaryPress}>
+            <Button
+              variant="primary"
+              className="!rounded-3xl"
+              isDisabled={!flagship}
+              onPress={() => {
+                if (!flagship || !onViewSummaryPress) return;
+                const genderTotal = genderJobs?.total ?? null;
+                onViewSummaryPress({
+                  title: flagship.name?.trim() || "Flagship",
+                  stats: statCards.map((card) => ({
+                    label: card.label,
+                    value: [card.stat, card.unit].filter(Boolean).join(" "),
+                  })),
+                  jobsCreated: jobsActual,
+                  jobsTarget,
+                  jobsPercent: jobsTarget != null && jobsTarget > 0 ? Math.round((jobsActual / jobsTarget) * 100) : null,
+                  jobsByYear: jobsByYear.map((row) => ({ year: row.year, total: row.actual })),
+                  genderTotal,
+                  gender: (genderJobs?.data ?? []).map((slice) => ({
+                    name: slice.name,
+                    value: slice.value,
+                    share: genderTotal && genderTotal > 0 ? Math.round((slice.value / genderTotal) * 100) : 0,
+                  })),
+                  description: flagship.description?.trim() || "",
+                  startDate: flagship.startDate,
+                  endDate: flagship.endDate,
+                  locations: locations.map((location) => ({
+                    province: location.province,
+                    districts: location.districts.join(", "),
+                  })),
+                  notes: progressNotes.map((note) => ({
+                    when: [note.year, note.reportingPeriod].filter(Boolean).join(" · "),
+                    text: note.notes?.trim() || "",
+                  })),
+                  valueChains: valueChainEntries.map((chain) => chain.name).join(", "),
+                  funders: funderEntries.map((entry) => entry.detail ? `${entry.name} (${entry.detail})` : entry.name),
+                });
+              }}
+            >
               Generate Report
             </Button>
           </div>

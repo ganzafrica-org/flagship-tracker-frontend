@@ -98,7 +98,85 @@ async function buildXlsx({ title, sections }: ExportDocumentOptions): Promise<Bl
   return new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
+async function buildRecordPdf({ title, sections }: ExportDocumentOptions): Promise<Blob> {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const usable = pageW - margin * 2;
+  const labelW = 148;
+  const valueW = usable - labelW;
+  const fontSize = 11;
+  const lineH = 15;
+  const pad = 7;
+  const totalRows = sections.reduce((n, s) => n + s.rows.length, 0);
+
+  const newPage = () => {
+    doc.addPage();
+    return margin;
+  };
+
+  doc.setFont("helvetica", "bold").setFontSize(18).setTextColor(31, 41, 55).text(title, margin, margin);
+  doc.setDrawColor(16, 145, 200).setLineWidth(2).line(margin, margin + 8, margin + 168, margin + 8);
+  doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(107, 114, 128)
+    .text(`Exported on ${today()} · ${totalRows} record(s)`, margin, margin + 26);
+  let y = margin + 44;
+
+  for (const section of sections) {
+    const matrix = toMatrix(section);
+    if (section.title) {
+      if (y + 36 > pageH - margin) y = newPage();
+      doc.setFont("helvetica", "bold").setFontSize(13).setTextColor(31, 41, 55).text(section.title, margin, y);
+      y += 18;
+    }
+    if (matrix.length === 0) {
+      doc.setFont("helvetica", "italic").setFontSize(11).setTextColor(107, 114, 128).text("No records.", margin, y);
+      y += 22;
+      continue;
+    }
+
+    matrix.forEach((cells, index) => {
+      const heading = cells[0]?.trim() || `Record ${index + 1}`;
+      if (y + 36 > pageH - margin) y = newPage();
+      doc.setFont("helvetica", "bold").setFontSize(13).setTextColor(16, 145, 200).text(`${index + 1}. ${heading}`, margin, y);
+      y += 12;
+
+      section.columns.forEach((column, colIndex) => {
+        const value = cells[colIndex]?.trim() ? cells[colIndex] : "—";
+        doc.setFont("helvetica", "bold").setFontSize(fontSize);
+        const labelLines = doc.splitTextToSize(column.label, labelW - pad * 2) as string[];
+        doc.setFont("helvetica", "normal").setFontSize(fontSize);
+        const valueLines = doc.splitTextToSize(value, valueW - pad * 2) as string[];
+        const height = Math.max(labelLines.length, valueLines.length, 1) * lineH + pad * 2;
+        if (y + height > pageH - margin) y = newPage();
+
+        doc.setFillColor(colIndex % 2 === 0 ? 233 : 255, colIndex % 2 === 0 ? 241 : 255, colIndex % 2 === 0 ? 245 : 255);
+        doc.rect(margin, y, usable, height, "F");
+        doc.setDrawColor(209, 213, 219).rect(margin, y, usable, height);
+        doc.line(margin + labelW, y, margin + labelW, y + height);
+        doc.setFont("helvetica", "bold").setFontSize(fontSize).setTextColor(31, 41, 55)
+          .text(labelLines, margin + pad, y + pad + lineH - 4);
+        doc.setFont("helvetica", "normal").setTextColor(55, 65, 81)
+          .text(valueLines, margin + labelW + pad, y + pad + lineH - 4);
+        y += height;
+      });
+      y += 20;
+    });
+  }
+
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p).setFont("helvetica", "normal").setFontSize(9).setTextColor(107, 114, 128)
+      .text(`Page ${p} of ${pages}`, pageW - margin, pageH - 18, { align: "right" });
+  }
+  return doc.output("blob");
+}
+
 async function buildPdf({ title, sections }: ExportDocumentOptions): Promise<Blob> {
+  if (sections.some((section) => section.columns.length > 6)) {
+    return buildRecordPdf({ title, sections, format: "pdf" });
+  }
   const { jsPDF } = await import("jspdf");
   const widest = Math.max(...sections.map((s) => s.columns.length), 1);
   const doc = new jsPDF({ orientation: widest > 5 ? "landscape" : "portrait", unit: "pt", format: "a4" });

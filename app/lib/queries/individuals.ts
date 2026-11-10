@@ -121,7 +121,7 @@ export async function fetchAllIndividuals(signal?: AbortSignal): Promise<Individ
   do {
     const page = await api.get<IndividualsPageResponse>(
       "/api/individuals",
-      { cursor },
+      { cursor, size: 2000 },
       signal,
     );
     all.push(...page.content);

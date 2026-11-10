@@ -30,9 +30,9 @@ import {
 } from "~/lib/queries/flagships";
 
 const FLAGSHIP_TABLE_COLUMNS = [
-  { key: "valueChain", label: "Value Chain" },
   { key: "id", label: "#" },
-  { key: "projectName", label: "Project Name" },
+  { key: "projectName", label: "Flagship Name" },
+  { key: "valueChain", label: "Value Chain" },
   { key: "totalBudget", label: "Total Budget" },
   { key: "jobsCreated", label: "Jobs Created" },
   { key: "funders", label: "Funders" },

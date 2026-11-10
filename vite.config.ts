@@ -44,9 +44,10 @@ export default defineConfig({
       // Lets the service worker load during `react-router dev` too, so offline
       // access to the add-forms can be verified without a production build.
       devOptions: {
-        enabled: true,
+        // Keep the worker off in dev. It caches Vite's optimized React chunks,
+        // and the next dependency reload then crashes with a null useContext.
+        enabled: false,
         type: "module",
-        // dev-dist has no built assets yet, so the default precache glob only warns.
         suppressWarnings: true,
       },
       manifest: {
@@ -85,6 +86,9 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    dedupe: ["react", "react-dom"],
+  },
   server: {
     port: 5173,
     strictPort: true,

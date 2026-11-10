@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { DateValue } from "@internationalized/date";
 import { parseDate } from "@internationalized/date";
 import { api } from "~/lib/api";
+import { districtMatches, provinceMatches } from "~/lib/rwanda-locations";
 
 function parsePositiveInt(value: string | number | null | undefined): number | null {
   if (value == null || value === "") return null;
@@ -87,22 +88,18 @@ export const DEFAULT_COOPERATIVE_TYPE = "association";
 export const COOPERATIVE_SEARCH_PLACEHOLDER = "Search by name, value chain, location…";
 
 export interface CooperativeListFilters {
-  gender: string;
+  province: string;
+  district: string;
   group: string;
   valueChain: string;
 }
 
 export const EMPTY_COOPERATIVE_FILTERS: CooperativeListFilters = {
-  gender: "",
+  province: "",
+  district: "",
   group: "",
   valueChain: "",
 };
-
-export const COOPERATIVE_GENDER_OPTIONS = [
-  { label: "Female", value: "female" },
-  { label: "Male", value: "male" },
-  { label: "Youth", value: "youth" },
-];
 
 /** Males = total members − female members (never below 0). */
 export function maleMembers(total: number | null | undefined, female: number | null | undefined): number {
@@ -112,10 +109,8 @@ export function maleMembers(total: number | null | undefined, female: number | n
 export function cooperativeMatchesFilters(c: CooperativeSummary, f: CooperativeListFilters): boolean {
   if (f.group && c.groupType !== f.group) return false;
   if (f.valueChain && c.primaryValueChain !== f.valueChain) return false;
-
-  if (f.gender === "female" && (c.femaleMembers ?? 0) <= 0) return false;
-  if (f.gender === "male" && maleMembers(c.totalMembers, c.femaleMembers) <= 0) return false;
-  if (f.gender === "youth" && (c.youthMembers ?? 0) <= 0) return false;
+  if (!provinceMatches(c.province, f.province || "all")) return false;
+  if (!districtMatches(c.district, f.district || "all")) return false;
   return true;
 }
 
@@ -239,7 +234,7 @@ export async function fetchAllCooperatives(signal?: AbortSignal): Promise<Cooper
   let cursor: string | undefined;
 
   do {
-    const page = await api.get<CooperativePageResponse>("/api/cooperatives", { cursor }, signal);
+    const page = await api.get<CooperativePageResponse>("/api/cooperatives", { cursor, size: 2000 }, signal);
     all.push(...page.content);
     cursor = page.hasNext && page.nextCursor ? page.nextCursor : undefined;
   } while (cursor);

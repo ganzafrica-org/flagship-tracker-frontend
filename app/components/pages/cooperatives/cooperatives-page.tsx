@@ -13,7 +13,8 @@ import { useUrlState } from "~/lib/use-url-state";
 import { useRecordDialog } from "~/lib/use-record-dialog";
 import { useCooperativeRecord } from "~/lib/record-details";
 import { ApiError } from "~/lib/api";
-import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_COLUMNS, COOPERATIVE_LIST_SEARCH_KEYS, COOPERATIVE_SEARCH_PLACEHOLDER, DEFAULT_COOPERATIVE_TYPE, cooperativeTypeNames, cooperativeMatchesFilters, EMPTY_COOPERATIVE_FILTERS, COOPERATIVE_GENDER_OPTIONS, type CooperativeListFilters } from "~/lib/queries/cooperatives";
+import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_COLUMNS, COOPERATIVE_LIST_SEARCH_KEYS, COOPERATIVE_SEARCH_PLACEHOLDER, DEFAULT_COOPERATIVE_TYPE, cooperativeTypeNames, cooperativeMatchesFilters, EMPTY_COOPERATIVE_FILTERS, type CooperativeListFilters } from "~/lib/queries/cooperatives";
+import { districtMatches, inferProvinceForDistrict, listAllRwandaDistricts, listRwandaDistricts, listRwandaProvinces } from "~/lib/rwanda-locations";
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
 import { useDrafts } from "~/lib/offline-drafts/use-drafts";
 import { buildCooperativesExportData } from "~/lib/cooperative-details";
@@ -57,14 +58,30 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
     enabled: activeTab === "list",
   });
 
-  // DEBUG: remove once the cooperative list data has been inspected
-  useEffect(() => {
-    if (all.length > 0) console.log("[cooperatives] list data:", all.length, "items", all);
-  }, [all]);
-
   const [filters, setFilters] = useState<CooperativeListFilters>(EMPTY_COOPERATIVE_FILTERS);
   const setFilter = (key: keyof CooperativeListFilters) => (value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
+  const setProvince = (value: string) => {
+    setFilters((prev) => {
+      const districts = value ? listRwandaDistricts(value) : listAllRwandaDistricts();
+      const districtStillValid = !prev.district || districts.some((district) => districtMatches(district, prev.district));
+      return { ...prev, province: value, district: districtStillValid ? prev.district : "" };
+    });
+  };
+  const setDistrict = (value: string) => {
+    setFilters((prev) => {
+      if (!value || prev.province) return { ...prev, district: value };
+      return { ...prev, district: value, province: inferProvinceForDistrict(value) ?? "" };
+    });
+  };
+  const provinceOptions = useMemo(
+    () => listRwandaProvinces().map((province) => ({ value: province, label: province })),
+    [],
+  );
+  const districtOptions = useMemo(() => {
+    const districts = filters.province ? listRwandaDistricts(filters.province) : listAllRwandaDistricts();
+    return districts.map((district) => ({ value: district, label: district }));
+  }, [filters.province]);
   const effectiveFilters = useMemo(() => ({ ...filters, group: typeParam }), [filters, typeParam]);
   const hasActiveFilters = Object.values(effectiveFilters).some(Boolean);
   // Only value chains that actually occur in this group type.
@@ -134,22 +151,37 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
             </p>
           ) : null}
 
-          <div className="flex flex-wrap items-end gap-3">
-            {([
-              ["gender", "Gender", "All Genders", COOPERATIVE_GENDER_OPTIONS],
-              ["valueChain", "Value Chain", "All Value Chains", valueChainOptions],
-            ] as const).map(([key, label, allLabel, options]) => (
-              <div key={key} className="w-52">
-                <AppSelect
-                  name={`${key}Filter`}
-                  label={label}
-                  placeholder={allLabel}
-                  selectedKey={filters[key]}
-                  onSelectionChange={setFilter(key)}
-                  options={[{ label: allLabel, value: "" }, ...options]}
-                />
-              </div>
-            ))}
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <AppSelect
+                name="provinceFilter"
+                label="Province"
+                placeholder="All Provinces"
+                selectedKey={filters.province}
+                onSelectionChange={setProvince}
+                options={[{ label: "All Provinces", value: "" }, ...provinceOptions]}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <AppSelect
+                name="districtFilter"
+                label="District"
+                placeholder="All Districts"
+                selectedKey={filters.district}
+                onSelectionChange={setDistrict}
+                options={[{ label: "All Districts", value: "" }, ...districtOptions]}
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <AppSelect
+                name="valueChainFilter"
+                label="Value Chain"
+                placeholder="All Value Chains"
+                selectedKey={filters.valueChain}
+                onSelectionChange={setFilter("valueChain")}
+                options={[{ label: "All Value Chains", value: "" }, ...valueChainOptions]}
+              />
+            </div>
             {hasActiveFilters ? (
               <Button size="sm" variant="secondary" onPress={() => { setFilters(EMPTY_COOPERATIVE_FILTERS); setTypeParam(""); }}>
                 Clear filters
@@ -167,6 +199,7 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
             loading={isLoading}
             emptyMessage={`No ${names.plural.toLowerCase()} yet`}
             rows={rows}
+            itemsPerPage={10}
             searchPlaceholder={COOPERATIVE_SEARCH_PLACEHOLDER}
             searchKeys={[...COOPERATIVE_LIST_SEARCH_KEYS]}
             filterByTab={() => true}

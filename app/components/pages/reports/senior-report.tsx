@@ -1,6 +1,5 @@
 
 
-import { dummyReportsList } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
 import { ContentTab } from "~/components/content-tab";
 import { useMemo, useState } from "react";
@@ -9,6 +8,8 @@ import ReportActionDialog, {
   type ReportDialogMode,
 } from "~/components/pages/reports/report-action-dialog";
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
+import { getStoredUser } from "~/lib/auth";
+import { useMyGeneratedReports } from "~/lib/generated-reports";
 
 
 export default function SeniorReports() {
@@ -16,19 +17,7 @@ export default function SeniorReports() {
   const [selectedReport, setSelectedReport] = useState<ReportDownloadRow | null>(null);
   const [modalType, setModalType] = useState<ReportDialogMode>(null);
 
-  const rows = useMemo(
-    () =>
-      dummyReportsList.map((report) => ({
-        id: report.id,
-        name: report.name,
-        type: report.type,
-        period: report.period,
-        createdOn: report.createdOn,
-        createdBy: report.createdBy,
-        origin: report.origin,
-      })),
-    []
-  );
+  const rows = useMyGeneratedReports(getStoredUser()?.id ?? 0);
 
   const filteredRows = useMemo(() => {
     if (activeTab === "all") return rows;

@@ -62,8 +62,19 @@ function StatRow({ icon, label, value }: { icon: ReactNode; label: string; value
 }
 
 /** Funder avatar stack + popover with the full contribution details. */
-export function FunderAvatars({ funders }: { funders: FundingContribution[] }) {
-  if (funders.length === 0) {
+export function FunderAvatars({ funders, names = [] }: { funders: FundingContribution[]; names?: string[] }) {
+  const circles: FundingContribution[] =
+    funders.length > 0
+      ? funders
+      : names.filter((name) => name.trim()).map((name) => ({
+          name,
+          currency: null,
+          amount: null,
+          description: null,
+          color: null,
+        }));
+
+  if (circles.length === 0) {
     return <span className="text-[12px] text-(--muted)">No funders recorded</span>;
   }
 
@@ -71,20 +82,20 @@ export function FunderAvatars({ funders }: { funders: FundingContribution[] }) {
     <Popover>
       <Popover.Trigger
         className="inline-flex cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent)"
-        aria-label={`${funders.length} funder(s) — view details`}
+        aria-label={`${circles.length} funder(s) — view details`}
       >
         <AppAvatarGroup
-          items={funders.map((f) => ({ name: f.name, color: f.color ?? undefined }))}
+          items={circles.map((f) => ({ name: f.name, color: f.color ?? undefined }))}
           max={3}
           size="sm"
         />
       </Popover.Trigger>
       <Popover.Content className="max-w-xs rounded-xl border border-(--separator) bg-(--surface) p-0 shadow-lg">
         <div className="border-b border-(--separator) px-4 py-2.5 text-sm font-semibold text-(--foreground)">
-          Funders ({funders.length})
+          Funders ({circles.length})
         </div>
         <ul className="m-0 max-h-64 list-none space-y-0 overflow-auto p-0">
-          {funders.map((f, i) => (
+          {circles.map((f, i) => (
             <li key={`${f.name}-${i}`} className="flex items-start gap-3 px-4 py-2.5">
               <AppAvatar name={f.name} size="sm" colorHex={f.color ?? undefined} />
               <div className="min-w-0">
@@ -168,7 +179,7 @@ function FlagshipListCard({
 
       {/* Footer — funders (left) and date (right), balanced on one line */}
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-        <FunderAvatars funders={item.funderContributions ?? []} />
+        <FunderAvatars funders={item.funderContributions ?? []} names={item.funderNames} />
         <span className="inline-flex items-center gap-1 text-[11px] text-(--muted) shrink-0">
           <IconCalendar size={13} />
           {item.dateLabel}

@@ -1,4 +1,5 @@
 import { useMemo, Suspense, lazy } from "react";
+import { Link } from "react-router";
 import { Card, Separator, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -63,14 +64,17 @@ function FlagshipStatusList({ flagships }: { flagships: FlagshipSummaryRow[] }) 
       {flagships.map((f, index) => (
         <li key={f.flagshipId}>
           {index > 0 && <Separator />}
-          <div className="flex items-start justify-between gap-3 py-3" data-testid={`flagship-status-${f.flagshipCode}`}>
+          <Link
+            to={`/senior/flagships/${f.flagshipId}`}
+            viewTransition
+            className="flex items-start justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-(--default)"
+            data-testid={`flagship-status-${f.flagshipId}`}
+          >
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-(--foreground)">{f.flagshipCode}</p>
-              <p className="text-sm leading-snug text-(--foreground)">{f.flagshipName}</p>
-              <p className="text-xs uppercase tracking-wide text-(--muted)">{f.flagshipCluster}</p>
+              <p className="text-sm font-semibold leading-snug text-(--foreground)">{f.flagshipName}</p>
             </div>
             <FlagshipStatusBadge status={f.status} />
-          </div>
+          </Link>
         </li>
       ))}
     </ul>
@@ -100,10 +104,9 @@ export default function SeniorDashboard() {
       totalFlagships: viz?.cards.totalFlagships ?? 0,
       totalJobsCreated: viz?.cards.totalJobsCreated ?? 0,
       totalFunders: viz?.cards.totalFunders ?? 0,
-      totalIndividualsRegistered: individualsStats?.total ?? 0,
       totalCooperativesEngaged: viz?.cards.totalCooperativesEngaged ?? 0,
     };
-  }, [individualsStats, viz]);
+  }, [viz]);
 
   // 1.6 — youth vs non-youth from individual.youth_status; individuals with no value are
   // shown as "Unknown" (never dropped), and percentages are of all individuals.
@@ -133,7 +136,7 @@ export default function SeniorDashboard() {
       <PageTitleCard title="Dashboard Overview" actionSlot={<VizRefreshButton />} />
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {vizLoading ? <StatCardSkeleton /> : (
           <StatCard
             color="var(--accent)"
@@ -156,14 +159,6 @@ export default function SeniorDashboard() {
             icon={<IconUsers size={20} />}
             stat={dashboardStats.totalFunders}
             label="Total Funders"
-          />
-        )}
-        {individualsLoading ? <StatCardSkeleton /> : (
-          <StatCard
-            color="var(--danger)"
-            icon={<IconUsers size={20} />}
-            stat={dashboardStats.totalIndividualsRegistered.toLocaleString()}
-            label="Total Individuals Registered"
           />
         )}
         {vizLoading ? <StatCardSkeleton /> : (
