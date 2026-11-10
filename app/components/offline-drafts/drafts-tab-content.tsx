@@ -35,10 +35,14 @@ function summarizeDraft(draft: DraftRecord): { title: string; subtitle: string }
   }
   if (draft.entityType === "flagship") {
     const p = draft.payload;
-    const kpiNote = draft.pendingKpis.length ? `${draft.pendingKpis.length} KPI(s)` : "";
+    const queued = [
+      draft.pendingKpis.length ? `${draft.pendingKpis.length} KPI(s)` : "",
+      draft.pendingInvestments?.length ? `${draft.pendingInvestments.length} investment(s)` : "",
+      draft.pendingLocations?.length ? `${draft.pendingLocations.length} location(s)` : "",
+    ].filter(Boolean).join(", ");
     return {
       title: p.flagshipName || "Unnamed flagship",
-      subtitle: [p.flagshipCode, p.flagshipCluster, kpiNote].filter(Boolean).join(" · "),
+      subtitle: [p.flagshipCode, p.flagshipCluster, queued].filter(Boolean).join(" · "),
     };
   }
   const p = draft.payload;

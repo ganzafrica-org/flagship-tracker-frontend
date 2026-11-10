@@ -31,6 +31,13 @@ export interface CreateUserRequest {
   role: UserRole;
 }
 
+export interface UpdateUserRequest {
+  email: string;
+  fullName: string;
+  role: UserRole;
+  active: boolean;
+}
+
 export interface ImportResult {
   created: number;
   skipped: number;
@@ -48,6 +55,14 @@ export async function fetchAllUsers(signal?: AbortSignal): Promise<User[]> {
   } while (cursor);
 
   return all;
+}
+
+export function updateUser(id: number, body: UpdateUserRequest) {
+  return api.put<User>(`/api/users/${id}`, body);
+}
+
+export function deleteUser(id: number) {
+  return api.delete<void>(`/api/users/${id}`);
 }
 
 export const usersListQueryOptions = queryOptions({

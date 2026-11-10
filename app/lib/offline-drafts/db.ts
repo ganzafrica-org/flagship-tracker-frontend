@@ -1,6 +1,11 @@
 import Dexie, { type EntityTable } from "dexie";
 
-import type { CreateFlagshipKpiRequest, CreateFlagshipRequest } from "~/lib/queries/flagships";
+import type {
+  CreateFlagshipInvestmentRequest,
+  CreateFlagshipKpiRequest,
+  CreateFlagshipLocationRequest,
+  CreateFlagshipRequest,
+} from "~/lib/queries/flagships";
 import type { CreateIndividualRequest } from "~/lib/queries/individuals";
 import type { CooperativeRequest } from "~/lib/queries/cooperatives";
 
@@ -24,6 +29,10 @@ export interface FlagshipDraft extends DraftBase {
   payload: CreateFlagshipRequest;
   /** Queued KPI rows from the form's own in-memory state, replayed after the flagship is created. */
   pendingKpis: (CreateFlagshipKpiRequest & { displayLabel: string })[];
+  /** Queued investment rows, replayed after the flagship is created. Older drafts may omit this. */
+  pendingInvestments?: (CreateFlagshipInvestmentRequest & { displayLabel: string })[];
+  /** Queued location rows, replayed after the flagship is created. Older drafts may omit this. */
+  pendingLocations?: (CreateFlagshipLocationRequest & { displayLabel: string })[];
   /**
    * Set once the flagship itself was created server-side but one or more KPIs failed.
    * When present, a retry must only replay the remaining `pendingKpis`, never re-POST the flagship.

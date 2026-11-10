@@ -47,26 +47,27 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
   const [language, setLanguage] = useState<"EN" | "Kiny">("EN");
 
   return (
-    <main className="relative flex h-screen w-full items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#1f95c8_0%,#0f5872_100%)] p-4 text-(--foreground) sm:p-6 lg:p-8">
-      <section className="grid h-full max-h-[560px] w-full max-w-[1160px] overflow-hidden rounded-[14px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] lg:grid-cols-[0.92fr_1.08fr]">
-        <div className="relative flex min-h-0 flex-col overflow-hidden rounded-br-[92px] bg-[#edf4fb] px-6 py-7 sm:px-9 sm:py-8 lg:h-full lg:rounded-br-[124px] lg:px-10 lg:py-9">
+    <main className="relative flex min-h-dvh w-full items-start justify-center overflow-x-hidden overflow-y-auto bg-[linear-gradient(180deg,#1f95c8_0%,#0f5872_100%)] p-3 text-(--foreground) sm:items-center sm:overflow-hidden sm:p-3 lg:p-8">
+      <section className="my-auto grid h-auto w-full max-w-[1160px] rounded-[14px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] sm:h-[min(560px,calc(100dvh-1.5rem))] sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:overflow-hidden">
+        <div className="relative flex flex-col overflow-hidden rounded-br-[48px] bg-[#edf4fb] px-4 py-4 sm:h-full sm:min-h-0 sm:rounded-br-[92px] sm:px-6 sm:py-5 lg:rounded-br-[124px] lg:px-10 lg:py-9">
           <Link to="/login" viewTransition className="relative z-10 flex w-fit items-center gap-1.5 text-[color:var(--accent)]">
-            <div className="flex h-9 w-9 items-center justify-center">
-              <IconHomeFilled size={27} />
+            <div className="flex h-8 w-8 items-center justify-center sm:h-9 sm:w-9">
+              <IconHomeFilled size={24} className="sm:hidden" />
+              <IconHomeFilled size={27} className="hidden sm:block" />
             </div>
-            <span className="text-[1.62rem] font-extrabold tracking-[-0.03em]">Flagships</span>
+            <span className="text-[1.35rem] font-extrabold tracking-[-0.03em] sm:text-[1.62rem]">Flagships</span>
           </Link>
 
-          <div className="relative z-10 mt-8 flex flex-1 items-center justify-center py-4 lg:mt-6">
+          <div className="relative z-10 mt-2 flex items-center justify-center py-1 [@media(max-width:639px)_and_(max-height:620px)]:hidden sm:mt-4 sm:flex-1 sm:py-4">
             <img
               src="/images/login/login-hero.png"
               alt="Flagships platform illustration"
-              className="mx-auto h-auto w-full max-w-[340px] object-contain object-center drop-shadow-[0_12px_30px_rgba(37,99,235,0.12)] sm:max-w-[390px] lg:max-w-[430px]"
+              className="mx-auto h-auto max-h-[92px] w-full max-w-[200px] object-contain object-center drop-shadow-[0_12px_30px_rgba(37,99,235,0.12)] sm:max-h-none sm:max-w-[280px] lg:max-w-[430px]"
             />
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col bg-white px-6 py-6 sm:px-10 sm:py-7 lg:h-full lg:px-14 lg:py-8">
+        <div className="flex flex-col bg-white px-4 py-4 sm:h-full sm:min-h-0 sm:overflow-y-auto sm:px-6 sm:py-4 lg:px-14 lg:py-8">
           <div className="flex justify-end">
             <Select
               className="w-[96px]"
@@ -107,10 +108,10 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
             </Select>
           </div>
 
-          <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col justify-center">
+          <div className="mx-auto flex w-full max-w-[420px] flex-col justify-center sm:flex-1">
             <div>
-              <h1 className="text-[2rem] font-extrabold tracking-[-0.03em] text-black sm:text-[2.15rem]">{title}</h1>
-              <p className="mt-3 text-[0.98rem] text-neutral-600">{description}</p>
+              <h1 className="text-[1.55rem] font-extrabold tracking-[-0.03em] text-black lg:text-[2.15rem]">{title}</h1>
+              <p className="mt-1.5 text-[0.92rem] text-neutral-600 lg:mt-3 lg:text-[0.98rem]">{description}</p>
             </div>
 
             {children}

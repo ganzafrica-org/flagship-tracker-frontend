@@ -4,7 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@heroui/react";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importFundersFromSheet } from "~/lib/entity-imports";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import FunderDialog from "~/components/pages/admin/funder-dialog";
 import RecordDetailsDialog from "~/components/record-details-dialog";
@@ -74,6 +76,14 @@ export default function FundersManagement({
               <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders/types`)}>
                 Manage Types
               </Button>
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importFundersFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: ["funders"] });
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "funder" : "funders");
+                }}
+              />
               <Button variant="primary" className="!rounded-3xl" onPress={() => navigate(`${basePath}/funders/add`)}>
                 Add Funder
               </Button>

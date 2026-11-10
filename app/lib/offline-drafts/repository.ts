@@ -1,5 +1,10 @@
 import { db, type CooperativeDraft, type DraftRecord, type FlagshipDraft, type IndividualDraft } from "./db";
-import type { CreateFlagshipKpiRequest, CreateFlagshipRequest } from "~/lib/queries/flagships";
+import type {
+  CreateFlagshipInvestmentRequest,
+  CreateFlagshipKpiRequest,
+  CreateFlagshipLocationRequest,
+  CreateFlagshipRequest,
+} from "~/lib/queries/flagships";
 import type { CreateIndividualRequest } from "~/lib/queries/individuals";
 import type { CooperativeRequest } from "~/lib/queries/cooperatives";
 
@@ -14,9 +19,24 @@ export async function createIndividualDraft(payload: CreateIndividualRequest): P
 export async function createFlagshipDraft(
   payload: CreateFlagshipRequest,
   pendingKpis: (CreateFlagshipKpiRequest & { displayLabel: string })[],
+  extras?: {
+    pendingInvestments?: (CreateFlagshipInvestmentRequest & { displayLabel: string })[];
+    pendingLocations?: (CreateFlagshipLocationRequest & { displayLabel: string })[];
+    createdEntityId?: number;
+  },
 ): Promise<number> {
   const now = new Date().toISOString();
-  const draft: FlagshipDraft = { entityType: "flagship", status: "pending", payload, pendingKpis, createdAt: now, updatedAt: now };
+  const draft: FlagshipDraft = {
+    entityType: "flagship",
+    status: "pending",
+    payload,
+    pendingKpis,
+    pendingInvestments: extras?.pendingInvestments ?? [],
+    pendingLocations: extras?.pendingLocations ?? [],
+    createdEntityId: extras?.createdEntityId,
+    createdAt: now,
+    updatedAt: now,
+  };
   return db.drafts.add(draft as DraftRecord) as unknown as Promise<number>;
 }
 

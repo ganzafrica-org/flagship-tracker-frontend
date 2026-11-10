@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { IconHomeFilled, IconLayoutGrid, IconTable } from "@tabler/icons-react";
@@ -7,7 +7,9 @@ import { Button, Spinner } from "@heroui/react";
 import FlagshipsList, { FlagshipStatusBadge, FunderAvatars, type FlagshipCardItem } from "~/components/pages/flagships/flagships-list";
 import { TableExportMenu } from "~/components/export-menu";
 import { ContentTab } from "~/components/content-tab";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importFlagshipsFromSheet } from "~/lib/entity-imports";
 import TableComponent from "~/components/table-component";
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
 import { useDraftCount } from "~/lib/offline-drafts/use-drafts";
@@ -19,6 +21,7 @@ import {
   buildFlagshipTableRows,
   deleteFlagship,
   filterFlagshipsByStatusTab,
+  flagshipQueryOptions,
   flagshipsQueryOptions,
   mapFlagshipCard,
   FLAGSHIP_STATUS_TAB_ITEMS,
@@ -27,9 +30,9 @@ import {
 } from "~/lib/queries/flagships";
 
 const FLAGSHIP_TABLE_COLUMNS = [
-  { key: "valueChain", label: "Value Chain" },
   { key: "id", label: "#" },
-  { key: "projectName", label: "Project Name" },
+  { key: "projectName", label: "Flagship Name" },
+  { key: "valueChain", label: "Value Chain" },
   { key: "totalBudget", label: "Total Budget" },
   { key: "jobsCreated", label: "Jobs Created" },
   { key: "funders", label: "Funders" },
@@ -68,7 +71,7 @@ export default function FlagshipsIndexPage({
 
   const { data: flagships = [], isLoading, isError, error } = useQuery(flagshipsQueryOptions);
   // Card figures come from mv_flagship_summary; funders still come from the flagship list.
-  const { data: summaryRows = [], isLoading: summaryLoading, error: summaryError } = useQuery(flagshipSummaryQueryOptions);
+  const { data: summaryRows = [], isLoading: summaryLoading } = useQuery(flagshipSummaryQueryOptions);
 
   const deleteMutation = useMutation({
     mutationFn: deleteFlagship,
@@ -101,21 +104,6 @@ export default function FlagshipsIndexPage({
       })),
     [filteredFlagships, summaryById],
   );
-
-  // DEBUG (jobs created = 0): what /api/visualizations/flagship-summary returns. Remove once resolved.
-  useEffect(() => {
-    if (summaryLoading) return;
-    console.log(
-      "[Flagships] /api/visualizations/flagship-summary:",
-      summaryError ? { error: summaryError } : summaryRows.map((r) => ({
-        flagshipId: r.flagshipId,
-        flagshipCode: r.flagshipCode,
-        jobsCreatedActual: r.jobsCreatedActual,
-        jobsCreatedFemale: r.jobsCreatedFemale,
-        targetYouthCount: r.targetYouthCount,
-      })),
-    );
-  }, [summaryRows, summaryLoading, summaryError]);
 
   const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships, summaryById), [filteredFlagships, summaryById]);
 
@@ -155,11 +143,27 @@ export default function FlagshipsIndexPage({
     <div className="space-y-6 w-full min-w-0">
       <PageTitleCard
         title={title}
-        actionLabel={addFlagshipPath ? actionLabel : undefined}
-        onActionPress={
-          addFlagshipPath
-            ? () => navigate(addFlagshipPath, { viewTransition: true })
-            : undefined
+        actionSlot={
+          addFlagshipPath ? (
+            <div className="flex gap-3">
+              <ExcelImportButton
+                variant="outline"
+                onImport={async (rows) => {
+                  const outcome = await importFlagshipsFromSheet(rows);
+                  void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });
+                  setListError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+                  notifySpreadsheetImport(outcome, outcome.created === 1 ? "flagship" : "flagships");
+                }}
+              />
+              <Button
+                variant="primary"
+                className="!rounded-3xl font-medium"
+                onPress={() => navigate(addFlagshipPath, { viewTransition: true })}
+              >
+                {actionLabel}
+              </Button>
+            </div>
+          ) : undefined
         }
       />
       <ContentTab
@@ -210,6 +214,9 @@ export default function FlagshipsIndexPage({
         <FlagshipsList
           items={flagshipCards}
           className="w-full"
+          onPrefetch={(item) => {
+            void queryClient.prefetchQuery(flagshipQueryOptions(item.id));
+          }}
           onViewMore={(item) => navigate(`${basePath}/${item.id}`, { viewTransition: true })}
         />
       ) : (

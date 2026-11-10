@@ -31,6 +31,7 @@ import ExportMenu from "~/components/export-menu";
 import RecordDetailsDialog from "~/components/record-details-dialog";
 import IndividualImportDialog from "~/components/pages/individuals/individual-import-dialog";
 import { StatCard } from "~/components/stat-card";
+import { ChartSkeleton, StatCardSkeleton } from "~/components/app-skeleton";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { deleteIndividual, individualsQueryOptions, type IndividualsPageItem } from "~/lib/queries/individuals";
@@ -76,9 +77,13 @@ interface IndividualsListProps {
   hideDownload?: boolean;
   /** M&E only: adds a "Draft" tab showing locally-saved offline individual submissions. */
   showDraftTab?: boolean;
+  /** Flagship module: same screens, with no rows and no charts. Youth Profiles holds the data. */
+  empty?: boolean;
+  /** Youth Profiles dashboard: the overview only, without the list tab. */
+  overviewOnly?: boolean;
 }
 
-type ViewMode = "overview" | "list" | "draft";
+type ViewMode = "overview" | "all" | "outside" | "inside" | "draft";
 type YouthStatusFilter = "all" | "youth" | "non_youth" | "unknown";
 
 type IndividualsTableRow = {
@@ -96,9 +101,10 @@ type IndividualsTableRow = {
   flagshipFilterKey: string;
 };
 
-const OVERVIEW_TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "list", label: "Individuals List" },
+const MEMBERSHIP_TABS = [
+  { id: "all", label: "All" },
+  { id: "outside", label: "Youth not in flagship" },
+  { id: "inside", label: "Youth in flagships" },
 ] as const;
 
 const CHART_COLORS = [
@@ -190,6 +196,18 @@ function matchesIndividualFilters(
   return true;
 }
 
+function matchesMembership(ind: IndividualsPageItem, mode: ViewMode): boolean {
+  if (mode !== "outside" && mode !== "inside") return true;
+  const inFlagship = (ind.flagshipNames ?? []).length > 0;
+  return mode === "inside" ? inFlagship : !inFlagship;
+}
+
+function byPersonName(a: IndividualsPageItem, b: IndividualsPageItem): number {
+  const nameA = `${a.firstName} ${a.lastName}`.trim().toLocaleLowerCase();
+  const nameB = `${b.firstName} ${b.lastName}`.trim().toLocaleLowerCase();
+  return nameA.localeCompare(nameB) || a.individualId - b.individualId;
+}
+
 function individualToTableRow(ind: IndividualsPageItem): IndividualsTableRow {
   return {
     id: ind.individualId,
@@ -226,12 +244,14 @@ export default function IndividualsList({
   showHeader = true,
   hideDownload = false,
   showDraftTab = false,
+  empty = false,
+  overviewOnly = false,
 }: IndividualsListProps) {
   const navigate = useNavigate();
   const draftCount = useDraftCount(showDraftTab ? "individual" : undefined);
-  const overviewTabItems: { id: string; label: string }[] = showDraftTab
-    ? [...OVERVIEW_TABS, { id: "draft", label: draftCount ? `Draft (${draftCount})` : "Draft" }]
-    : [...OVERVIEW_TABS];
+  const listTabItems: { id: string; label: string }[] = showDraftTab
+    ? [...MEMBERSHIP_TABS, { id: "draft", label: draftCount ? `Draft (${draftCount})` : "Draft" }]
+    : [...MEMBERSHIP_TABS];
   const [, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
@@ -244,15 +264,25 @@ export default function IndividualsList({
   const [selectedDistrict, setSelectedDistrict] = useUrlState("district", "all");
   const [selectedFlagship, setSelectedFlagship] = useUrlState("flagship", "all");
   const [selectedValueChain, setSelectedValueChain] = useUrlState("valueChain", "");
-  // Arriving with a value-chain filter (e.g. from the dashboard) opens the list.
-  const [viewMode, setViewMode] = useState<ViewMode>(selectedValueChain ? "list" : "overview");
+  const [viewMode, setViewMode] = useState<ViewMode>(overviewOnly ? "overview" : "all");
   const [selectedYouthStatusRaw, setSelectedYouthStatus] = useUrlState("youthStatus", "all");
   const selectedYouthStatus = (["youth", "non_youth", "unknown"].includes(selectedYouthStatusRaw)
     ? selectedYouthStatusRaw
     : "all") as YouthStatusFilter;
   const resolvedProvince =
     selectedProvince === "all" ? "all" : (canonicalProvince(selectedProvince) ?? selectedProvince);
-  const { data: individuals = [], isLoading, isError, error } = useQuery(individualsQueryOptions);
+
+  // The table needs every row. The overview does not: its cards and charts come
+  // from the aggregated dashboard, so the full list is fetched only when the
+  // table (or a filter the dashboard cannot apply) is actually in use.
+  const needsIndividualRows = !empty && !overviewOnly && viewMode !== "draft";
+  const { data: loadedIndividuals = [], isLoading, isError, error } = useQuery({
+    ...individualsQueryOptions,
+    enabled: needsIndividualRows,
+  });
+  // Flagship Individuals reuses this screen. A disabled query still returns the
+  // Youth Profiles cache, so the Flagship list must ignore that data.
+  const individuals = empty ? [] : loadedIndividuals;
 
   const setLocationFilters = useCallback(
     (next: { province?: string; district?: string }) => {
@@ -319,16 +349,15 @@ export default function IndividualsList({
     }
   }, [selectedProvince, setSelectedProvince]);
 
-  // Value-chain chart still comes from the visualizations API; KPI cards and other
-  // overview charts are derived from filteredIndividuals so they match the list.
-  const { data: viz, isFetching: vizFetching } = useQuery(
-    individualsDashboardQueryOptions({
+  const { data: viz, isFetching: vizFetching } = useQuery({
+    ...individualsDashboardQueryOptions({
       province: resolvedProvince === "all" ? undefined : resolvedProvince,
       district: selectedDistrict === "all" ? undefined : selectedDistrict,
       view: selectedYouthStatus === "youth" ? "youth" : "all",
       flagship: selectedFlagship === "all" ? undefined : selectedFlagship,
     }),
-  );
+    enabled: !empty && overviewOnly,
+  });
 
   const deleteMutation = useMutation({
     mutationFn: deleteIndividual,
@@ -350,15 +379,18 @@ export default function IndividualsList({
       youthStatus: selectedYouthStatus,
       province: resolvedProvince,
       district: selectedDistrict,
-      flagship: selectedFlagship,
+      flagship: viewMode === "outside" ? "all" : selectedFlagship,
       valueChain: selectedValueChain,
     }),
-    [selectedYouthStatus, resolvedProvince, selectedDistrict, selectedFlagship, selectedValueChain],
+    [viewMode, selectedYouthStatus, resolvedProvince, selectedDistrict, selectedFlagship, selectedValueChain],
   );
 
   const filteredIndividuals = useMemo(
-    () => individuals.filter((ind) => matchesIndividualFilters(ind, activeFilters)),
-    [individuals, activeFilters],
+    () =>
+      individuals
+        .filter((ind) => matchesIndividualFilters(ind, activeFilters) && matchesMembership(ind, viewMode))
+        .sort(byPersonName),
+    [individuals, activeFilters, viewMode],
   );
 
   const rows = useMemo<IndividualsTableRow[]>(
@@ -449,27 +481,39 @@ export default function IndividualsList({
     if (locationFiltered) return "No individuals found for the selected location";
     if (selectedValueChain) return "No individuals found for the selected value chain";
     if (selectedFlagship !== "all") return "No individuals found for the selected flagship";
+    if (viewMode === "outside") return "No youth outside flagships";
+    if (viewMode === "inside") return "No youth in flagships";
     if (selectedYouthStatus !== "all") return `No ${YOUTH_STATUS_BADGES[selectedYouthStatus].label.toLowerCase()} individuals found`;
     return "No individuals yet";
-  }, [selectedYouthStatus, selectedDistrict, selectedFlagship, selectedValueChain, resolvedProvince]);
+  }, [viewMode, selectedYouthStatus, selectedDistrict, selectedFlagship, selectedValueChain, resolvedProvince]);
 
-  // KPI cards use the same filtered individuals as the list so numbers always match.
-  const kpis = useMemo(
-    () => ({
+  // Default overview reads the aggregated dashboard. Count loaded rows only for
+  // filters that dashboard does not apply (flagship, non-youth, unknown, value chain).
+  const useListCounts = needsIndividualRows && !isLoading;
+  const cardsReady = empty || useListCounts || Boolean(viz);
+  const chartsReady = empty || Boolean(viz);
+  const kpis = useMemo(() => {
+    if (!useListCounts) {
+      return {
+        totalIndividuals: viz?.cards.totalIndividuals ?? 0,
+        inFlagships: viz?.cards.inFlagships ?? 0,
+        outsideFlagships: viz?.cards.outsideFlagships ?? 0,
+        youthTotal: viz?.cards.youth ?? 0,
+      };
+    }
+    return {
       totalIndividuals: filteredIndividuals.length,
       inFlagships: filteredIndividuals.filter((ind) => (ind.flagshipNames?.length ?? 0) > 0).length,
       outsideFlagships: filteredIndividuals.filter((ind) => (ind.flagshipNames?.length ?? 0) === 0).length,
-      // Total registered individuals who are youth — there's no youth disaggregation on the
-      // jobs_created KPI, so this comes from individual.youth_status, not mv_flagship_summary.
       youthTotal: filteredIndividuals.filter((ind) => youthStatusKey(ind.youthStatus) === "youth").length,
-    }),
-    [filteredIndividuals],
-  );
+    };
+  }, [useListCounts, viz, filteredIndividuals]);
 
   // Female jobs card comes from mv_flagship_summary (flagship-level, no location breakdown), so
   // only the Flagship filter applies; Province / District / Youth Status do not. Nulls count as 0.
-  const { data: summaryRows } = useQuery(flagshipSummaryQueryOptions);
+  const { data: summaryRows } = useQuery({ ...flagshipSummaryQueryOptions, enabled: !empty && overviewOnly });
   const jobs = useMemo(() => {
+    if (empty) return { female: 0, scope: "across all flagships" };
     if (!summaryRows) return null;
     const rows =
       selectedFlagship === "all" ? summaryRows : summaryRows.filter((f) => f.flagshipName === selectedFlagship);
@@ -477,19 +521,26 @@ export default function IndividualsList({
       female: Math.round(rows.reduce((sum, f) => sum + (f.jobsCreatedFemale ?? 0), 0)),
       scope: selectedFlagship === "all" ? "across all flagships" : `in ${rows[0]?.flagshipCode ?? selectedFlagship}`,
     };
-  }, [summaryRows, selectedFlagship]);
+  }, [empty, summaryRows, selectedFlagship]);
 
   const sexData = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const ind of filteredIndividuals) {
-      counts.set(ind.sex, (counts.get(ind.sex) ?? 0) + 1);
-    }
-    return Array.from(counts.entries()).map(([name, value], idx) => ({
-      name,
-      value,
-      fill: CHART_COLORS[idx % CHART_COLORS.length],
-    }));
-  }, [filteredIndividuals]);
+    const rows = useListCounts
+      ? (() => {
+          const counts = new Map<string, number>();
+          for (const ind of filteredIndividuals) {
+            counts.set(ind.sex, (counts.get(ind.sex) ?? 0) + 1);
+          }
+          return Array.from(counts.entries()).map(([name, value]) => ({ name, value }));
+        })()
+      : (viz?.bySex ?? []);
+    return rows
+      .filter((item) => item.value > 0)
+      .map((item, idx) => ({
+        name: item.name,
+        value: item.value,
+        fill: CHART_COLORS[idx % CHART_COLORS.length],
+      }));
+  }, [useListCounts, viz, filteredIndividuals]);
 
   const [valueChainRank, setValueChainRank] = useState<"highest" | "lowest">("highest");
   const valueChainData = useMemo(() => {
@@ -529,9 +580,9 @@ export default function IndividualsList({
     <div className="space-y-6 w-full min-w-0">
       {showHeader ? (
         <PageTitleCard
-          title="Individuals"
+          title={overviewOnly ? "Dashboard" : "Individuals"}
           actionSlot={
-            readOnly ? undefined : (
+            readOnly || empty || overviewOnly ? undefined : (
               <div className="flex gap-3">
                 {addPath && (
                   <Dropdown>
@@ -572,11 +623,13 @@ export default function IndividualsList({
           {error instanceof Error ? error.message : "Failed to load individuals."}
         </p>
       ) : null}
+      {!overviewOnly && !empty ? (
       <ContentTab
-        items={overviewTabItems}
+        items={listTabItems}
         activeId={viewMode}
         onChange={(id) => setViewMode(id as ViewMode)}
       />
+      ) : null}
 
       <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:gap-3">
         <AppSelect
@@ -604,6 +657,7 @@ export default function IndividualsList({
           selectedKey={selectedYouthStatus}
           onSelectionChange={(value) => setSelectedYouthStatus(value || "all")}
         />
+        {viewMode === "outside" ? null : (
         <AppSelect
           name="overviewFlagship"
           label="Flagship"
@@ -612,8 +666,9 @@ export default function IndividualsList({
           selectedKey={selectedFlagship}
           onSelectionChange={(value) => setSelectedFlagship(value || "all")}
         />
+        )}
         <div className="w-full shrink-0 lg:w-auto">
-          {viewMode === "overview" ? <VizRefreshButton className="w-full justify-center lg:w-auto" /> : null}
+          {overviewOnly ? <VizRefreshButton className="w-full justify-center lg:w-auto" /> : null}
         </div>
       </div>
 
@@ -628,53 +683,76 @@ export default function IndividualsList({
         </div>
       ) : null}
 
-      {vizFetching ? (
+      {overviewOnly && vizFetching ? (
         <p className="text-xs text-(--muted)">Updating overview for selected location…</p>
       ) : null}
 
-      {viewMode === "draft" ? (
+      {(overviewOnly ? "overview" : viewMode) === "draft" ? (
         <DraftsTabContent entityType="individual" editPath={addPath ?? "/me/individuals/add-individual"} />
-      ) : viewMode === "overview" ? (
+      ) : (overviewOnly ? "overview" : viewMode) === "overview" ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <StatCard
-              color="var(--accent)"
-              iconBackground="var(--accent-icon-bg)"
-              icon={<IconUsers size={18} />}
-              stat={kpis.totalIndividuals}
-              label="Total individuals registered"
-            />
-            <StatCard
-              color="var(--warning)"
-              iconBackground="var(--warning-icon-bg)"
-              icon={<IconUserCheck size={18} />}
-              stat={kpis.inFlagships}
-              label="Individuals in flagships"
-            />
-            <StatCard
-              color="var(--danger)"
-              iconBackground="var(--danger-icon-bg)"
-              icon={<IconUserQuestion size={18} />}
-              stat={kpis.outsideFlagships}
-              label="Individuals outside flagships"
-            />
-            <StatCard
-              color="var(--forest)"
-              iconBackground="var(--forest-icon-bg)"
-              icon={<IconUserCircle size={18} />}
-              stat={jobs ? jobs.female.toLocaleString("en-US") : "—"}
-              label={`Female jobs ${jobs?.scope ?? "across all flagships"}`}
-            />
-            <StatCard
-              color="var(--success)"
-              iconBackground="var(--success-icon-bg)"
-              icon={<IconUserShare size={18} />}
-              stat={kpis.youthTotal.toLocaleString("en-US")}
-              label="Total youth registered"
-            />
+            {cardsReady ? (
+              <StatCard
+                color="var(--accent)"
+                iconBackground="var(--accent-icon-bg)"
+                icon={<IconUsers size={18} />}
+                stat={kpis.totalIndividuals.toLocaleString("en-US")}
+                label="Total individuals registered"
+              />
+            ) : (
+              <StatCardSkeleton />
+            )}
+            {cardsReady ? (
+              <StatCard
+                color="var(--warning)"
+                iconBackground="var(--warning-icon-bg)"
+                icon={<IconUserCheck size={18} />}
+                stat={kpis.inFlagships.toLocaleString("en-US")}
+                label="Individuals in flagships"
+              />
+            ) : (
+              <StatCardSkeleton />
+            )}
+            {cardsReady ? (
+              <StatCard
+                color="var(--danger)"
+                iconBackground="var(--danger-icon-bg)"
+                icon={<IconUserQuestion size={18} />}
+                stat={kpis.outsideFlagships.toLocaleString("en-US")}
+                label="Individuals outside flagships"
+              />
+            ) : (
+              <StatCardSkeleton />
+            )}
+            {jobs ? (
+              <StatCard
+                color="var(--forest)"
+                iconBackground="var(--forest-icon-bg)"
+                icon={<IconUserCircle size={18} />}
+                stat={jobs.female.toLocaleString("en-US")}
+                label={`Female jobs ${jobs.scope}`}
+              />
+            ) : (
+              <StatCardSkeleton />
+            )}
+            {cardsReady ? (
+              <StatCard
+                color="var(--success)"
+                iconBackground="var(--success-icon-bg)"
+                icon={<IconUserShare size={18} />}
+                stat={kpis.youthTotal.toLocaleString("en-US")}
+                label="Total youth registered"
+              />
+            ) : (
+              <StatCardSkeleton />
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {!chartsReady ? (
+              <ChartSkeleton height="h-80" />
+            ) : (
             <Card className="p-4">
               <h3 className="mb-3 text-base font-semibold">Individuals by sex</h3>
               <div className="h-64">
@@ -690,7 +768,11 @@ export default function IndividualsList({
                 </ResponsiveContainer>
               </div>
             </Card>
+            )}
 
+            {!chartsReady ? (
+              <ChartSkeleton height="h-80" />
+            ) : (
             <Card className="p-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-base font-semibold">Individuals by value chain</h3>
@@ -722,6 +804,7 @@ export default function IndividualsList({
                 </ResponsiveContainer>
               </div>
             </Card>
+            )}
 
           </div>
         </div>
@@ -729,10 +812,11 @@ export default function IndividualsList({
         <TableComponent
           tableSectionTitle="Individuals List"
           tableAriaLabel="Individuals table"
-          loading={isLoading}
+          loading={empty ? false : isLoading}
           emptyMessage={listEmptyMessage}
-          columns={COLUMNS}
+          columns={viewMode === "outside" ? COLUMNS.filter((column) => column.key !== "flagship") : COLUMNS}
           rows={filteredRows}
+          itemsPerPage={10}
           minTableWidthClassName="min-w-[1100px]"
           exportConfig={{
             title: "Individuals List",

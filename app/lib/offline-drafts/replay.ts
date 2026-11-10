@@ -2,7 +2,14 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { api } from "~/lib/api";
 import { createIndividual, individualsQueryOptions } from "~/lib/queries/individuals";
-import { createFlagship, createFlagshipKpi, flagshipsQueryOptions } from "~/lib/queries/flagships";
+import {
+  createFlagship,
+  createFlagshipInvestment,
+  createFlagshipKpi,
+  createFlagshipLocation,
+  ensureFlagshipKpiDefinition,
+  flagshipsQueryOptions,
+} from "~/lib/queries/flagships";
 import { cooperativesListQueryOptions, type CooperativeDetail } from "~/lib/queries/cooperatives";
 import { isSameCooperative } from "~/lib/cooperative-import/match";
 import type { CooperativeDraft, FlagshipDraft, IndividualDraft } from "./db";
@@ -54,13 +61,36 @@ export async function replayFlagshipDraft(draft: FlagshipDraft, queryClient: Que
     await updateDraft(draft.id!, { createdEntityId: flagshipId });
   }
 
-  const toProcess = [...draft.pendingKpis];
-  while (toProcess.length > 0) {
-    const kpi = toProcess[0];
+  const kpis = [...draft.pendingKpis];
+  while (kpis.length > 0) {
+    const kpi = kpis[0];
     const { displayLabel: _displayLabel, ...kpiBody } = kpi;
+    await ensureFlagshipKpiDefinition(draft.payload.flagshipCode, {
+      indicatorName: kpiBody.indicatorName,
+      indicatorTier: kpiBody.indicatorTier,
+      indicatorValueType: kpiBody.indicatorValueType,
+    });
     await createFlagshipKpi(flagshipId, kpiBody);
-    toProcess.shift();
-    await updateDraft(draft.id!, { pendingKpis: toProcess });
+    kpis.shift();
+    await updateDraft(draft.id!, { pendingKpis: kpis });
+  }
+
+  const investments = [...(draft.pendingInvestments ?? [])];
+  while (investments.length > 0) {
+    const investment = investments[0];
+    const { displayLabel: _displayLabel, ...investmentBody } = investment;
+    await createFlagshipInvestment(flagshipId, investmentBody);
+    investments.shift();
+    await updateDraft(draft.id!, { pendingInvestments: investments });
+  }
+
+  const locations = [...(draft.pendingLocations ?? [])];
+  while (locations.length > 0) {
+    const location = locations[0];
+    const { displayLabel: _displayLabel, ...locationBody } = location;
+    await createFlagshipLocation(flagshipId, locationBody);
+    locations.shift();
+    await updateDraft(draft.id!, { pendingLocations: locations });
   }
 
   void queryClient.invalidateQueries({ queryKey: flagshipsQueryOptions.queryKey });

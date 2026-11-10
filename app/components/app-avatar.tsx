@@ -65,9 +65,16 @@ interface AppAvatarGroupProps {
  * Overlapping avatar stack that shows up to `max` avatars and a "+N" overflow
  * avatar. HeroUI has no AvatarGroup, so this composes wrapped Avatars.
  */
+const GROUP_SIZE: Record<AvatarSize, string> = {
+  sm: "h-8 w-8 text-[11px]",
+  md: "h-10 w-10 text-xs",
+  lg: "h-12 w-12 text-sm",
+};
+
 export function AppAvatarGroup({ items, max = 3, size = "sm" }: AppAvatarGroupProps) {
   const shown = items.slice(0, max);
   const overflow = items.length - shown.length;
+  const circle = `${GROUP_SIZE[size]} shrink-0 rounded-full ring-2 ring-(--surface)`;
 
   return (
     <div className="flex items-center -space-x-2">
@@ -77,13 +84,13 @@ export function AppAvatarGroup({ items, max = 3, size = "sm" }: AppAvatarGroupPr
           name={item.name}
           src={item.src}
           size={size}
-          className="ring-2 ring-(--surface)"
+          className={circle}
           colorHex={item.color}
         />
       ))}
       {overflow > 0 ? (
         <div
-          className="flex items-center justify-center rounded-full ring-2 ring-(--surface) bg-(--default) text-(--foreground) text-xs font-semibold h-8 w-8"
+          className={`flex items-center justify-center bg-(--default) font-semibold text-(--foreground) ${circle}`}
           aria-label={`${overflow} more`}
         >
           +{overflow}

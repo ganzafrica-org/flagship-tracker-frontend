@@ -12,20 +12,26 @@ interface StatCardProps {
   icon: ReactNode;
   /** Primary statistic value displayed prominently. */
   stat: string | number;
+  /** Unit shown much smaller than the number, e.g. "RWF" or "hectares". */
+  unit?: string;
   /** Main label shown below the stat value. */
   label: string;
   /** Optional inline description shown next to the stat value. */
   statDescription?: string;
   /** Optional class on the root `Card` (e.g. `h-full` for grid layouts). */
   className?: string;
+  /** Optional size classes for the number. Defaults to `text-2xl`. */
+  statClassName?: string;
+  /** Place the label under the icon and number so the full name can sit on one line. */
+  labelOnOwnLine?: boolean;
 }
 
-export function StatCard({ color, icon, iconBackground, stat, label, statDescription, className }: StatCardProps) {
+export function StatCard({ color, icon, iconBackground, stat, unit, label, statDescription, className, statClassName, labelOnOwnLine = false }: StatCardProps) {
   const circleBg = iconBackground ?? themeIconSoftBackground(color);
 
   return (
     <Card
-      className={`relative overflow-hidden flex flex-row items-stretch p-0 gap-0 min-h-0 ${className ?? ""}`}
+      className={`@container relative flex min-h-0 flex-row items-stretch gap-0 overflow-hidden p-0 ${className ?? ""}`}
     >
       {/* Left accent line */}
       <div
@@ -34,29 +40,35 @@ export function StatCard({ color, icon, iconBackground, stat, label, statDescrip
       />
 
       {/* Card body */}
-      <div className="flex flex-row items-center gap-4 px-5 py-6 w-full">
-        {/* Icon circle */}
-        <div
-          className="flex items-center justify-center rounded-full w-11 h-11 shrink-0"
-          style={{ backgroundColor: circleBg }}
-        >
-          <span className="inline-flex [&_svg]:stroke-current [&_svg]:text-current" style={{ color }}>
-            {icon}
-          </span>
-        </div>
-
-        {/* Stat + label */}
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-(--foreground) leading-none">
-              {stat}
+      <div className={`flex w-full px-5 py-5 ${labelOnOwnLine ? "flex-col justify-center gap-1.5" : "flex-row items-center gap-4"}`}>
+        <div className="flex min-w-0 flex-row items-center gap-4">
+          <div
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: circleBg }}
+          >
+            <span className="inline-flex [&_svg]:stroke-current [&_svg]:text-current" style={{ color }}>
+              {icon}
             </span>
-            {statDescription && (
-              <span className="text-xs text-(--foreground)">{statDescription}</span>
-            )}
           </div>
-          {label && <span className="text-sm text-(--foreground)">{label}</span>}
+
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+              <span className={`font-bold leading-none text-(--foreground) ${statClassName ?? "text-2xl"}`}>
+                {stat}
+              </span>
+              {unit ? (
+                <span className="shrink-0 text-[10px] font-normal leading-none text-(--muted)">{unit}</span>
+              ) : null}
+              {statDescription && (
+                <span className="text-xs text-(--foreground)">{statDescription}</span>
+              )}
+            </div>
+            {label && !labelOnOwnLine ? <span className="text-sm text-(--foreground)">{label}</span> : null}
+          </div>
         </div>
+        {label && labelOnOwnLine ? (
+          <span className="whitespace-nowrap pl-[3.75rem] text-[10px] leading-none text-(--foreground)">{label}</span>
+        ) : null}
       </div>
     </Card>
   );

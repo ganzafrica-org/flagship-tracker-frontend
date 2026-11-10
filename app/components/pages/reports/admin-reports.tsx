@@ -1,6 +1,5 @@
 
 
-import { dummyReportsList } from "~/data/dummy-data";
 import TableComponent from "~/components/table-component";
 import { useMemo, useState } from "react";
 import { PageTitleCard } from "~/components/page-title-card";
@@ -10,25 +9,15 @@ import ReportActionDialog, {
 } from "~/components/pages/reports/report-action-dialog";
 import { IconEye, IconMessageCircle, IconDownload } from "@tabler/icons-react";
 import type { ReportDownloadRow } from "~/components/pages/reports/report-download-utils";
+import { getStoredUser } from "~/lib/auth";
+import { useMyGeneratedReports } from "~/lib/generated-reports";
 
 export default function AdminReports() {
   const [activeTab, setActiveTab] = useState<"all" | "auto-generated" | "created-reports">("all");
   const [selectedReport, setSelectedReport] = useState<ReportDownloadRow | null>(null);
   const [modalType, setModalType] = useState<ReportDialogMode>(null);
 
-  const rows = useMemo(
-    () =>
-      dummyReportsList.map((report) => ({
-        id: report.id,
-        name: report.name,
-        type: report.type,
-        period: report.period,
-        createdOn: report.createdOn,
-        createdBy: report.createdBy,
-        origin: report.origin,
-      })),
-    []
-  );
+  const rows = useMyGeneratedReports(getStoredUser()?.id ?? 0);
 
   const filteredRows = useMemo(() => {
     if (activeTab === "all") return rows;

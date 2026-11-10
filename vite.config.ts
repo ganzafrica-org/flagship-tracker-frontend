@@ -1,8 +1,33 @@
 import { reactRouter } from "@react-router/dev/vite";
 import tailwindcss from "@tailwindcss/vite";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
+
+/** Chrome DevTools and the PWA fallback hit URLs this SPA does not route. Answer them before React Router logs a missing-route error. */
+function quietDevProbes(): Plugin {
+  return {
+    name: "quiet-dev-probes",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = (req.url ?? "").split("?")[0];
+        if (path === "/json" || path === "/json/version" || path === "/json/list") {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "application/json");
+          res.end("{}");
+          return;
+        }
+        if (path === "/index.html") {
+          const query = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+          // React Router's dev handler copies originalUrl back onto url.
+          req.url = `/${query}`;
+          req.originalUrl = `/${query}`;
+        }
+        next();
+      });
+    },
+  };
+}
 
 // WSL working on a Windows drive (/mnt/c/...) does not deliver file-change events, so the dev
 // server never sees edits; poll there instead. Native Linux/macOS/Windows keep the normal watcher.
@@ -10,6 +35,7 @@ const onWslWindowsDrive = process.platform === "linux" && /^\/mnt\/[a-z]\//.test
 
 export default defineConfig({
   plugins: [
+    quietDevProbes(),
     tailwindcss(),
     reactRouter(),
     tsconfigPaths(),
@@ -21,7 +47,13 @@ export default defineConfig({
       injectRegister: false,
       // Lets the service worker load during `react-router dev` too, so offline
       // access to the add-forms can be verified without a production build.
-      devOptions: { enabled: true, type: "module" },
+      devOptions: {
+        // Keep the worker off in dev. It caches Vite's optimized React chunks,
+        // and the next dependency reload then crashes with a null useContext.
+        enabled: false,
+        type: "module",
+        suppressWarnings: true,
+      },
       manifest: {
         name: "Flagship Tracker",
         short_name: "Flagship Tracker",
@@ -58,6 +90,9 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    dedupe: ["react", "react-dom"],
+  },
   server: {
     port: 5173,
     strictPort: true,

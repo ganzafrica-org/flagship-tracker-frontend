@@ -341,6 +341,12 @@ export function useFlagshipFormLookups(selectedCluster: string) {
     [fundersQuery.data],
   );
 
+  const funderIdOptions = useMemo(
+    (): AppSelectOption[] =>
+      (fundersQuery.data ?? []).map((row) => ({ value: String(row.id), label: row.funderName })),
+    [fundersQuery.data],
+  );
+
   const sourceTypeOptions      = useMemo(() => enumToSelectOptions(sourceTypesQuery.data ?? []), [sourceTypesQuery.data]);
   const disbursementTypeOptions = useMemo(() => enumToSelectOptions(disbursementTypesQuery.data ?? []), [disbursementTypesQuery.data]);
   const currencyOptions        = useMemo(() => enumToSelectOptions(currencyQuery.data ?? []), [currencyQuery.data]);
@@ -357,7 +363,7 @@ export function useFlagshipFormLookups(selectedCluster: string) {
 
   return {
     clusterOptions, statusOptions, valueChainOptions,
-    implementingAgencyOptions, funderOptions,
+    implementingAgencyOptions, funderOptions, funderIdOptions,
     sourceTypeOptions, disbursementTypeOptions, currencyOptions,
     isLoading, isError,
   };
@@ -392,13 +398,15 @@ export function useKpiFormLookups(flagshipCode: string) {
 
   const tierLabels      = useMemo(() => enumValueToLabelMap(tierQuery.data ?? []), [tierQuery.data]);
   const valueTypeLabels = useMemo(() => enumValueToLabelMap(valueTypeQuery.data ?? []), [valueTypeQuery.data]);
+  const tierOptions     = useMemo(() => enumToSelectOptions(tierQuery.data ?? []), [tierQuery.data]);
+  const valueTypeOptions = useMemo(() => enumToSelectOptions(valueTypeQuery.data ?? []), [valueTypeQuery.data]);
 
   const isLoading = (code.length > 0 && definitionsQuery.isLoading) || reportingPeriodQuery.isLoading;
   const isError   = (code.length > 0 && definitionsQuery.isError)   || reportingPeriodQuery.isError;
 
   return {
     code, indicatorOptions, definitionByName, reportingPeriodOptions,
-    tierLabels, valueTypeLabels, isLoading, isError,
+    tierLabels, valueTypeLabels, tierOptions, valueTypeOptions, isLoading, isError,
     hasCode: code.length > 0,
     definitionsEmpty: code.length > 0 && !definitionsQuery.isLoading && (definitionsQuery.data?.length ?? 0) === 0,
   };

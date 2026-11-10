@@ -14,10 +14,31 @@ export class ApiError extends Error {
   }
 }
 
+function readableError(text: string, fallback: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return fallback;
+  try {
+    const body = JSON.parse(trimmed) as {
+      error?: unknown;
+      message?: unknown;
+      errors?: Record<string, unknown>;
+    };
+    if (typeof body.error === "string" && body.error.trim()) return body.error.trim();
+    if (typeof body.message === "string" && body.message.trim()) return body.message.trim();
+    if (body.errors && typeof body.errors === "object") {
+      const parts = Object.values(body.errors).filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+      if (parts.length > 0) return parts.join(" ");
+    }
+  } catch {
+    // The server sent plain text.
+  }
+  return trimmed;
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text().catch(() => response.statusText);
-    throw new ApiError(response.status, response.statusText, text);
+    throw new ApiError(response.status, response.statusText, readableError(text, response.statusText || "Something went wrong"));
   }
   const contentType = response.headers.get("content-type");
   if (contentType?.includes("application/json")) {

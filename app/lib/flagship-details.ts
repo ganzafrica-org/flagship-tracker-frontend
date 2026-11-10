@@ -11,7 +11,7 @@ const capitalize = (v: unknown) => {
 };
 
 export const FLAGSHIP_EXPORT_COLUMNS: ExportColumn[] = [
-  { key: "Project name", label: "Project name" },
+  { key: "Project name", label: "Flagship name" },
   { key: "Code", label: "Code" },
   { key: "Cluster", label: "Cluster" },
   { key: "Status", label: "Status" },

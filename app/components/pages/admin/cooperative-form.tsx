@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from "react-router";
 import { Button, Card } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, matchOption, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppTextField from "~/components/app-text-field";
 import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -122,6 +124,63 @@ export default function CooperativeForm() {
     });
   }
 
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const groupOptions = groupTypes.map((g) => ({ label: g.label, value: g.value }));
+    const statusOptions = regStatuses.map((r) => ({ label: r.label, value: r.value }));
+
+    const outcome = await importMappedRows<CooperativeRequest>({
+      rows,
+      mapRow: (row) => ({
+        cooperativeName: pickCell(row, ["Cooperative Name", "Name"]),
+        cooperativeCode: pickCell(row, ["Cooperative Code", "Code"]) || undefined,
+        groupType: matchOption(pickCell(row, ["Group Type", "Type"]), groupOptions),
+        registrationStatus: matchOption(pickCell(row, ["Registration Status", "Status"]), statusOptions) || undefined,
+        primaryValueChain: pickCell(row, ["Primary Value Chain", "Value Chain"]) || undefined,
+        cluster: pickCell(row, ["Cluster"]) || undefined,
+        totalMembers: toNum(pickCell(row, ["Total Members", "Members"])),
+        femaleMembers: toNum(pickCell(row, ["Female Members", "Female"])),
+        youthMembers: toNum(pickCell(row, ["Youth Members", "Youth"])),
+        province: pickCell(row, ["Province"]) || undefined,
+        district: pickCell(row, ["District"]) || undefined,
+        sector: pickCell(row, ["Sector"]) || undefined,
+      }),
+      isUsable: (value) => Boolean(value.cooperativeName?.trim() && value.groupType),
+      missingMessage: "Each row needs Cooperative Name and Group Type.",
+      onSingle: (value) => {
+        setForm({
+          cooperativeName: value.cooperativeName ?? "",
+          cooperativeCode: value.cooperativeCode ?? "",
+          groupType: value.groupType ?? "",
+          registrationStatus: value.registrationStatus ?? "",
+          primaryValueChain: value.primaryValueChain ?? "",
+          cluster: value.cluster ?? "",
+          totalMembers: value.totalMembers != null ? String(value.totalMembers) : "",
+          femaleMembers: value.femaleMembers != null ? String(value.femaleMembers) : "",
+          youthMembers: value.youthMembers != null ? String(value.youthMembers) : "",
+          province: value.province ?? "",
+          district: value.district ?? "",
+          sector: value.sector ?? "",
+        });
+        setErrors({});
+        setApiError(null);
+      },
+      create: async (value) => {
+        await api.post("/api/cooperatives", {
+          ...value,
+          cooperativeName: value.cooperativeName.trim(),
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") {
+      queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+      setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
+    }
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? "cooperative" : "cooperatives", () =>
+      navigate("/admin/cooperatives"),
+    );
+  }
+
   const setField = (key: keyof FormState) => (v: string) => {
     setForm((f) => ({ ...f, [key]: v }));
     setErrors((e) => ({ ...e, [key]: undefined }));
@@ -131,7 +190,10 @@ export default function CooperativeForm() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageTitleCard title={title} />
+      <PageTitleCard
+        title={title}
+        actionSlot={isEdit ? undefined : <ExcelImportButton onImport={handleImport} />}
+      />
 
       <Card className="p-6 space-y-4 max-w-3xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}

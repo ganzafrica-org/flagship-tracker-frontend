@@ -4,7 +4,9 @@ import { Button } from "@heroui/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import TableComponent from "~/components/table-component";
+import { ExcelImportButton, notifySpreadsheetImport } from "~/components/excel-import-button";
 import { PageTitleCard } from "~/components/page-title-card";
+import { importMappedRows, pickCell, type SpreadsheetRow } from "~/lib/spreadsheet";
 import AppModal from "~/components/app-modal";
 import AppAlertDialog from "~/components/app-alert-dialog";
 import AppAlert, { toast } from "~/components/app-alert";
@@ -96,6 +98,38 @@ export default function EnumTypeManagement({
     setModalOpen(true);
   }
 
+  async function handleImport(rows: SpreadsheetRow[]) {
+    const outcome = await importMappedRows({
+      rows,
+      mapRow: (row) => ({
+        label: pickCell(row, ["Label", "Name"]),
+        value: pickCell(row, ["Value", "Stored Value"]),
+        sortOrder: pickCell(row, ["Sort Order", "Order"]),
+      }),
+      isUsable: (value) => Boolean(value.label.trim() && value.value.trim()),
+      missingMessage: "Each row needs Label and Value.",
+      onSingle: (value) => {
+        setEditing(null);
+        setDraft({ label: value.label, value: value.value, sortOrder: value.sortOrder });
+        setDraftErrors({});
+        setFormError(null);
+        setModalOpen(true);
+      },
+      create: async (value) => {
+        const sortOrder = value.sortOrder.trim() === "" ? 0 : Number(value.sortOrder);
+        await createEnumValue({
+          enumGroup,
+          value: value.value.trim(),
+          label: value.label.trim(),
+          sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+        });
+      },
+    });
+
+    if (outcome.mode === "bulk") invalidate();
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? noun : `${noun}s`);
+  }
+
   function handleSave() {
     setFormError(null);
     const next: Partial<Record<keyof DraftState, string>> = {};
@@ -134,6 +168,7 @@ export default function EnumTypeManagement({
             <Button variant="outline" className="!rounded-3xl" onPress={() => navigate(backHref)}>
               Back
             </Button>
+            <ExcelImportButton onImport={handleImport} />
             <Button variant="primary" className="!rounded-3xl" onPress={openCreate}>
               Add Type
             </Button>

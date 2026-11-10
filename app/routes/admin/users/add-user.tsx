@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button, Card } from "@heroui/react";
+import { IconLoader2 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -38,11 +39,15 @@ export default function AdminAddUserPage() {
   const mutation = useMutation({
     mutationFn: (body: CreateUserRequest) => api.post("/api/users", body),
     onSuccess: () => {
-      toast.success("User created — a welcome email is being sent");
+      toast.success("User created. An invitation with a temporary password was sent to their email.");
       queryClient.invalidateQueries({ queryKey: ["users"] });
       navigate("/admin/users");
     },
-    onError: (err) => setApiError(err instanceof ApiError ? err.message : "Something went wrong"),
+    onError: (err) => {
+      const message = err instanceof ApiError ? err.message : "Something went wrong";
+      setApiError(message);
+      toast.error(message);
+    },
   });
 
   function validate() {
@@ -114,11 +119,16 @@ export default function AdminAddUserPage() {
         />
 
         <div className="flex justify-end gap-3 pt-2">
-          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/users")}>
+          <Button variant="outline" className="!rounded-3xl" onPress={() => navigate("/admin/users")} isDisabled={mutation.isPending}>
             Cancel
           </Button>
           <Button variant="primary" className="!rounded-3xl" onPress={handleSubmit} isPending={mutation.isPending}>
-            Create User
+            {({ isPending }) => (
+              <span className="inline-flex items-center gap-2">
+                {isPending ? <IconLoader2 size={16} className="animate-spin" /> : null}
+                {isPending ? "Creating user…" : "Create User"}
+              </span>
+            )}
           </Button>
         </div>
       </Card>
