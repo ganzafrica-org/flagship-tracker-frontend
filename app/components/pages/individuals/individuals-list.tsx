@@ -898,7 +898,12 @@ export default function IndividualsList({
         onEdit={!readOnly && updatePath && view.id !== null ? () => navigate(`${updatePath}?editId=${view.id}`, { viewTransition: true }) : undefined}
       />
       {!readOnly && addPath ? (
-        <IndividualImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} individualsPath={pathname} />
+        <IndividualImportDialog
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          individualsPath={pathname}
+          individuals={filteredIndividuals}
+        />
       ) : null}
     </div>
   );

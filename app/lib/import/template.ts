@@ -4,9 +4,43 @@ const LISTS_SHEET = "Lists";
 const REQUIRED_FILL = "FFFDE68A";
 const OPTIONAL_FILL = "FFE5E7EB";
 
+/** A value to pre-fill in a template cell; null, undefined and "" leave the cell blank. */
+export type TemplateValue = string | number | boolean | Date | null | undefined;
+
 export interface TemplateSheet {
   name: string;
   columns: ImportColumn[];
+  /** Existing records to pre-fill below the header, keyed by `ImportColumn.key`. */
+  rows?: Record<string, TemplateValue>[];
+}
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/**
+ * Converts a value to what the import parser (RowReader) reads back unchanged: dates become real
+ * Excel dates at UTC midnight (read back as yyyy-mm-dd), numbers stay numeric, and text stays a
+ * string so IDs and phone numbers keep leading zeros and full precision.
+ */
+function toCellValue(column: ImportColumn, value: TemplateValue): string | number | Date | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+
+  switch (column.type) {
+    case "date": {
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+      }
+      const m = ISO_DATE.exec(String(value).trim());
+      return m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : String(value).trim();
+    }
+    case "int":
+    case "decimal": {
+      const n = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+      return Number.isFinite(n) ? n : String(value).trim();
+    }
+    default:
+      return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).trim();
+  }
 }
 
 /** One column of the Lists sheet. A `key` makes it the dropdown source for columns with that `list`. */
@@ -102,6 +136,10 @@ export async function buildTemplateWorkbook(sheets: TemplateSheet[], lists: List
     const ws = wb.addWorksheet(sheet.name, { views: [{ state: "frozen", ySplit: 1 }] });
     ws.columns = sheet.columns.map((c) => ({ key: c.key, width: c.width }));
 
+    const rows = sheet.rows ?? [];
+    // Validation and formats cover every pre-filled row plus the usual blank rows for new entries.
+    const lastRow = Math.max(TEMPLATE_ROWS, rows.length) + 1;
+
     const header = ws.getRow(1);
     header.height = 22;
     sheet.columns.forEach((column, i) => {
@@ -115,11 +153,16 @@ export async function buildTemplateWorkbook(sheets: TemplateSheet[], lists: List
       cell.note = notes.filter(Boolean).join(" ");
 
       const validation = dataValidation(column, listRange(column.list));
-      for (let r = 2; r <= TEMPLATE_ROWS + 1; r += 1) {
+      for (let r = 2; r <= lastRow; r += 1) {
         const body = ws.getCell(r, i + 1);
         if (column.type === "date") body.numFmt = "yyyy-mm-dd";
         if (column.type === "text") body.numFmt = "@";
         if (validation) body.dataValidation = validation;
+        const record = rows[r - 2];
+        if (record) {
+          const value = toCellValue(column, record[column.key]);
+          if (value !== null) body.value = value;
+        }
       }
     });
   }

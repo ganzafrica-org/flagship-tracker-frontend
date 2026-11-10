@@ -55,6 +55,11 @@
   --forest-icon-bg: oklch(94% 0.065 155.74);
   --danger-icon-bg: oklch(97% 0.075 23.28);
 
+  /* Dialogs: navy headings and soft blue-gray read-only field tiles. */
+  --dialog-heading: oklch(27% 0.05 264);
+  --field-tile: oklch(97.4% 0.008 255);
+  --field-tile-label: oklch(58% 0.015 255);
+
   /* Border Radius */
   --radius: 0.125rem;
   --field-radius: 0.25rem;
@@ -105,6 +110,10 @@
   --warning-icon-bg: oklch(32% 0.09 73.88);
   --forest-icon-bg: oklch(29% 0.06 155);
   --danger-icon-bg: oklch(31% 0.08 22.17);
+
+  --dialog-heading: oklch(97% 0.01 264);
+  --field-tile: oklch(25.5% 0.01 255);
+  --field-tile-label: oklch(72% 0.012 255);
 }
 
 html,

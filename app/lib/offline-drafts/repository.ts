@@ -41,9 +41,16 @@ export async function createFlagshipDraft(
 }
 
 /** Creates a new cooperative/association/company/farmer-group draft and returns its local id. */
-export async function createCooperativeDraft(payload: CooperativeRequest): Promise<number> {
+export async function createCooperativeDraft(payload: CooperativeRequest, origin?: CooperativeDraft["origin"]): Promise<number> {
   const now = new Date().toISOString();
-  const draft: CooperativeDraft = { entityType: "cooperative", status: "pending", payload, createdAt: now, updatedAt: now };
+  const draft: CooperativeDraft = {
+    entityType: "cooperative",
+    status: "pending",
+    payload,
+    ...(origin ? { origin } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
   return db.drafts.add(draft as DraftRecord) as unknown as Promise<number>;
 }
 
