@@ -3,7 +3,7 @@ FROM node:22-alpine AS build-env
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY . .
 # Vite reads VITE_* from the environment at build time and inlines them into the
 # bundle. Coolify passes this as a build arg so the API URL is set per environment
