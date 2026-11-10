@@ -2,6 +2,7 @@
   "name": "flagship-tracker-frontend",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.15.1",
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
@@ -37,11 +38,6 @@
     "rwanda": "3.0.2",
     "workbox-window": "^7.4.1",
     "xlsx": "^0.18.5"
-  },
-  "pnpm": {
-    "overrides": {
-      "@react-aria/i18n": "3.12.16"
-    }
   },
   "devDependencies": {
     "@ag-media/react-pdf-table": "^2.0.3",
