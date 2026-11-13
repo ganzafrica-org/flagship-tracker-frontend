@@ -19,6 +19,9 @@ RUN printf 'server {\n\
   listen 3000;\n\
   root /usr/share/nginx/html;\n\
   index index.html;\n\
+  location /assets/ {\n\
+    try_files $uri =404;\n\
+  }\n\
   location / {\n\
     try_files $uri $uri/ /index.html;\n\
   }\n\

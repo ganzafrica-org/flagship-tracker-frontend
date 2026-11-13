@@ -35,13 +35,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {import.meta.env.DEV ? (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `navigator.serviceWorker?.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));caches?.keys().then(ks=>ks.forEach(k=>caches.delete(k)));`,
-            }}
-          />
-        ) : null}
         <Meta />
         <Links />
       </head>

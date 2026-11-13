@@ -64,9 +64,12 @@ export default defineConfig({
         icons: [{ src: "/favicon.ico", sizes: "48x48", type: "image/x-icon" }],
       },
       workbox: {
-        // SPA mode (react-router.config.ts: ssr: false) ships one index.html —
-        // route offline navigations there so client-side routing can take over,
-        // which is what lets /me/.../add-* URLs open with zero network.
+        // React Router writes build/client/index.html only after this plugin
+        // has already generated the service worker, so the file is never in the
+        // glob. List it explicitly or Workbox throws non-precached-url for
+        // navigateFallback and the app shell never installs.
+        globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js", "**/index.html"],
+        additionalManifestEntries: [{ url: "/index.html", revision: String(Date.now()) }],
         navigateFallback: "/index.html",
         navigateFallbackAllowlist: [/^\/(?!api).*$/],
         navigateFallbackDenylist: [/^\/api\//],

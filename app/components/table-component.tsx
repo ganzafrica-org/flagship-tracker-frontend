@@ -222,6 +222,7 @@ export default function TableComponent({
     totalPages - windowSize + 1,
   );
   const visiblePages = Array.from({ length: windowSize }, (_, i) => windowStart + i);
+  const rowHeaderKey = columns.find((column) => column.key !== "id" && column.key !== "action")?.key ?? columns[0]?.key;
   const MoveToFirstPage = () => setPage(1);
   const MoveToLastPage = () => setPage(totalPages);
 
@@ -365,7 +366,11 @@ export default function TableComponent({
               <Table.Content aria-label={tableAriaLabel} className={minTableWidthClassName}>
                 <Table.Header>
                   {columns.map((column) => (
-                    <Table.Column key={column.key} style={{ width: column.width }}>
+                    <Table.Column
+                      key={column.key}
+                      isRowHeader={column.key === rowHeaderKey}
+                      style={{ width: column.width }}
+                    >
                       <span className="font-semibold text-sm text-black">{column.label}</span>
                     </Table.Column>
                   ))}
