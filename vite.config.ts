@@ -73,6 +73,9 @@ export default defineConfig({
         // New id so browsers drop a cache that stored the HTML page under a .js URL.
         cacheId: "flagship-tracker-v2",
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        importScripts: ["/sw-activate.js"],
         navigateFallback: "/index.html",
         navigateFallbackAllowlist: [/^\/(?!api).*$/],
         navigateFallbackDenylist: [/^\/api\//, /^\/assets\//, /\.[cm]?js$/],
