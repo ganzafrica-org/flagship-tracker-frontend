@@ -62,6 +62,14 @@ export function hasValidSession(): boolean {
   return Boolean(getStoredUser() && getAccessToken());
 }
 
+/** The signed-in user when they may stay on this role's pages. Null means redirect. */
+export function layoutUser(role: UserRole): AuthUser | null {
+  if (!hasValidSession()) return null;
+  const user = getStoredUser();
+  if (!user || user.mustChangePassword || user.role !== role) return null;
+  return user;
+}
+
 export function getRoleHomePath(role: UserRole): string {
   switch (role) {
     case "ADMIN": return "/admin/dashboard";

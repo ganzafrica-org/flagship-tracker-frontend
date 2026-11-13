@@ -9,7 +9,7 @@ import { reportsQueryOptions } from "~/lib/queries/reports";
 import { usersListQueryOptions } from "~/lib/queries/users";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
-import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
+import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession, layoutUser } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 export async function clientLoader() {
@@ -24,18 +24,15 @@ export async function clientLoader() {
 export default function AdminLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [userName, setUserName] = useState("");
-  const [ready, setReady] = useState(false);
+  const sessionUser = layoutUser("ADMIN");
+  const [userName, setUserName] = useState(sessionUser?.fullName ?? "");
 
   useEffect(() => {
-    if (!hasValidSession()) {
-      clearUser();
-      navigate("/login", { replace: true });
-      return;
-    }
+    if (sessionUser) return;
 
     const user = getStoredUser();
-    if (!user) {
+    if (!hasValidSession() || !user) {
+      clearUser();
       navigate("/login", { replace: true });
       return;
     }
@@ -46,14 +43,8 @@ export default function AdminLayout() {
       return;
     }
 
-    if (user.role !== "ADMIN") {
-      navigate(getRoleHomePath(user.role), { replace: true });
-      return;
-    }
-
-    setUserName(user.fullName);
-    setReady(true);
-  }, [navigate]);
+    navigate(getRoleHomePath(user.role), { replace: true });
+  }, [navigate, sessionUser?.id, sessionUser?.role]);
 
   useEffect(() => {
     function syncUserName() {
@@ -70,7 +61,7 @@ export default function AdminLayout() {
     navigate("/login", { replace: true });
   }
 
-  if (!ready) return <AuthLoading />;
+  if (!sessionUser) return <AuthLoading />;
 
   return (
     <div className="h-screen flex flex-col bg-(--background) text-(--foreground)">
