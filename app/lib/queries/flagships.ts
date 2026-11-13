@@ -101,6 +101,11 @@ export interface FlagshipDetailResponse {
   kpis: FlagshipKpi[];
   locations: FlagshipLocation[];
   valueChains?: { valueChain: string; cluster: string | null; primary: boolean }[];
+  /** Labels from mv_flagship_summary.value_chain_stages. */
+  valueChainStages?: string[];
+  jobsCreatedMale?: number | null;
+  jobsCreatedFemale?: number | null;
+  primaryDistrict?: string | null;
 }
 
 export interface FlagshipsPageResponse {
@@ -134,6 +139,10 @@ export interface Flagship {
   kpis: FlagshipKpi[];
   locations: FlagshipLocation[];
   valueChains: { valueChain: string; cluster: string | null; primary: boolean }[];
+  valueChainStages: string[];
+  jobsCreatedMale: number | null;
+  jobsCreatedFemale: number | null;
+  primaryDistrict: string | null;
 }
 
 /** Card grid / table row shape used by `FlagshipsList`. */
@@ -293,6 +302,10 @@ export function mapDetailToFlagship(detail: FlagshipDetailResponse): Flagship {
     kpis: detail.kpis,
     locations: detail.locations,
     valueChains: detail.valueChains ?? [],
+    valueChainStages: detail.valueChainStages ?? [],
+    jobsCreatedMale: detail.jobsCreatedMale ?? null,
+    jobsCreatedFemale: detail.jobsCreatedFemale ?? null,
+    primaryDistrict: detail.primaryDistrict ?? null,
   };
 }
 

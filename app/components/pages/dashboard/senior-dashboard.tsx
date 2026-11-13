@@ -7,8 +7,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -29,7 +27,6 @@ import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
 import {
   flagshipStatusListQueryOptions,
   seniorDashboardQueryOptions,
-  seniorIndividualsQueryOptions,
   type FlagshipSummaryRow,
 } from "~/lib/queries/visualizations";
 import { CHART } from "~/data/dummy-flagship-detail";
@@ -89,12 +86,9 @@ export default function SeniorDashboard() {
   // Two independent aggregate queries, fetched in parallel; each section renders as soon as its own
   // data arrives (nothing here downloads a full list).
   const vizQuery = useQuery(seniorDashboardQueryOptions());
-  const individualsQuery = useQuery(seniorIndividualsQueryOptions);
   const statusQuery = useQuery(flagshipStatusListQueryOptions);
   const viz = vizQuery.data;
-  const individualsStats = individualsQuery.data;
   const vizLoading = vizQuery.isPending;
-  const individualsLoading = individualsQuery.isPending;
 
   // All values come from the visualizations API (materialized views). When there
   // is no underlying data the cards show 0 / "—" and the charts render empty —
@@ -107,18 +101,6 @@ export default function SeniorDashboard() {
       totalCooperativesEngaged: viz?.cards.totalCooperativesEngaged ?? 0,
     };
   }, [viz]);
-
-  // 1.6 — youth vs non-youth from individual.youth_status; individuals with no value are
-  // shown as "Unknown" (never dropped), and percentages are of all individuals.
-  const genderData = useMemo(() => {
-    if (!individualsStats || individualsStats.total === 0) return [];
-    return [
-      { name: "Youth", value: individualsStats.youth, fill: CHART.accent },
-      { name: "Non-Youth", value: individualsStats.nonYouth, fill: CHART.warning },
-      { name: "Unknown", value: individualsStats.unknown, fill: "var(--muted)" },
-    ].filter((d) => d.value > 0);
-  }, [individualsStats]);
-  const genderTotal = genderData.reduce((sum, d) => sum + d.value, 0);
 
   // 1.8 — jobs created by flagship (materialized view; empty when none).
   const jobsCreatedData = useMemo(
@@ -173,41 +155,13 @@ export default function SeniorDashboard() {
 
       {/* Charts 2×2 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* 1 — Donut: Youth vs non-youth participation */}
+        {/* Youth in flagships is not recorded yet, so this stays empty. */}
         <Card>
           <Card.Header>
-            <Card.Title>Youth vs Non-Youth Participation</Card.Title>
+            <Card.Title>Youth vs Non-Youth Participation in Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-2">
-            {individualsLoading ? <ChartSkeleton height="h-[280px]" /> : genderData.length === 0 ? <EmptyChart /> : (
-            <ResponsiveContainer width="100%" height={280} minWidth={0}>
-              <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                <Pie
-                  data={genderData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={3}
-                  stroke="none"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(1)}%`}
-                  labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
-                >
-                  {genderData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => {
-                    const n = Number(value ?? 0);
-                    return `${n.toLocaleString()} (${genderTotal ? ((n / genderTotal) * 100).toFixed(1) : 0}%)`;
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            )}
+            <EmptyChart />
           </Card.Content>
         </Card>
 
