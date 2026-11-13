@@ -6,7 +6,7 @@ import { queryClient } from "~/lib/query-client";
 import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
-import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
+import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession, layoutUser } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 import { toast } from "~/components/app-alert";
 import { useOnlineStatus } from "~/lib/offline-drafts/use-online-status";
@@ -21,18 +21,15 @@ export async function clientLoader() {
 export default function MeLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [userName, setUserName] = useState("");
-  const [ready, setReady] = useState(false);
+  const sessionUser = layoutUser("MONITORING_OFFICER");
+  const [userName, setUserName] = useState(sessionUser?.fullName ?? "");
 
   useEffect(() => {
-    if (!hasValidSession()) {
-      clearUser();
-      navigate("/login", { replace: true });
-      return;
-    }
+    if (sessionUser) return;
 
     const user = getStoredUser();
-    if (!user) {
+    if (!hasValidSession() || !user) {
+      clearUser();
       navigate("/login", { replace: true });
       return;
     }
@@ -43,14 +40,8 @@ export default function MeLayout() {
       return;
     }
 
-    if (user.role !== "MONITORING_OFFICER") {
-      navigate(getRoleHomePath(user.role), { replace: true });
-      return;
-    }
-
-    setUserName(user.fullName);
-    setReady(true);
-  }, [navigate]);
+    navigate(getRoleHomePath(user.role), { replace: true });
+  }, [navigate, sessionUser?.id, sessionUser?.role]);
 
   useEffect(() => {
     function syncUserName() {
@@ -79,7 +70,7 @@ export default function MeLayout() {
     navigate("/login", { replace: true });
   }
 
-  if (!ready) return <AuthLoading />;
+  if (!sessionUser) return <AuthLoading />;
 
   return (
     <div className="h-screen flex flex-col bg-(--background) text-(--foreground)">

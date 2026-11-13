@@ -6,6 +6,7 @@ import { Link, useNavigate } from "react-router";
 import AppInput from "~/components/input";
 import { AuthShell } from "~/components/auth/auth-shell";
 import { login, storeUser, storeAccessToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
+import AuthLoading from "~/components/auth/auth-loading";
 
 import type { Route } from "./+types/index";
 
@@ -21,12 +22,16 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const signedIn = hasValidSession() && getStoredUser();
+
   useEffect(() => {
     const user = getStoredUser();
     if (hasValidSession() && user) {
       navigate(getRoleHomePath(user.role), { replace: true });
     }
   }, [navigate]);
+
+  if (signedIn) return <AuthLoading />;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

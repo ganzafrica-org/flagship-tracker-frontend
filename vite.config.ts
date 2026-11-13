@@ -70,9 +70,12 @@ export default defineConfig({
         // navigateFallback and the app shell never installs.
         globIgnores: ["**/node_modules/**/*", "sw.js", "workbox-*.js", "**/index.html"],
         additionalManifestEntries: [{ url: "/index.html", revision: String(Date.now()) }],
+        // New id so browsers drop a cache that stored the HTML page under a .js URL.
+        cacheId: "flagship-tracker-v2",
+        cleanupOutdatedCaches: true,
         navigateFallback: "/index.html",
         navigateFallbackAllowlist: [/^\/(?!api).*$/],
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/assets\//, /\.[cm]?js$/],
         globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
         runtimeCaching: [
           {

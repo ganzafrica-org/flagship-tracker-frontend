@@ -197,3 +197,10 @@ body {
 .recharts-surface:focus-visible {
   outline: none;
 }
+
+/* Nav links use view transitions. The browser fade takes the whole page to
+   transparent for a moment, which looks like the screen disappearing. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0s;
+}

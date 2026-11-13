@@ -8,7 +8,7 @@ import { reportsQueryOptions } from "~/lib/queries/reports";
 import { flagshipStatusListQueryOptions, seniorDashboardQueryOptions, seniorIndividualsQueryOptions } from "~/lib/queries/visualizations";
 import Navbar from "~/components/navigation/navbar";
 import Sidebar from "~/components/navigation/sidebar";
-import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession } from "~/lib/auth";
+import { getStoredUser, clearUser, logout, getRoleHomePath, hasValidSession, layoutUser } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -30,18 +30,15 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 export default function SeniorLayout() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [userName, setUserName] = useState("");
-  const [ready, setReady] = useState(false);
+  const sessionUser = layoutUser("SENIOR");
+  const [userName, setUserName] = useState(sessionUser?.fullName ?? "");
 
   useEffect(() => {
-    if (!hasValidSession()) {
-      clearUser();
-      navigate("/login", { replace: true });
-      return;
-    }
+    if (sessionUser) return;
 
     const user = getStoredUser();
-    if (!user) {
+    if (!hasValidSession() || !user) {
+      clearUser();
       navigate("/login", { replace: true });
       return;
     }
@@ -52,14 +49,8 @@ export default function SeniorLayout() {
       return;
     }
 
-    if (user.role !== "SENIOR") {
-      navigate(getRoleHomePath(user.role), { replace: true });
-      return;
-    }
-
-    setUserName(user.fullName);
-    setReady(true);
-  }, [navigate]);
+    navigate(getRoleHomePath(user.role), { replace: true });
+  }, [navigate, sessionUser?.id, sessionUser?.role]);
 
   useEffect(() => {
     function syncUserName() {
@@ -76,7 +67,7 @@ export default function SeniorLayout() {
     navigate("/login", { replace: true });
   }
 
-  if (!ready) return <AuthLoading />;
+  if (!sessionUser) return <AuthLoading />;
 
   return (
     <div className="h-screen flex flex-col bg-(--background) text-(--foreground)">
