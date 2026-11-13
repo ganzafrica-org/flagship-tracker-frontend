@@ -159,10 +159,23 @@ export function SingleFlagshipDetails({
   }, [jobsRows]);
 
   const latestJobs = jobsByYear[jobsByYear.length - 1];
-  const jobsActual = latestJobs?.actual ?? flagship?.jobsCreated ?? 0;
-  const jobsTarget = latestJobs?.target ?? flagship?.targetYouthCount ?? null;
+  const jobsActual = flagship?.jobsCreated ?? latestJobs?.actual ?? 0;
+  const jobsTarget = flagship?.targetYouthCount ?? latestJobs?.target ?? null;
 
   const genderJobs = useMemo(() => {
+    const maleFromView = flagship?.jobsCreatedMale;
+    const femaleFromView = flagship?.jobsCreatedFemale;
+    if (maleFromView != null || femaleFromView != null) {
+      const maleValue = maleFromView ?? 0;
+      const femaleValue = femaleFromView ?? 0;
+      return {
+        total: maleValue + femaleValue,
+        data: [
+          { name: "Female", value: femaleValue, fill: CHART.warning },
+          { name: "Male", value: maleValue, fill: CHART.accent },
+        ],
+      };
+    }
     const male = latestByIndicator(kpis, (kpi) => kpi.indicatorName === "jobs_created" && kpi.disaggregation === "by_sex_male");
     const female = latestByIndicator(kpis, (kpi) => kpi.indicatorName === "jobs_created" && kpi.disaggregation === "by_sex_female");
     const maleValue = male[0]?.actualValue ?? null;
@@ -175,7 +188,7 @@ export function SingleFlagshipDetails({
         { name: "Male", value: maleValue ?? 0, fill: CHART.accent },
       ],
     };
-  }, [kpis]);
+  }, [flagship?.jobsCreatedFemale, flagship?.jobsCreatedMale, kpis]);
 
   const valueChainEntries = useMemo(() => {
     const fromTable = flagship?.valueChains ?? [];
@@ -190,6 +203,11 @@ export function SingleFlagshipDetails({
       .filter(Boolean)
       .map((name) => ({ name, primary: false, cluster: null as string | null }));
   }, [flagship?.primaryValueChain, flagship?.valueChains]);
+
+  const valueChainStages = useMemo(
+    () => (flagship?.valueChainStages ?? []).map((stage) => stage.trim()).filter(Boolean),
+    [flagship?.valueChainStages],
+  );
 
   const locations = useMemo(() => {
     const grouped = new Map<string, string[]>();
@@ -381,7 +399,14 @@ export function SingleFlagshipDetails({
               {pending ? (
                 <ChartSkeleton height="h-16" />
               ) : locations.length === 0 ? (
-                <p className="text-sm text-(--muted)">No locations are recorded for this flagship.</p>
+                flagship?.primaryDistrict?.trim() ? (
+                  <div className="flex min-w-0 items-start gap-2">
+                    <IconMapPin size={18} stroke={1.35} className="mt-0.5 shrink-0 text-(--accent)" aria-hidden />
+                    <p className="text-sm font-semibold">{flagship.primaryDistrict.trim()}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-(--muted)">No locations are recorded for this flagship.</p>
+                )
               ) : (
                 <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                   {locations.map((loc) => (
@@ -423,7 +448,29 @@ export function SingleFlagshipDetails({
         </Card>
       </motion.div>
 
-      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,1.6fr)]">
+        <Card className="h-full">
+          <Card.Header>
+            <Card.Title>Value chain stages</Card.Title>
+          </Card.Header>
+          <Card.Content className="p-4 pt-0">
+            {valueChainStages.length === 0 ? (
+              <p className="text-sm text-(--muted)">No stage is recorded for this flagship.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+                {valueChainStages.map((stage) => (
+                  <li
+                    key={stage}
+                    className="rounded-full bg-(--accent)/10 px-3 py-1 text-sm font-medium text-(--foreground)"
+                  >
+                    {stage}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card.Content>
+        </Card>
+
         <Card className="h-full">
           <Card.Header>
             <Card.Title>Value chain</Card.Title>
