@@ -11,7 +11,7 @@ import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { enumValuesQueryOptions } from "~/lib/queries/lookups";
-import { cooperativeQueryOptions, type CooperativeRequest } from "~/lib/queries/cooperatives";
+import { cooperativeQueryOptions, cooperativeTypeNames, type CooperativeRequest } from "~/lib/queries/cooperatives";
 
 interface FormState {
   cooperativeName: string;
@@ -89,7 +89,7 @@ export default function CooperativeForm() {
     mutationFn: (body: CooperativeRequest) =>
       isEdit ? api.patch(`/api/cooperatives/${editId}`, body) : api.post("/api/cooperatives", body),
     onSuccess: () => {
-      toast.success(isEdit ? "Cooperative updated" : "Cooperative created");
+      toast.success(isEdit ? `${cooperativeTypeNames(form.groupType || params.get("type") || "cooperative").singular} updated` : `${cooperativeTypeNames(params.get("type") || form.groupType || "cooperative").singular} created`);
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       if (isEdit) queryClient.invalidateQueries({ queryKey: ["cooperative", String(editId)] });
       navigate(`/admin/cooperatives?type=${form.groupType || params.get("type") || "association"}`);
@@ -186,7 +186,8 @@ export default function CooperativeForm() {
     setErrors((e) => ({ ...e, [key]: undefined }));
   };
 
-  const title = isEdit ? "Edit Cooperative" : "Add Cooperative";
+  const singular = cooperativeTypeNames(form.groupType || params.get("type") || "cooperative").singular;
+  const title = isEdit ? `Edit ${singular}` : `Add ${singular}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -202,7 +203,7 @@ export default function CooperativeForm() {
           <AppTextField
             name="cooperativeName"
             label="Name"
-            placeholder="Cooperative name"
+            placeholder={`${singular} name`}
             value={form.cooperativeName}
             onChange={setField("cooperativeName")}
             isRequired
@@ -218,16 +219,6 @@ export default function CooperativeForm() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <AppSelect
-            name="groupType"
-            label="Group Type"
-            placeholder="Select a group type"
-            options={groupTypes.map((g) => ({ label: g.label, value: g.value }))}
-            selectedKey={form.groupType}
-            onSelectionChange={setField("groupType")}
-            isRequired
-            errorMessage={errors.groupType}
-          />
           <AppSelect
             name="registrationStatus"
             label="Registration Status"

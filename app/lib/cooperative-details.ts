@@ -3,6 +3,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { ExportColumn } from "~/lib/export/table-export";
 import {
   cooperativeQueryOptions,
+  cooperativeTypeNames,
+  isAgribusinessType,
   flagshipOptionsQueryOptions,
   ENGAGEMENT_TYPE_OPTIONS,
   maleMembers,
@@ -73,7 +75,7 @@ function flattenCooperative(
   return {
     "Name": show(c.cooperativeName),
     "Code": show(c.cooperativeCode),
-    "Group type": labelFor(groupTypes, c.groupType),
+    "Group type": isAgribusinessType(c.groupType) ? cooperativeTypeNames("agribusiness").singular : labelFor(groupTypes, c.groupType),
     "Registration status": labelFor(statuses, c.registrationStatus),
     "Primary value chain": show(c.primaryValueChain),
     "Cluster": show(c.cluster),

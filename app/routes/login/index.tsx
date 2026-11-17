@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router";
 
 import AppInput from "~/components/input";
@@ -16,7 +15,6 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -75,27 +73,16 @@ export default function Login() {
           required
         />
 
-        <div className="relative">
-          <AppInput
-            label="Password"
-            type={showPassword ? "text" : "password"}
-            variant="form"
-            placeholder="Password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            inputClassName="pr-10"
-            required
-          />
-          <button
-            type="button"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            onClick={() => setShowPassword((v) => !v)}
-            className="absolute bottom-0 right-0 flex h-[34px] w-10 items-center justify-center text-neutral-500 transition hover:text-[color:var(--accent)]"
-          >
-            {showPassword ? <IconEyeOff size={15} stroke={1.8} /> : <IconEye size={15} stroke={1.8} />}
-          </button>
-        </div>
+        <AppInput
+          label="Password"
+          type="password"
+          variant="form"
+          placeholder="Password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
         <Button
           type="submit"

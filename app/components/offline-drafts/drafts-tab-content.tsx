@@ -9,7 +9,7 @@ import type { DraftRecord } from "~/lib/offline-drafts/db";
 import { useDrafts } from "~/lib/offline-drafts/use-drafts";
 import { deleteDraft } from "~/lib/offline-drafts/repository";
 import { replayCooperativeDraft, replayFlagshipDraft, replayIndividualDraft } from "~/lib/offline-drafts/replay";
-import { cooperativeTypeNames } from "~/lib/queries/cooperatives";
+import { cooperativeTypeNames, groupTypesMatch } from "~/lib/queries/cooperatives";
 
 interface DraftsTabContentProps {
   entityType: DraftRecord["entityType"];
@@ -63,7 +63,7 @@ export default function DraftsTabContent({ entityType, editPath, groupType }: Dr
   const [isDiscarding, setIsDiscarding] = useState(false);
   const allDrafts = useDrafts(entityType);
   const drafts = groupType
-    ? allDrafts?.filter((d) => d.entityType === "cooperative" && d.payload.groupType === groupType)
+    ? allDrafts?.filter((d) => d.entityType === "cooperative" && groupTypesMatch(d.payload.groupType, groupType))
     : allDrafts;
 
   async function handleSubmitDraft(draft: DraftRecord) {

@@ -145,6 +145,7 @@ function FlagshipListCard({
             <p className="text-[11px] uppercase tracking-wide text-(--muted) truncate">{item.cluster}</p>
           </div>
         </div>
+        <FlagshipStatusBadge status={item.status} />
       </div>
 
       {/* Title — always reserve 2 lines so stats/progress align across cards */}

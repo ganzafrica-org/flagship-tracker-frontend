@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import type { ExportSection } from "~/lib/export/table-export";
 import {
   cooperativeQueryOptions,
+  cooperativeTypeNames,
+  isAgribusinessType,
   ENGAGEMENT_TYPE_OPTIONS,
   flagshipOptionsQueryOptions,
   maleMembers,
 } from "~/lib/queries/cooperatives";
+import { funderFundingSummary } from "~/lib/funder-funding";
+import { flagshipsQueryOptions } from "~/lib/queries/flagships";
 import { enumValuesQueryOptions, funderQueryOptions } from "~/lib/queries/lookups";
 import { USER_ROLE_OPTIONS, usersListQueryOptions } from "~/lib/queries/users";
 
@@ -36,21 +40,30 @@ function fields(title: string, pairs: [string, unknown][]): ExportSection {
 export function useFunderRecord(id: number | null): RecordView {
   const funder = useQuery({ ...funderQueryOptions(id ?? 0), enabled: id != null });
   const types = useQuery({ ...enumValuesQueryOptions("funder_type"), enabled: id != null });
+  const flagships = useQuery({ ...flagshipsQueryOptions, enabled: id != null });
   const f = funder.data;
+  const summary = f ? funderFundingSummary(flagships.data ?? [], f.funderName) : null;
+  const typeLabel = f ? labelFor(types.data ?? [], f.funderType) : "—";
   return {
     title: f?.funderName ?? null,
-    sections: f
+    sections: f && summary
       ? [
           fields("Funder", [
             ["Funder name", f.funderName],
-            ["Type", labelFor(types.data ?? [], f.funderType)],
+            ["Type", typeLabel === "—" ? f.funderType : typeLabel],
             ["Status", f.active ? "Active" : "Inactive"],
+            ["Flagships", summary.flagships],
+            ["Funding committed", summary.fundingCommitted],
+            ["Funding projected", summary.fundingProjected],
           ]),
         ]
       : [],
-    isLoading: id != null && (funder.isPending || (types.isPending && !types.isError)) && !funder.isError,
+    isLoading: id != null && (funder.isPending || flagships.isPending || (types.isPending && !types.isError)) && !funder.isError,
     isError: funder.isError,
-    onRetry: () => void funder.refetch(),
+    onRetry: () => {
+      void funder.refetch();
+      void flagships.refetch();
+    },
   };
 }
 
@@ -93,7 +106,7 @@ export function useCooperativeRecord(id: number | null): RecordView {
       fields("Basic information", [
         ["Name", c.cooperativeName],
         ["Code", c.cooperativeCode],
-        ["Group type", labelFor(groupTypes.data ?? [], c.groupType)],
+        ["Group type", isAgribusinessType(c.groupType) ? cooperativeTypeNames("agribusiness").singular : labelFor(groupTypes.data ?? [], c.groupType)],
         ["Registration status", labelFor(statuses.data ?? [], c.registrationStatus)],
         ["Primary value chain", c.primaryValueChain],
         ["Cluster", c.cluster],
@@ -109,7 +122,31 @@ export function useCooperativeRecord(id: number | null): RecordView {
         ["District", c.district],
         ["Sector", c.sector],
       ]),
+      fields("Record", [
+        ["Created", showDate(c.createdAt)],
+        ["Last updated", showDate(c.updatedAt)],
+      ]),
     );
+    const members = c.members ?? [];
+    if (members.length > 0) {
+      sections.push({
+        title: "Linked members",
+        columns: [
+          { key: "individual", label: "Individual" },
+          { key: "role", label: "Role" },
+          { key: "joinDate", label: "Joined" },
+          { key: "endDate", label: "Left" },
+          { key: "active", label: "Active" },
+        ],
+        rows: members.map((member) => ({
+          individual: `Individual #${member.individualId}`,
+          role: member.role?.trim() || "—",
+          joinDate: showDate(member.joinDate),
+          endDate: showDate(member.endDate),
+          active: member.active === false ? "No" : "Yes",
+        })),
+      });
+    }
     if (hasFlagships) {
       const names = new Map((flagshipNames.data ?? []).map((o) => [Number(o.value), o.label]));
       sections.push({

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 interface PageTitleCardProps {
   title: string;
+  subtitle?: ReactNode;
   actionLabel?: string;
   onActionPress?: () => void;
   className?: string;
@@ -12,6 +13,7 @@ interface PageTitleCardProps {
 
 export function PageTitleCard({
   title,
+  subtitle,
   actionLabel,
   onActionPress,
   className,
@@ -26,7 +28,10 @@ export function PageTitleCard({
     >
       {hasAction ? (
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-(--foreground)">{title}</h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-(--foreground)">{title}</h1>
+            {subtitle ? <p className="mt-1 text-sm text-(--muted)">{subtitle}</p> : null}
+          </div>
           {actionSlot ?? (
             <Button
               variant="primary"

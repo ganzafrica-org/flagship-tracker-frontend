@@ -20,7 +20,9 @@ import {
   importUsersCsv,
   updateUser,
   deleteUser,
+  resetUserPassword,
   USER_ROLE_OPTIONS,
+  type CreatedUserResponse,
   type ImportResult,
   type User,
   type UserRole,
@@ -93,8 +95,8 @@ function ImportUsersModal({
       }
     >
       <p className="text-sm text-(--foreground-600)">
-        CSV header must be: <code className="font-mono">email,password,fullName,role</code>. Role
-        values: ADMIN, SENIOR, MONITORING_OFFICER.
+        CSV header must be: <code className="font-mono">email,fullName,role</code>. Role
+        values: ADMIN, SENIOR, MONITORING_OFFICER. A temporary password is generated for each new user and shown here. No email is sent.
       </p>
 
       <input
@@ -112,11 +114,33 @@ function ImportUsersModal({
       {error ? <AppAlert status="danger" message={error} /> : null}
 
       {result ? (
-        <AppAlert
-          status={result.errors.length > 0 ? "warning" : "success"}
-          title={`Created ${result.created}, skipped ${result.skipped}`}
-          message={result.errors.length > 0 ? result.errors : "All rows processed successfully."}
-        />
+        <div className="space-y-3">
+          <AppAlert
+            status={result.errors.length > 0 ? "warning" : "success"}
+            title={`Created ${result.created}, skipped ${result.skipped}`}
+            message={result.errors.length > 0 ? result.errors : "All rows processed successfully."}
+          />
+          {(result.credentials ?? []).length > 0 ? (
+            <div className="max-h-64 overflow-auto rounded-lg border border-(--border)">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-(--muted)">
+                    <th className="px-3 py-2 font-medium">Username</th>
+                    <th className="px-3 py-2 font-medium">Temporary password</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.credentials ?? []).map((row) => (
+                    <tr key={row.username} className="border-t border-(--border)">
+                      <td className="px-3 py-2">{row.username}</td>
+                      <td className="px-3 py-2 font-mono">{row.temporaryPassword}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </AppModal>
   );
@@ -216,6 +240,99 @@ function UpdateUserModal({
   );
 }
 
+function ResetPasswordModal({
+  user,
+  onClose,
+}: {
+  user: User | null;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const [issued, setIssued] = useState<CreatedUserResponse | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: () => resetUserPassword(user!.id),
+    onSuccess: (created) => {
+      setIssued(created);
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err) => setError(apiMessage(err, "Could not reset this password")),
+  });
+
+  function close() {
+    setError(null);
+    setIssued(null);
+    onClose();
+  }
+
+  async function copyValue(value: string) {
+    await navigator.clipboard.writeText(value);
+    toast.success("Copied");
+  }
+
+  return (
+    <AppModal
+      isOpen={user !== null}
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+      title={issued ? "Temporary password" : "Reset password"}
+      footer={
+        issued ? (
+          <>
+            <Button variant="outline" className="!rounded-3xl" onPress={() => void copyValue(`${issued.username}\n${issued.temporaryPassword}`)}>
+              Copy both
+            </Button>
+            <Button variant="primary" slot="close" className="!rounded-3xl">
+              Done
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button variant="outline" slot="close" className="!rounded-3xl">
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              className="!rounded-3xl"
+              isPending={mutation.isPending}
+              onPress={() => mutation.mutate()}
+            >
+              Reset password
+            </Button>
+          </>
+        )
+      }
+    >
+      {issued ? (
+        <div className="space-y-3">
+          <p className="text-sm text-(--foreground)">
+            Give these to <strong>{issued.fullName}</strong>. Their old password no longer works. They must choose a new one the next time they sign in.
+          </p>
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-(--field-tile) px-3.5 py-2.5">
+              <dt className="text-[11px] text-(--field-tile-label)">Username</dt>
+              <dd className="mt-0.5 text-sm font-medium">{issued.username}</dd>
+            </div>
+            <div className="rounded-lg bg-(--field-tile) px-3.5 py-2.5">
+              <dt className="text-[11px] text-(--field-tile-label)">Temporary password</dt>
+              <dd className="mt-0.5 font-mono text-sm font-medium">{issued.temporaryPassword}</dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-(--foreground)">
+            Reset the password for <strong>{user?.fullName}</strong> ({user?.email})? Their current password will stop working, and you will receive a temporary password to give them.
+          </p>
+          {error ? <AppAlert status="danger" message={error} /> : null}
+        </div>
+      )}
+    </AppModal>
+  );
+}
+
 function DeleteUserModal({
   user,
   onClose,
@@ -276,6 +393,7 @@ export default function UsersManagementPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
   const [removing, setRemoving] = useState<User | null>(null);
+  const [resetting, setResetting] = useState<User | null>(null);
   const view = useRecordDialog();
   const record = useUserRecord(view.id);
   const currentUserId = getStoredUser()?.id;
@@ -337,6 +455,7 @@ export default function UsersManagementPage() {
           const items: { label: string; onClick: () => void; color?: "danger" }[] = [
             { label: "View Details", onClick: () => view.open(Number(row.id)) },
             { label: "Update", onClick: () => person && setEditing(person) },
+            { label: "Reset password", onClick: () => person && setResetting(person) },
           ];
           if (currentUserId !== Number(row.id)) {
             items.push({
@@ -358,6 +477,7 @@ export default function UsersManagementPage() {
       />
 
       <UpdateUserModal user={editing} onClose={() => setEditing(null)} />
+      <ResetPasswordModal user={resetting} onClose={() => setResetting(null)} />
       <DeleteUserModal user={removing} onClose={() => setRemoving(null)} />
       <ImportUsersModal isOpen={importOpen} onOpenChange={setImportOpen} />
     </div>

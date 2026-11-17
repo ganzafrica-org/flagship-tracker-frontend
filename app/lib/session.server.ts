@@ -64,7 +64,7 @@ export function getRoleHomePath(role: UserRole): string {
   switch (role) {
     case "ADMIN": return "/admin/dashboard";
     case "SENIOR": return "/senior/dashboard";
-    case "MONITORING_OFFICER": return "/me/flagships";
+    case "MONITORING_OFFICER": return "/me/dashboard";
   }
 }
 

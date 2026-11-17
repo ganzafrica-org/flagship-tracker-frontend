@@ -2,6 +2,7 @@
 
 import TableComponent from "~/components/table-component";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { PageTitleCard } from "~/components/page-title-card";
 import { ContentTab } from "~/components/content-tab";
 import ReportActionDialog, {
@@ -13,6 +14,8 @@ import { getStoredUser } from "~/lib/auth";
 import { useMyGeneratedReports } from "~/lib/generated-reports";
 
 export default function AdminReports() {
+  const [searchParams] = useSearchParams();
+  const reportView = searchParams.get("view") === "archive" ? "archive" : "current";
   const [activeTab, setActiveTab] = useState<"all" | "auto-generated" | "created-reports">("all");
   const [selectedReport, setSelectedReport] = useState<ReportDownloadRow | null>(null);
   const [modalType, setModalType] = useState<ReportDialogMode>(null);
@@ -38,6 +41,25 @@ export default function AdminReports() {
   return (
     <div className="flex flex-col gap-5">
       <PageTitleCard title="Manage The Reports" />
+      {reportView === "archive" ? (
+        <TableComponent
+          tableSectionTitle="Quarterly Archive"
+          rows={[]}
+          emptyMessage="No quarterly reports archived yet."
+          searchKeys={["name"]}
+          filterByTab={() => true}
+          columns={[
+            { key: "id", label: "#" },
+            { key: "name", label: "Report Name" },
+            { key: "type", label: "Report Type" },
+            { key: "period", label: "Period" },
+            { key: "createdOn", label: "Created on" },
+            { key: "createdBy", label: "Created by" },
+          ]}
+          minTableWidthClassName="min-w-[960px]"
+        />
+      ) : (
+      <>
       <ContentTab
         items={[
           { id: "all", label: "All" },
@@ -68,6 +90,8 @@ export default function AdminReports() {
         ]}
       />
       <ReportActionDialog mode={modalType} report={selectedReport} onClose={closeModal} />
+      </>
+      )}
     </div>
   );
 }

@@ -64,7 +64,7 @@ export interface CooperativeSummary {
 /** Group types offered in the sidebar dropdown, in display order (`type` = value of ?type=). The unfiltered list is the parent link itself. */
 export const COOPERATIVE_TYPE_NAV = [
   { type: "association", label: "Associations" },
-  { type: "company", label: "Companies" },
+  { type: "agribusiness", label: "Agribusiness" },
   { type: "cooperative", label: "Cooperatives" },
   { type: "farmer_group", label: "Farmer Groups" },
 ] as const;
@@ -73,7 +73,8 @@ export const COOPERATIVE_TYPE_NAV = [
 export function cooperativeTypeNames(type: string): { plural: string; singular: string } {
   const known: Record<string, { plural: string; singular: string }> = {
     association: { plural: "Associations", singular: "Association" },
-    company: { plural: "Companies", singular: "Company" },
+    company: { plural: "Agribusiness", singular: "Agribusiness" },
+    agribusiness: { plural: "Agribusiness", singular: "Agribusiness" },
     cooperative: { plural: "Cooperatives", singular: "Cooperative" },
     farmer_group: { plural: "Farmer Groups", singular: "Farmer Group" },
   };
@@ -106,8 +107,19 @@ export function maleMembers(total: number | null | undefined, female: number | n
   return Math.max(0, (total ?? 0) - (female ?? 0));
 }
 
+/** Live rows use `agribusiness`; older rows and links may still say `company`. */
+export function isAgribusinessType(type: string | null | undefined): boolean {
+  return type === "company" || type === "agribusiness";
+}
+
+export function groupTypesMatch(stored: string | null | undefined, filter: string): boolean {
+  if (!filter) return true;
+  if (isAgribusinessType(filter)) return isAgribusinessType(stored);
+  return stored === filter;
+}
+
 export function cooperativeMatchesFilters(c: CooperativeSummary, f: CooperativeListFilters): boolean {
-  if (f.group && c.groupType !== f.group) return false;
+  if (!groupTypesMatch(c.groupType, f.group)) return false;
   if (f.valueChain && c.primaryValueChain !== f.valueChain) return false;
   if (!provinceMatches(c.province, f.province || "all")) return false;
   if (!districtMatches(c.district, f.district || "all")) return false;

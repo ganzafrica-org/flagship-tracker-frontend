@@ -14,10 +14,8 @@ export type FlagshipStatusTab = "all" | FlagshipStatus;
 
 export const FLAGSHIP_STATUS_TAB_ITEMS: { id: FlagshipStatusTab; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "planning", label: "Planning" },
   { id: "active", label: "Active" },
-  { id: "suspended", label: "Suspended" },
-  { id: "closed", label: "Closed" },
+  { id: "planning", label: "Pending" },
 ];
 
 export function filterFlagshipsByStatusTab<T extends { status: FlagshipStatus }>(

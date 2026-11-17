@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "~/lib/api";
+import { getApiBaseUrl } from "~/lib/api";
 
 /**
  * True when `error` came from a failed `fetch()` call itself (DNS/connection refused/offline),
@@ -14,7 +14,7 @@ export function isNetworkError(error: unknown): boolean {
 /** Cheap reachability probe — used before showing a "back online" prompt, not before every submit. */
 export async function checkReachability(): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/health`, {
+    const response = await fetch(`${getApiBaseUrl()}/api/health`, {
       method: "GET",
       cache: "no-store",
       signal: AbortSignal.timeout(3000),
