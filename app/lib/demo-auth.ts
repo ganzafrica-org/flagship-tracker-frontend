@@ -40,7 +40,7 @@ export function getRoleHomePath(role: DemoUserRole) {
     case "admin":
       return "/admin/dashboard";
     case "me":
-      return "/me/flagships";
+      return "/me/dashboard";
     case "senior":
       return "/senior/dashboard";
   }

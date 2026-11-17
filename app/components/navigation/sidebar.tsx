@@ -17,6 +17,8 @@ interface NavNode {
   href: string;
   /** Active when `?type=` matches. Used by the cooperative type links. */
   type?: string;
+  /** Active when `?view=` matches. An empty view counts as `current`. */
+  view?: string;
   /** Subpaths that belong to a sibling, so this item does not stay highlighted. */
   exclude?: string[];
   children?: NavNode[];
@@ -40,6 +42,13 @@ function cooperativeChildren(base: string): NavNode[] {
   }));
 }
 
+function reportChildren(base: string): NavNode[] {
+  return [
+    { id: "current-report", label: "Current Report", href: `${base}/reports`, view: "current" },
+    { id: "quarterly-archive", label: "Quarterly Archive", href: `${base}/reports?view=archive`, view: "archive" },
+  ];
+}
+
 function flagshipModule(base: string, options?: { dashboard?: string; extra?: NavNode[] }): NavNode[] {
   return [
     ...(options?.dashboard ? [{ id: "dashboard", label: "Dashboard", href: options.dashboard }] : []),
@@ -53,7 +62,7 @@ function flagshipModule(base: string, options?: { dashboard?: string; extra?: Na
       children: cooperativeChildren(`${base}/cooperatives`),
     },
     { id: "funders", label: "Funders", href: `${base}/funders` },
-    { id: "reports", label: "Reports", href: `${base}/reports` },
+    { id: "reports", label: "Reports", href: `${base}/reports`, children: reportChildren(base) },
   ];
 }
 
@@ -110,6 +119,7 @@ const SIDEBAR_ITEMS: Record<UserRole, SidebarItem[]> = {
       label: "Flagship",
       icon: <IconFlag size={20} />,
       children: flagshipModule("/me", {
+        dashboard: "/me/dashboard",
         extra: [{ id: "add-flagship", label: "Add Flagship", href: "/me/flagships/add-flagship" }],
       }),
     },
@@ -131,6 +141,9 @@ function nodeActive(node: NavNode, pathname: string, search: string): boolean {
   const path = pathOf(node.href);
   if (node.type) {
     return pathname === path && (new URLSearchParams(search).get("type") ?? "") === node.type;
+  }
+  if (node.view) {
+    return pathname === path && (new URLSearchParams(search).get("view") ?? "current") === node.view;
   }
   if ((node.exclude ?? []).some((excluded) => pathname === excluded || pathname.startsWith(`${excluded}/`))) {
     return false;

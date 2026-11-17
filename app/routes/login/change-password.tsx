@@ -89,20 +89,21 @@ export default function ChangePasswordPage() {
 
   return (
     <AuthShell
+      tall
       title="Set New Password"
       description={
         flow === "first-login"
-          ? "This is your first login. Please set a new password to continue."
+          ? "This is your first login. Enter the temporary password you were given, then choose and confirm a new password."
           : "Enter your new password to complete the reset."
       }
     >
       <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
         {flow === "first-login" && (
           <AppInput
-            label="Current (Temporary) Password"
+            label="Temporary password"
             type="password"
             variant="form"
-            placeholder="Your temporary password"
+            placeholder="Temporary password"
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}

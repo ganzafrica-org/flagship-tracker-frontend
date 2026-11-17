@@ -25,7 +25,7 @@ export const GROUP_TYPE_FALLBACK: LookupOption[] = [
   { value: "mpc", label: "MPC" },
   { value: "savings_group", label: "Savings Group" },
   { value: "association", label: "Association" },
-  { value: "company", label: "Company" },
+  { value: "agribusiness", label: "Agribusiness" },
   { value: "other", label: "Other" },
 ];
 

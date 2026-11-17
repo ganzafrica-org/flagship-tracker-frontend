@@ -15,9 +15,8 @@ import {
   Tooltip,
 } from "recharts";
 
-import { ChartSkeleton } from "~/components/app-skeleton";
+import { ChartSkeleton, StatCardSkeleton } from "~/components/app-skeleton";
 import { PageTitleCard } from "~/components/page-title-card";
-import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
 import { parseFunderNames } from "~/lib/flagship-funders";
 import { type Flagship, type FlagshipKpi, type FundingContribution } from "~/lib/queries/flagships";
@@ -50,6 +49,8 @@ interface SingleFlagshipDetailsProps {
   /** True while the full record (notes, locations, charts) is still on the way. The card fields are already shown. */
   pending?: boolean;
   onViewSummaryPress?: (content: FlagshipReportContent) => void;
+  /** Monitoring officers: opens the form that updates this flagship. */
+  onUpdatePress?: () => void;
 }
 
 function labelize(name: string): string {
@@ -71,6 +72,12 @@ function kpiCardLabel(kpi: FlagshipKpi): string {
   const chain = kpi.valueChain?.trim();
   if (chain && !isRevenueKpi(kpi) && chain.length < fromIndicator.length) return chain;
   return fromIndicator;
+}
+
+function shareOfTarget(actual: number, target: number | null | undefined): { label: string; value: number } {
+  if (target == null || target <= 0) return { label: "0%", value: 0 };
+  const value = Math.round((actual / target) * 1000) / 10;
+  return { label: `${Number.isInteger(value) ? value.toFixed(0) : value}%`, value };
 }
 
 function formatKpiStat(value: number, valueType: string | null | undefined): { amount: string; unit?: string } {
@@ -116,6 +123,7 @@ export function SingleFlagshipDetails({
   flagship,
   pending = false,
   onViewSummaryPress,
+  onUpdatePress,
 }: SingleFlagshipDetailsProps) {
   const { data: viz } = useQuery({
     ...flagshipDashboardQueryOptions(flagship?.id ?? 0),
@@ -131,6 +139,9 @@ export function SingleFlagshipDetails({
         .sort((a, b) => (b.year ?? 0) - (a.year ?? 0)),
     [kpis],
   );
+  const progressNotePeriod = (note: (typeof progressNotes)[number]) =>
+    [note.year, note.reportingPeriod].filter(Boolean).join(" · ");
+  const progressNotePeriods = [...new Set(progressNotes.map(progressNotePeriod).filter(Boolean))];
 
   const headlineKpis = useMemo(
     () =>
@@ -246,27 +257,44 @@ export function SingleFlagshipDetails({
     }));
   }, [flagship?.funders, flagship?.fundingContributions]);
 
+  const budgetTarget = flagship?.budgetTotalRwf != null && flagship.budgetTotalRwf > 0
+    ? flagship.budgetTotalRwf.toLocaleString("en-US", { maximumFractionDigits: 0 })
+    : null;
+  // Mobilized budget is not stored yet, so the figure on the card stays at 0.
+  const budgetMobilized = 0;
+  const budgetShare = shareOfTarget(budgetMobilized, flagship?.budgetTotalRwf);
   const statCards = [
     {
       key: "budget",
-      label: "Total budget",
-      stat: flagship?.budgetTotalRwf != null
-        ? flagship.budgetTotalRwf.toLocaleString("en-US", { maximumFractionDigits: 0 })
-        : "—",
-      unit: flagship?.budgetTotalRwf != null ? "RWF" : undefined,
+      label: "Budget mobilized",
+      stat: budgetMobilized.toLocaleString("en-US", { maximumFractionDigits: 0 }),
+      unit: "RWF",
       icon: <IconCashBanknote size={20} />,
+      progress: {
+        text: budgetTarget ? `Target ${budgetTarget} RWF` : "of 0 RWF target",
+        percent: budgetShare.label,
+        value: budgetShare.value,
+      },
     },
     ...headlineKpis
       .slice()
       .sort((a, b) => Number(isRevenueKpi(b)) - Number(isRevenueKpi(a)) || a.indicatorName.localeCompare(b.indicatorName))
       .map((kpi) => {
         const formatted = formatKpiStat(kpi.actualValue ?? 0, kpi.indicatorValueType);
+        const target = kpi.targetValue != null && kpi.targetValue > 0
+          ? formatKpiStat(kpi.targetValue, kpi.indicatorValueType)
+          : null;
+        const targetText = target
+          ? ["Target", target.amount, target.unit].filter(Boolean).join(" ")
+          : ["of 0", formatted.unit, "target"].filter(Boolean).join(" ");
+        const share = shareOfTarget(kpi.actualValue ?? 0, kpi.targetValue);
         return {
           key: `kpi-${kpi.kpiId}`,
           label: kpiCardLabel(kpi),
           stat: formatted.amount,
           unit: formatted.unit,
           icon: isRevenueKpi(kpi) ? <IconWallet size={20} /> : <IconChartBar size={20} />,
+          progress: { text: targetText, percent: share.label, value: share.value },
         };
       }),
   ];
@@ -277,7 +305,16 @@ export function SingleFlagshipDetails({
         title={flagship?.name?.trim() || "Flagship"}
         actionSlot={
           <div className="flex items-center gap-3">
-            <VizRefreshButton />
+            {onUpdatePress ? (
+              <Button
+                variant="outline"
+                className="!rounded-3xl"
+                isDisabled={!flagship}
+                onPress={onUpdatePress}
+              >
+                Update
+              </Button>
+            ) : null}
             <Button
               variant="primary"
               className="!rounded-3xl"
@@ -323,12 +360,50 @@ export function SingleFlagshipDetails({
         }
       />
 
+      <motion.div {...motionFade} transition={{ duration: 0.2 }}>
+        {pending ? (
+          <ChartSkeleton height="h-36" />
+        ) : (
+        <Card className="border-transparent bg-(--accent)/10">
+          <Card.Header>
+            <Card.Title className="!font-bold">
+              Progress summary{progressNotePeriods.length === 1 ? ` (${progressNotePeriods[0]})` : ""}
+            </Card.Title>
+          </Card.Header>
+          <Card.Content className="flex flex-col gap-4 p-4 pt-0">
+            {progressNotes.length === 0 ? (
+              <p className="text-sm text-(--muted)">No progress summary is recorded for this flagship.</p>
+            ) : (
+              <ul className="m-0 list-none space-y-3 p-0">
+                {progressNotes.map((note) => {
+                  const period = progressNotePeriod(note);
+                  return (
+                    <li key={note.kpiId}>
+                      <p className="text-sm leading-relaxed text-(--foreground)">
+                        {progressNotePeriods.length > 1 && period ? `(${period}) ` : ""}
+                        {note.notes}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div>
+              <h3 className="text-sm font-bold text-(--foreground)">Action to be done</h3>
+            </div>
+          </Card.Content>
+        </Card>
+        )}
+      </motion.div>
+
       <motion.div
         {...motionFade}
         transition={{ duration: 0.2 }}
         className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
       >
-        {statCards.map((card, index) => (
+        {pending
+          ? Array.from({ length: 5 }).map((_, index) => <StatCardSkeleton key={index} progress />)
+          : statCards.map((card, index) => (
           <StatCard
             key={card.key}
             className="h-full min-w-0"
@@ -338,6 +413,7 @@ export function SingleFlagshipDetails({
             unit={card.unit}
             label={card.label}
             labelOnOwnLine
+            progress={card.progress}
             statClassName={statFontClass(card.stat)}
           />
         ))}
@@ -375,18 +451,17 @@ export function SingleFlagshipDetails({
         )}
       </motion.div>
 
-      <motion.div {...motionFade} transition={{ duration: 0.2 }} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <motion.div {...motionFade} transition={{ duration: 0.2 }}>
+        {pending ? (
+          <ChartSkeleton height="h-40" />
+        ) : (
         <Card className="h-full">
           <Card.Content className="flex flex-col gap-4 p-6">
             <div className="space-y-3">
               <h3 className="text-base font-bold text-(--foreground)">Project description</h3>
-              {pending && !flagship?.description?.trim() ? (
-                <ChartSkeleton height="h-16" />
-              ) : (
               <p className="text-base leading-snug text-(--muted)">
                 {flagship?.description?.trim() || "No description is recorded for this flagship."}
               </p>
-              )}
               {flagship?.startDate || flagship?.endDate ? (
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-(--muted)">
                   {flagship?.startDate ? <span>Start: <strong className="text-(--foreground)">{flagship.startDate}</strong></span> : null}
@@ -396,9 +471,7 @@ export function SingleFlagshipDetails({
             </div>
             <div>
               <h3 className="mb-2 text-base font-bold text-(--foreground)">Implementation locations</h3>
-              {pending ? (
-                <ChartSkeleton height="h-16" />
-              ) : locations.length === 0 ? (
+              {locations.length === 0 ? (
                 flagship?.primaryDistrict?.trim() ? (
                   <div className="flex min-w-0 items-start gap-2">
                     <IconMapPin size={18} stroke={1.35} className="mt-0.5 shrink-0 text-(--accent)" aria-hidden />
@@ -423,32 +496,18 @@ export function SingleFlagshipDetails({
             </div>
           </Card.Content>
         </Card>
-        <Card className="h-full">
-          <Card.Header>
-            <Card.Title>Progress notes</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            {pending ? (
-              <ChartSkeleton height="h-20" />
-            ) : progressNotes.length === 0 ? (
-              <p className="text-sm text-(--muted)">No progress note is recorded for this flagship.</p>
-            ) : (
-              <ul className="m-0 list-none space-y-3 p-0">
-                {progressNotes.map((note) => (
-                  <li key={note.kpiId}>
-                    <p className="text-xs font-medium text-(--muted)">
-                      {[note.year, note.reportingPeriod].filter(Boolean).join(" · ")}
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-(--foreground)">{note.notes}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card.Content>
-        </Card>
+        )}
       </motion.div>
 
       <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,1.6fr)]">
+        {pending ? (
+          <>
+            <ChartSkeleton height="h-28" />
+            <ChartSkeleton height="h-28" />
+            <ChartSkeleton height="h-28" />
+          </>
+        ) : (
+        <>
         <Card className="h-full">
           <Card.Header>
             <Card.Title>Value chain stages</Card.Title>
@@ -509,6 +568,8 @@ export function SingleFlagshipDetails({
             )}
           </Card.Content>
         </Card>
+        </>
+        )}
       </div>
     </div>
   );

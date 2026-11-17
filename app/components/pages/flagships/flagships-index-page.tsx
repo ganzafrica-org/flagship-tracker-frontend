@@ -12,7 +12,6 @@ import { PageTitleCard } from "~/components/page-title-card";
 import { importFlagshipsFromSheet } from "~/lib/entity-imports";
 import TableComponent from "~/components/table-component";
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
-import { useDraftCount } from "~/lib/offline-drafts/use-drafts";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { flagshipSummaryQueryOptions } from "~/lib/queries/visualizations";
@@ -57,15 +56,11 @@ export default function FlagshipsIndexPage({
   basePath,
   addFlagshipPath,
   actionLabel = "Add Flagship",
-  showDraftTab = false,
 }: FlagshipsIndexPageProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<FlagshipViewTab>("all");
-  const draftCount = useDraftCount(showDraftTab ? "flagship" : undefined);
-  const tabItems = showDraftTab
-    ? [...FLAGSHIP_STATUS_TAB_ITEMS, { id: "draft" as const, label: draftCount ? `Draft (${draftCount})` : "Draft" }]
-    : FLAGSHIP_STATUS_TAB_ITEMS;
+  const tabItems = FLAGSHIP_STATUS_TAB_ITEMS;
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [listError, setListError] = useState<string | null>(null);
 

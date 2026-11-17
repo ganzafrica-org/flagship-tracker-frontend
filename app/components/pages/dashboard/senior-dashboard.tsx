@@ -1,6 +1,6 @@
 import { useMemo, Suspense, lazy } from "react";
-import { Link } from "react-router";
-import { Card, Separator, Skeleton } from "@heroui/react";
+import { Link, useNavigate } from "react-router";
+import { Card, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -15,13 +15,13 @@ import {
 import {
   IconBriefcase,
   IconBuildingCommunity,
+  IconCircleCheck,
   IconFlag,
-  IconUsers,
+  IconHourglass,
 } from "@tabler/icons-react";
 
 import { FlagshipStatusBadge } from "~/components/pages/flagships/flagships-list";
 import { PageTitleCard } from "~/components/page-title-card";
-import VizRefreshButton from "~/components/viz-refresh-button";
 import { StatCard } from "~/components/stat-card";
 import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
 import {
@@ -55,26 +55,60 @@ function EmptyChart({ height = 280 }: { height?: number }) {
 // Flagships status (every flagship from mv_flagship_summary)
 // ---------------------------------------------------------------------------
 
-function FlagshipStatusList({ flagships }: { flagships: FlagshipSummaryRow[] }) {
+function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipSummaryRow[]; flagshipBase: string }) {
+  const navigate = useNavigate();
+
   return (
-    <ul className="m-0 flex list-none flex-col p-0" data-testid="flagship-status-list">
-      {flagships.map((f, index) => (
-        <li key={f.flagshipId}>
-          {index > 0 && <Separator />}
-          <Link
-            to={`/senior/flagships/${f.flagshipId}`}
-            viewTransition
-            className="flex items-start justify-between gap-3 rounded-lg py-3 transition-colors hover:bg-(--default)"
-            data-testid={`flagship-status-${f.flagshipId}`}
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold leading-snug text-(--foreground)">{f.flagshipName}</p>
-            </div>
-            <FlagshipStatusBadge status={f.status} />
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="overflow-x-auto" data-testid="flagship-status-list">
+      <table className="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
+        <colgroup>
+          <col className="w-14" />
+          <col />
+          <col className="w-28" />
+          <col />
+        </colgroup>
+        <thead>
+          <tr className="border-b border-(--separator) text-(--muted)">
+            <th className="px-3 py-2 font-medium">#</th>
+            <th className="py-2 pl-8 pr-3 font-medium">Flagship name</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">Progress summary</th>
+          </tr>
+        </thead>
+        <tbody>
+          {flagships.map((flagship, index) => {
+            const detailsPath = `${flagshipBase}/flagships/${flagship.flagshipId}`;
+            const name = flagship.flagshipCode
+              ? `${flagship.flagshipName}(${flagship.flagshipCode})`
+              : flagship.flagshipName;
+            return (
+              <tr
+                key={flagship.flagshipId}
+                className="cursor-pointer border-b border-(--separator) last:border-0"
+                onClick={() => navigate(detailsPath)}
+              >
+                <td className="px-3 py-2.5 text-(--muted)">{index + 1}</td>
+                <td className="py-2.5 pl-8 pr-3">
+                  <Link
+                    to={detailsPath}
+                    viewTransition
+                    className="text-(--foreground)"
+                    data-testid={`flagship-status-${flagship.flagshipId}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2.5">
+                  <FlagshipStatusBadge status={flagship.status} />
+                </td>
+                <td className="px-3 py-2.5" />
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -82,7 +116,7 @@ function FlagshipStatusList({ flagships }: { flagships: FlagshipSummaryRow[] }) 
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function SeniorDashboard() {
+export default function SeniorDashboard({ flagshipBase = "/senior" }: { flagshipBase?: string }) {
   // Two independent aggregate queries, fetched in parallel; each section renders as soon as its own
   // data arrives (nothing here downloads a full list).
   const vizQuery = useQuery(seniorDashboardQueryOptions());
@@ -94,13 +128,15 @@ export default function SeniorDashboard() {
   // is no underlying data the cards show 0 / "—" and the charts render empty —
   // never fabricated placeholder numbers.
   const dashboardStats = useMemo(() => {
+    const rows = statusQuery.data ?? [];
     return {
       totalFlagships: viz?.cards.totalFlagships ?? 0,
+      activeFlagships: rows.filter((row) => row.status === "active").length,
+      planningFlagships: rows.filter((row) => row.status === "planning").length,
       totalJobsCreated: viz?.cards.totalJobsCreated ?? 0,
-      totalFunders: viz?.cards.totalFunders ?? 0,
       totalCooperativesEngaged: viz?.cards.totalCooperativesEngaged ?? 0,
     };
-  }, [viz]);
+  }, [statusQuery.data, viz]);
 
   // 1.8 — jobs created by flagship (materialized view; empty when none).
   const jobsCreatedData = useMemo(
@@ -115,37 +151,49 @@ export default function SeniorDashboard() {
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
-      <PageTitleCard title="Dashboard Overview" actionSlot={<VizRefreshButton />} />
+      <PageTitleCard title="Dashboard Overview" />
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {vizLoading ? <StatCardSkeleton /> : (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {vizLoading ? <StatCardSkeleton compact /> : (
           <StatCard
+            compact
             color="var(--accent)"
             icon={<IconFlag size={20} />}
             stat={dashboardStats.totalFlagships}
             label="Total Flagships"
           />
         )}
-        {vizLoading ? <StatCardSkeleton /> : (
+        {statusQuery.isPending ? <StatCardSkeleton compact /> : (
           <StatCard
+            compact
+            color="var(--success)"
+            icon={<IconCircleCheck size={20} />}
+            stat={dashboardStats.activeFlagships}
+            label="Active Flagships"
+          />
+        )}
+        {statusQuery.isPending ? <StatCardSkeleton compact /> : (
+          <StatCard
+            compact
             color="var(--warning)"
+            icon={<IconHourglass size={20} />}
+            stat={dashboardStats.planningFlagships}
+            label="Pending Flagships"
+          />
+        )}
+        {vizLoading ? <StatCardSkeleton compact /> : (
+          <StatCard
+            compact
+            color="oklch(66% 0.15 42)"
             icon={<IconBriefcase size={20} />}
             stat={dashboardStats.totalJobsCreated.toLocaleString()}
             label="Total Jobs Created"
           />
         )}
-        {vizLoading ? <StatCardSkeleton /> : (
+        {vizLoading ? <StatCardSkeleton compact /> : (
           <StatCard
+            compact
             color="var(--forest)"
-            icon={<IconUsers size={20} />}
-            stat={dashboardStats.totalFunders}
-            label="Total Funders"
-          />
-        )}
-        {vizLoading ? <StatCardSkeleton /> : (
-          <StatCard
-            color="var(--success)"
             icon={<IconBuildingCommunity size={20} />}
             stat={dashboardStats.totalCooperativesEngaged.toLocaleString()}
             label="Total Cooperatives Engaged"
@@ -153,32 +201,27 @@ export default function SeniorDashboard() {
         )}
       </div>
 
-      {/* Charts 2×2 */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Youth in flagships is not recorded yet, so this stays empty. */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Youth vs Non-Youth Participation in Flagship</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-2">
-            <EmptyChart />
-          </Card.Content>
-        </Card>
-
-        {/* 2 — Column: Jobs Created by Flagships */}
+        {vizLoading ? (
+          <>
+            <ChartSkeleton height="h-[210px]" />
+            <ChartSkeleton height="h-[210px]" />
+          </>
+        ) : (
+        <>
         <Card>
           <Card.Header>
             <Card.Title>Jobs Created by Flagships</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {vizLoading ? <ChartSkeleton height="h-[240px]" /> : jobsCreatedData.length === 0 ? <EmptyChart height={240} /> : (
-            <ResponsiveContainer width="100%" height={240} minWidth={0}>
+            {jobsCreatedData.length === 0 ? <EmptyChart height={150} /> : (
+            <ResponsiveContainer width="100%" height={150} minWidth={0}>
               <BarChart data={jobsCreatedData} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
                 <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
-                <Bar dataKey="jobs" name="Jobs" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="jobs" name="Jobs" maxBarSize={32} radius={[4, 4, 0, 0]}>
                   {jobsCreatedData.map((entry, index) => (
                     <Cell key={entry.flagship} fill={FLAGSHIP_BAR_COLORS[index % FLAGSHIP_BAR_COLORS.length]} />
                   ))}
@@ -188,48 +231,72 @@ export default function SeniorDashboard() {
             )}
           </Card.Content>
         </Card>
-      </div>
 
-      {/* Bottom section: map ~65% + flagships status ~35% */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[65fr_35fr]">
-        {/* Rwanda map */}
         <Card>
           <Card.Header>
-            <Card.Title>Flagships and Where They Are Being Implemented</Card.Title>
+            <Card.Title>Youth vs non-youth participation in flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
-            {vizLoading ? <Skeleton className="h-[380px] rounded-xl" /> : (
-            <Suspense fallback={<Skeleton className="h-[380px] rounded-xl" />}>
-              <RwandaMap
-                locations={(viz?.locations ?? []).map((l) => ({
-                  name: l.flagshipCode || l.flagshipName,
-                  district: l.district,
-                  province: l.province,
-                }))}
-              />
-            </Suspense>
-            )}
+            <div className="grid h-[150px] grid-cols-2 items-center">
+              <div className="flex justify-center">
+                <div className="h-24 w-24 shrink-0 rounded-full border-[12px] border-(--default)" aria-hidden />
+              </div>
+              <div className="min-w-0 pl-8">
+                <p className="text-sm font-semibold text-(--foreground)">No data yet</p>
+                <p className="mt-1 text-xs text-(--muted)">Data will appear once records are added.</p>
+                <ul className="mt-4 space-y-2 text-sm text-(--foreground)">
+                  <li className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--accent)" />
+                    Youth
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-(--muted)" />
+                    Non-youth
+                  </li>
+                </ul>
+              </div>
+            </div>
           </Card.Content>
         </Card>
-
-        {/* Flagships status */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Flagships Status</Card.Title>
-          </Card.Header>
-          <Card.Content className="max-h-[420px] overflow-y-auto p-4 pt-0">
-            {statusQuery.isPending ? (
-              <ChartSkeleton height="h-48" />
-            ) : statusQuery.isError || !statusQuery.data ? (
-              <p className="py-8 text-center text-sm text-(--danger)">Could not load flagship statuses.</p>
-            ) : statusQuery.data.length === 0 ? (
-              <p className="py-8 text-center text-sm text-(--muted)">No flagships yet.</p>
-            ) : (
-              <FlagshipStatusList flagships={statusQuery.data} />
-            )}
-          </Card.Content>
-        </Card>
+        </>
+        )}
       </div>
+
+      <Card>
+        <Card.Header>
+          <Card.Title>Flagships Status</Card.Title>
+        </Card.Header>
+        <Card.Content className="p-4 pt-0">
+          {statusQuery.isPending ? (
+            <ChartSkeleton height="h-48" />
+          ) : statusQuery.isError || !statusQuery.data ? (
+            <p className="py-8 text-center text-sm text-(--danger)">Could not load flagship statuses.</p>
+          ) : statusQuery.data.length === 0 ? (
+            <p className="py-8 text-center text-sm text-(--muted)">No flagships yet.</p>
+          ) : (
+            <FlagshipStatusTable flagships={statusQuery.data} flagshipBase={flagshipBase} />
+          )}
+        </Card.Content>
+      </Card>
+
+      <Card>
+        <Card.Header>
+          <Card.Title>Flagships and Where They Are Being Implemented</Card.Title>
+        </Card.Header>
+        <Card.Content className="p-4 pt-0">
+          {vizLoading ? <Skeleton className="h-[380px] rounded-xl" /> : (
+          <Suspense fallback={<Skeleton className="h-[380px] rounded-xl" />}>
+            <RwandaMap
+              locations={(viz?.locations ?? []).map((location) => ({
+                name: location.flagshipCode || location.flagshipName,
+                district: location.district,
+                province: location.province,
+              }))}
+            />
+          </Suspense>
+          )}
+        </Card.Content>
+      </Card>
     </div>
   );
 }

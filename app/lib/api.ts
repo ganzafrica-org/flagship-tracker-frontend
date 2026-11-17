@@ -1,7 +1,7 @@
 import { getAccessToken } from "./auth";
+import { getApiBaseUrl } from "./api-base";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+export { getApiBaseUrl };
 
 export class ApiError extends Error {
   constructor(
@@ -48,7 +48,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(path, API_BASE_URL);
+  const url = new URL(path, getApiBaseUrl());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined) {

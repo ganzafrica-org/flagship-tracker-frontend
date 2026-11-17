@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+import { getApiBaseUrl } from "./api-base";
 const USER_KEY = "flagship_user";
 const ACCESS_TOKEN_KEY = "flagship_access_token";
 
@@ -74,7 +74,7 @@ export function getRoleHomePath(role: UserRole): string {
   switch (role) {
     case "ADMIN": return "/admin/dashboard";
     case "SENIOR": return "/senior/dashboard";
-    case "MONITORING_OFFICER": return "/me/flagships";
+    case "MONITORING_OFFICER": return "/me/dashboard";
   }
 }
 
@@ -93,7 +93,7 @@ async function authFetch<T>(path: string, body: unknown, options?: { auth?: bool
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers,
     credentials: "include",

@@ -24,6 +24,8 @@ interface TableColumnDef {
   key: string;
   label: string;
   width?: string;
+  /** Extra classes for the heading, such as keeping a short title on one line. */
+  headerClassName?: string;
 }
 
 interface TableActionItem {
@@ -371,7 +373,7 @@ export default function TableComponent({
                       isRowHeader={column.key === rowHeaderKey}
                       style={{ width: column.width }}
                     >
-                      <span className="font-semibold text-sm text-black">{column.label}</span>
+                      <span className={`font-semibold text-sm text-black ${column.headerClassName ?? ""}`}>{column.label}</span>
                     </Table.Column>
                   ))}
                 </Table.Header>

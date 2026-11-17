@@ -13,14 +13,14 @@ function SectionView({ section, testId }: { section: ExportSection; testId: stri
     <section className="space-y-3" data-testid={`${testId}-section-${(section.title ?? "").toLowerCase().replace(/\s+/g, "-")}`}>
       <h3 className="text-base font-bold tracking-tight text-(--dialog-heading)">{section.title}</h3>
       {isFieldList ? (
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <dl className={`grid grid-cols-1 gap-3 sm:gap-4 ${section.rows.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           {section.rows.map((row) => {
             const value = String(row.value);
+            const wide = value.length > 40;
             return (
               <div
                 key={String(row.field)}
-                // Long values get the full row, like the wide fields in the reference layout.
-                className={`min-w-0 rounded-lg bg-(--field-tile) px-3.5 py-2.5 ${value.length > 40 ? "sm:col-span-2" : ""}`}
+                className={`min-w-0 rounded-lg bg-(--field-tile) px-3.5 py-2.5 ${wide ? (section.rows.length === 3 ? "sm:col-span-3" : "sm:col-span-2") : ""}`}
               >
                 <dt className="text-[11px] leading-4 text-(--field-tile-label)">{String(row.field)}</dt>
                 <dd className="mt-0.5 break-words text-sm font-medium text-(--foreground)">{value}</dd>

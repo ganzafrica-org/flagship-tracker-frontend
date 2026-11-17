@@ -10,7 +10,7 @@ import AppSelect from "~/components/app-select";
 import AppAlert, { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { redirectLegacyView } from "~/lib/legacy-view-redirect";
-import { USER_ROLE_OPTIONS, type CreateUserRequest, type UserRole } from "~/lib/queries/users";
+import { USER_ROLE_OPTIONS, type CreatedUserResponse, type CreateUserRequest, type UserRole } from "~/lib/queries/users";
 
 // Viewing a user is a dialog on the users list now; old `?editId=N` links land there.
 export function clientLoader({ request }: { request: Request }) {
@@ -35,13 +35,13 @@ export default function AdminAddUserPage() {
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [apiError, setApiError] = useState<string | null>(null);
+  const [issued, setIssued] = useState<CreatedUserResponse | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (body: CreateUserRequest) => api.post("/api/users", body),
-    onSuccess: () => {
-      toast.success("User created. An invitation with a temporary password was sent to their email.");
+    mutationFn: (body: CreateUserRequest) => api.post<CreatedUserResponse>("/api/users", body),
+    onSuccess: (created) => {
+      setIssued(created);
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      navigate("/admin/users");
     },
     onError: (err) => {
       const message = err instanceof ApiError ? err.message : "Something went wrong";
@@ -70,10 +70,44 @@ export default function AdminAddUserPage() {
     });
   }
 
+  async function copyValue(value: string) {
+    await navigator.clipboard.writeText(value);
+    toast.success("Copied");
+  }
+
   return (
     <div className="space-y-6">
       <PageTitleCard title="Add a New User" />
 
+      {issued ? (
+        <Card className="max-w-2xl space-y-4 p-6">
+          <AppAlert
+            status="success"
+            title="User created"
+            message="No email was sent. Copy the username and temporary password and give them to this person. They must change the password the first time they log in."
+          />
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg bg-(--field-tile) px-3.5 py-2.5">
+              <dt className="text-[11px] text-(--field-tile-label)">Username</dt>
+              <dd className="mt-0.5 text-sm font-medium">{issued.username}</dd>
+            </div>
+            <div className="rounded-lg bg-(--field-tile) px-3.5 py-2.5">
+              <dt className="text-[11px] text-(--field-tile-label)">Temporary password</dt>
+              <dd className="mt-0.5 font-mono text-sm font-medium">{issued.temporaryPassword}</dd>
+            </div>
+          </dl>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" className="!rounded-3xl" onPress={() => void copyValue(`${issued.username}\n${issued.temporaryPassword}`)}>
+              Copy both
+            </Button>
+            <Button variant="primary" className="!rounded-3xl" onPress={() => navigate("/admin/users")}>
+              Done
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {!issued ? (
       <Card className="space-y-4 p-6 max-w-2xl">
         {apiError ? <AppAlert status="danger" message={apiError} /> : null}
 
@@ -132,6 +166,7 @@ export default function AdminAddUserPage() {
           </Button>
         </div>
       </Card>
+      ) : null}
     </div>
   );
 }

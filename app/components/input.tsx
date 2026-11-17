@@ -1,5 +1,7 @@
-import { forwardRef, useId } from "react";
+import { forwardRef, useState } from "react";
 import { TextField, Input as HeroInput, Label, FieldError, Description } from "@heroui/react";
+
+import { PasswordVisibilityButton } from "~/components/password-visibility";
 
 type InputState = "default" | "error" | "success";
 type InputVariant = "default" | "form";
@@ -26,11 +28,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     state = "default",
     variant = "default",
     disabled,
+    type,
     ...props
   },
   ref,
 ) {
   const hasError = Boolean(errorMessage);
+  const isPassword = type === "password";
+  const [visible, setVisible] = useState(false);
 
   return (
     <TextField
@@ -45,11 +50,17 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         </Label>
       ) : null}
 
-      <HeroInput
-        ref={ref}
-        className={`app-input app-input--${variant}${hasError ? " app-input--error" : state !== "default" ? ` app-input--${state}` : ""} ${inputClassName ?? ""} ${className ?? ""}`}
-        {...props}
-      />
+      <div className="relative">
+        <HeroInput
+          ref={ref}
+          type={isPassword && visible ? "text" : type}
+          className={`app-input app-input--${variant}${hasError ? " app-input--error" : state !== "default" ? ` app-input--${state}` : ""} ${isPassword ? "pr-10" : ""} ${inputClassName ?? ""} ${className ?? ""}`}
+          {...props}
+        />
+        {isPassword ? (
+          <PasswordVisibilityButton visible={visible} onToggle={() => setVisible((value) => !value)} />
+        ) : null}
+      </div>
 
       {errorMessage ? (
         <FieldError className="mt-1 text-xs text-red-500">{errorMessage}</FieldError>
