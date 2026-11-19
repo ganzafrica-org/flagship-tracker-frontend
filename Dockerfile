@@ -12,7 +12,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN pnpm run build
 
 # Serve the static client build with nginx (SPA fallback to index.html)
-FROM nginx:alpine
+FROM nginx:1.30.7-alpine
 COPY --from=build-env /app/build/client /usr/share/nginx/html
 RUN printf 'server {\n\
   listen 3000;\n\
