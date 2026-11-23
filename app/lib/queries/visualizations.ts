@@ -109,6 +109,14 @@ export interface FlagshipSummaryRow {
   investorCount: number | null;
   /** mv_flagship_summary.jobs_created_female; null when the flagship has no female job KPI. */
   jobsCreatedFemale: number | null;
+  /** mv_flagship_summary.progress_summary */
+  progressSummary: string | null;
+  /** mv_flagship_summary.progress_summary_period */
+  progressSummaryPeriod: string | null;
+  /** Latest jobs_created target_2026_27 from mv_flagship_kpis. */
+  jobsTarget2026: number | null;
+  /** Latest jobs_created target_programme from mv_flagship_kpis. */
+  jobsTargetProgramme: number | null;
 }
 
 export const flagshipSummaryQueryOptions = queryOptions({
@@ -179,6 +187,8 @@ export interface FlagshipDashboard {
     baselineValue: number | null;
     targetValue: number | null;
     actualValue: number | null;
+    target2026: number | null;
+    targetProgramme: number | null;
     disaggregation: string | null;
     notes: string | null;
   }[];

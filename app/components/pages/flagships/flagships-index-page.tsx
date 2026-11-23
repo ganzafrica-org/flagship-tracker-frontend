@@ -12,6 +12,8 @@ import { PageTitleCard } from "~/components/page-title-card";
 import { importFlagshipsFromSheet } from "~/lib/entity-imports";
 import TableComponent from "~/components/table-component";
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
+import { TargetScopeFilter } from "~/components/target-scope-filter";
+import { readTargetScope, withTargetScope, writeTargetScope, type TargetScope } from "~/lib/target-scope";
 import { ApiError } from "~/lib/api";
 import { formatApiErrorMessage } from "~/lib/api-errors";
 import { flagshipSummaryQueryOptions } from "~/lib/queries/visualizations";
@@ -62,6 +64,7 @@ export default function FlagshipsIndexPage({
   const [activeTab, setActiveTab] = useState<FlagshipViewTab>("all");
   const tabItems = FLAGSHIP_STATUS_TAB_ITEMS;
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [targetScope, setTargetScope] = useState<TargetScope>(() => readTargetScope());
   const [listError, setListError] = useState<string | null>(null);
 
   const { data: flagships = [], isLoading, isError, error } = useQuery(flagshipsQueryOptions);
@@ -94,13 +97,21 @@ export default function FlagshipsIndexPage({
   const flagshipCards: FlagshipCardItem[] = useMemo(
     () =>
       filteredFlagships.map((item, index) => ({
-        ...mapFlagshipCard(item, index, summaryById.get(item.flagshipId)),
+        ...mapFlagshipCard(item, index, summaryById.get(item.flagshipId), targetScope),
         icon: <IconHomeFilled size={18} />,
       })),
-    [filteredFlagships, summaryById],
+    [filteredFlagships, summaryById, targetScope],
   );
 
-  const flagshipRows = useMemo(() => buildFlagshipTableRows(filteredFlagships, summaryById), [filteredFlagships, summaryById]);
+  const flagshipRows = useMemo(
+    () => buildFlagshipTableRows(filteredFlagships, summaryById, targetScope),
+    [filteredFlagships, summaryById, targetScope],
+  );
+
+  function changeTargetScope(next: TargetScope) {
+    writeTargetScope(next);
+    setTargetScope(next);
+  }
 
   function handleDelete(row: { flagshipId: number; projectName: string }) {
     const confirmed = window.confirm(
@@ -113,7 +124,7 @@ export default function FlagshipsIndexPage({
   const tableActions = (row: { id: number; flagshipId: number; projectName: string }) => [
     {
       label: "View Details",
-      onClick: () => navigate(`${basePath}/${row.flagshipId}`, { viewTransition: true }),
+      onClick: () => navigate(withTargetScope(`${basePath}/${row.flagshipId}`, targetScope), { viewTransition: true }),
     },
     ...(addFlagshipPath
       ? [
@@ -168,6 +179,7 @@ export default function FlagshipsIndexPage({
         endSlot={
           activeTab === "draft" ? null : (
           <div className="flex items-center gap-2">
+            <TargetScopeFilter value={targetScope} onChange={changeTargetScope} />
             {viewMode === "cards" ? (
               <TableExportMenu
                 isDisabled={flagshipRows.length === 0}
@@ -212,7 +224,7 @@ export default function FlagshipsIndexPage({
           onPrefetch={(item) => {
             void queryClient.prefetchQuery(flagshipQueryOptions(item.id));
           }}
-          onViewMore={(item) => navigate(`${basePath}/${item.id}`, { viewTransition: true })}
+          onViewMore={(item) => navigate(withTargetScope(`${basePath}/${item.id}`, targetScope), { viewTransition: true })}
         />
       ) : (
         <TableComponent

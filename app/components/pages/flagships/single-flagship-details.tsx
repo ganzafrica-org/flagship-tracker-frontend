@@ -23,6 +23,9 @@ import { type Flagship, type FlagshipKpi, type FundingContribution } from "~/lib
 import type { FlagshipReportContent } from "~/components/pages/reports/report-download-utils";
 import { useQuery } from "@tanstack/react-query";
 import { flagshipDashboardQueryOptions } from "~/lib/queries/visualizations";
+import { TargetScopeFilter } from "~/components/target-scope-filter";
+import { pickTarget, readTargetScope, targetScopeFromSearch, type TargetScope } from "~/lib/target-scope";
+import { useSearchParams } from "react-router";
 
 const CHART = {
   accent: "var(--accent)",
@@ -67,7 +70,7 @@ function statFontClass(stat: string): string {
   return "text-[clamp(1.125rem,12cqi,1.5rem)]";
 }
 
-function kpiCardLabel(kpi: FlagshipKpi): string {
+function kpiCardLabel(kpi: IndicatorRow): string {
   const fromIndicator = labelize(kpi.indicatorName);
   const chain = kpi.valueChain?.trim();
   if (chain && !isRevenueKpi(kpi) && chain.length < fromIndicator.length) return chain;
@@ -89,18 +92,62 @@ function formatKpiStat(value: number, valueType: string | null | undefined): { a
   return { amount, unit: valueType ?? undefined };
 }
 
-function isRevenueKpi(kpi: FlagshipKpi): boolean {
+function isRevenueKpi(kpi: IndicatorRow): boolean {
   return kpi.indicatorName === "annual_revenue" || (kpi.indicatorValueType ?? "").toLowerCase() === "rwf";
 }
 
-function latestByIndicator(kpis: FlagshipKpi[], predicate: (kpi: FlagshipKpi) => boolean): FlagshipKpi[] {
-  const byName = new Map<string, FlagshipKpi>();
-  for (const kpi of kpis) {
-    if (!predicate(kpi) || kpi.actualValue == null) continue;
-    const current = byName.get(kpi.indicatorName);
-    if (!current || (kpi.year ?? 0) > (current.year ?? 0)) byName.set(kpi.indicatorName, kpi);
+interface IndicatorRow {
+  kpiId?: number;
+  indicatorName: string;
+  indicatorValueType?: string | null;
+  year?: number | null;
+  actualValue?: number | null;
+  targetValue?: number | null;
+  target2026?: number | null;
+  targetProgramme?: number | null;
+  disaggregation?: string | null;
+  valueChain?: string | null;
+}
+
+/** One row per indicator name. Actual and target come from that indicator's latest year. */
+function rowsByIndicator(rows: IndicatorRow[], exclude: Set<string>): IndicatorRow[] {
+  const byName = new Map<string, IndicatorRow[]>();
+  for (const row of rows) {
+    if (!row.indicatorName || exclude.has(row.indicatorName)) continue;
+    const list = byName.get(row.indicatorName) ?? [];
+    list.push(row);
+    byName.set(row.indicatorName, list);
   }
-  return Array.from(byName.values()).sort((a, b) => a.indicatorName.localeCompare(b.indicatorName));
+
+  const cards: IndicatorRow[] = [];
+  for (const [indicatorName, list] of byName) {
+    const sorted = [...list].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    const latestYear = sorted[0]?.year ?? null;
+    const sameYear = sorted.filter((row) => (row.year ?? null) === latestYear);
+    const total = sameYear.find((row) => !row.disaggregation);
+    const hasActual = total?.actualValue != null || sameYear.some((row) => row.actualValue != null);
+    const actual = total?.actualValue != null
+      ? total.actualValue
+      : sameYear.reduce((sum, row) => sum + (row.actualValue ?? 0), 0);
+    const ordered = [total, ...sameYear, ...sorted].filter((row): row is IndicatorRow => row != null);
+    const target2026 = ordered.find((row) => row.target2026 != null)?.target2026
+      ?? ordered.find((row) => row.targetValue != null)?.targetValue
+      ?? null;
+    const targetProgramme = ordered.find((row) => row.targetProgramme != null)?.targetProgramme ?? null;
+    if (!hasActual && target2026 == null && targetProgramme == null) continue;
+    const sample = total ?? sameYear[0];
+    cards.push({
+      kpiId: sample?.kpiId,
+      indicatorName,
+      indicatorValueType: sample?.indicatorValueType,
+      year: latestYear,
+      actualValue: hasActual ? actual : 0,
+      target2026,
+      targetProgramme,
+      valueChain: sample?.valueChain,
+    });
+  }
+  return cards.sort((a, b) => a.indicatorName.localeCompare(b.indicatorName));
 }
 
 function funderMark(name: string): string {
@@ -125,9 +172,16 @@ export function SingleFlagshipDetails({
   onViewSummaryPress,
   onUpdatePress,
 }: SingleFlagshipDetailsProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetScope: TargetScope = targetScopeFromSearch(searchParams.get("target")) ?? readTargetScope();
+  function setTargetScope(next: TargetScope) {
+    const params = new URLSearchParams(searchParams);
+    params.set("target", next);
+    setSearchParams(params, { replace: true });
+  }
   const { data: viz } = useQuery({
     ...flagshipDashboardQueryOptions(flagship?.id ?? 0),
-    enabled: Boolean(flagship?.id) && !pending,
+    enabled: Boolean(flagship?.id),
   });
 
   const kpis = flagship?.kpis ?? [];
@@ -143,14 +197,25 @@ export function SingleFlagshipDetails({
     [note.year, note.reportingPeriod].filter(Boolean).join(" · ");
   const progressNotePeriods = [...new Set(progressNotes.map(progressNotePeriod).filter(Boolean))];
 
-  const headlineKpis = useMemo(
-    () =>
-      latestByIndicator(
-        kpis,
-        (kpi) => kpi.indicatorName !== "jobs_created" && kpi.indicatorName !== "progress_note" && !kpi.disaggregation,
-      ),
-    [kpis],
-  );
+  const viewKpis = viz?.kpis ?? [];
+  const headlineKpis = useMemo(() => {
+    const skip = new Set(["jobs_created", "progress_note"]);
+    const fromView = rowsByIndicator(viewKpis, skip);
+    const fromFlagship = rowsByIndicator(kpis, skip);
+    if (fromFlagship.length === 0) return fromView;
+    const byName = new Map(fromView.map((row) => [row.indicatorName, row]));
+    const merged = fromFlagship.map((row) => {
+      const match = byName.get(row.indicatorName);
+      return {
+        ...row,
+        actualValue: match?.actualValue ?? row.actualValue,
+        target2026: match ? match.target2026 ?? null : row.target2026,
+        targetProgramme: match ? match.targetProgramme ?? null : row.targetProgramme,
+      };
+    });
+    const names = new Set(merged.map((row) => row.indicatorName));
+    return [...merged, ...fromView.filter((row) => !names.has(row.indicatorName))];
+  }, [kpis, viewKpis]);
 
   const jobsRows = useMemo(
     () => kpis.filter((kpi) => kpi.indicatorName === "jobs_created" && !kpi.disaggregation),
@@ -169,9 +234,13 @@ export function SingleFlagshipDetails({
     return Array.from(byYear.values()).sort((a, b) => Number(a.year) - Number(b.year));
   }, [jobsRows]);
 
+  const jobsFromView = useMemo(
+    () => rowsByIndicator(viewKpis.filter((kpi) => kpi.indicatorName === "jobs_created"), new Set())[0] ?? null,
+    [viewKpis],
+  );
   const latestJobs = jobsByYear[jobsByYear.length - 1];
-  const jobsActual = flagship?.jobsCreated ?? latestJobs?.actual ?? 0;
-  const jobsTarget = flagship?.targetYouthCount ?? latestJobs?.target ?? null;
+  const jobsActual = jobsFromView?.actualValue ?? flagship?.jobsCreated ?? latestJobs?.actual ?? 0;
+  const jobsTarget = pickTarget(targetScope, jobsFromView?.target2026, jobsFromView?.targetProgramme);
 
   const genderJobs = useMemo(() => {
     const maleFromView = flagship?.jobsCreatedMale;
@@ -187,10 +256,10 @@ export function SingleFlagshipDetails({
         ],
       };
     }
-    const male = latestByIndicator(kpis, (kpi) => kpi.indicatorName === "jobs_created" && kpi.disaggregation === "by_sex_male");
-    const female = latestByIndicator(kpis, (kpi) => kpi.indicatorName === "jobs_created" && kpi.disaggregation === "by_sex_female");
-    const maleValue = male[0]?.actualValue ?? null;
-    const femaleValue = female[0]?.actualValue ?? null;
+    const sexRows = (viewKpis.length > 0 ? viewKpis : kpis).filter((kpi) => kpi.indicatorName === "jobs_created");
+    const latestSexYear = sexRows.reduce((year, kpi) => Math.max(year, kpi.year ?? 0), 0);
+    const maleValue = sexRows.find((kpi) => kpi.disaggregation === "by_sex_male" && (kpi.year ?? 0) === latestSexYear)?.actualValue ?? null;
+    const femaleValue = sexRows.find((kpi) => kpi.disaggregation === "by_sex_female" && (kpi.year ?? 0) === latestSexYear)?.actualValue ?? null;
     if (maleValue == null && femaleValue == null) return null;
     return {
       total: (maleValue ?? 0) + (femaleValue ?? 0),
@@ -199,7 +268,7 @@ export function SingleFlagshipDetails({
         { name: "Male", value: maleValue ?? 0, fill: CHART.accent },
       ],
     };
-  }, [flagship?.jobsCreatedFemale, flagship?.jobsCreatedMale, kpis]);
+  }, [flagship?.jobsCreatedFemale, flagship?.jobsCreatedMale, kpis, viewKpis]);
 
   const valueChainEntries = useMemo(() => {
     const fromTable = flagship?.valueChains ?? [];
@@ -281,13 +350,14 @@ export function SingleFlagshipDetails({
       .sort((a, b) => Number(isRevenueKpi(b)) - Number(isRevenueKpi(a)) || a.indicatorName.localeCompare(b.indicatorName))
       .map((kpi) => {
         const formatted = formatKpiStat(kpi.actualValue ?? 0, kpi.indicatorValueType);
-        const target = kpi.targetValue != null && kpi.targetValue > 0
-          ? formatKpiStat(kpi.targetValue, kpi.indicatorValueType)
+        const targetValue = pickTarget(targetScope, kpi.target2026, kpi.targetProgramme);
+        const target = targetValue != null && targetValue > 0
+          ? formatKpiStat(targetValue, kpi.indicatorValueType)
           : null;
         const targetText = target
           ? ["Target", target.amount, target.unit].filter(Boolean).join(" ")
           : ["of 0", formatted.unit, "target"].filter(Boolean).join(" ");
-        const share = shareOfTarget(kpi.actualValue ?? 0, kpi.targetValue);
+        const share = shareOfTarget(kpi.actualValue ?? 0, targetValue);
         return {
           key: `kpi-${kpi.kpiId}`,
           label: kpiCardLabel(kpi),
@@ -304,7 +374,8 @@ export function SingleFlagshipDetails({
       <PageTitleCard
         title={flagship?.name?.trim() || "Flagship"}
         actionSlot={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <TargetScopeFilter value={targetScope} onChange={setTargetScope} />
             {onUpdatePress ? (
               <Button
                 variant="outline"
@@ -367,12 +438,12 @@ export function SingleFlagshipDetails({
         <Card className="border-transparent bg-(--accent)/10">
           <Card.Header>
             <Card.Title className="!font-bold">
-              Progress summary{progressNotePeriods.length === 1 ? ` (${progressNotePeriods[0]})` : ""}
+              Progress note{progressNotePeriods.length === 1 ? ` (${progressNotePeriods[0]})` : ""}
             </Card.Title>
           </Card.Header>
           <Card.Content className="flex flex-col gap-4 p-4 pt-0">
             {progressNotes.length === 0 ? (
-              <p className="text-sm text-(--muted)">No progress summary is recorded for this flagship.</p>
+              <p className="text-sm text-(--muted)">No progress note is recorded for this flagship.</p>
             ) : (
               <ul className="m-0 list-none space-y-3 p-0">
                 {progressNotes.map((note) => {
@@ -399,7 +470,7 @@ export function SingleFlagshipDetails({
       <motion.div
         {...motionFade}
         transition={{ duration: 0.2 }}
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
       >
         {pending
           ? Array.from({ length: 5 }).map((_, index) => <StatCardSkeleton key={index} progress />)

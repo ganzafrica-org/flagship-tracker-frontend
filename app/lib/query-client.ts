@@ -3,7 +3,8 @@ import { ApiError } from "./api";
 import { clearUser, getAccessToken } from "./auth";
 
 function handleAuthError(error: unknown) {
-  if (!(error instanceof ApiError) || (error.status !== 401 && error.status !== 403)) {
+  // 403 is "this role cannot do that". Only a failed session (401 after refresh) ends the login.
+  if (!(error instanceof ApiError) || error.status !== 401) {
     return;
   }
   if (!getAccessToken()) {

@@ -1,4 +1,4 @@
-import { getAccessToken } from "./auth";
+import { getAccessToken, refreshSession } from "./auth";
 import { getApiBaseUrl } from "./api-base";
 
 export { getApiBaseUrl };
@@ -66,9 +66,10 @@ async function request<T>(
     params?: Record<string, string | number | boolean | undefined>;
     body?: unknown;
     signal?: AbortSignal;
+    retried?: boolean;
   } = {},
 ): Promise<T> {
-  const { params, body, signal } = options;
+  const { params, body, signal, retried } = options;
   const url = buildUrl(path, params);
 
   const headers: HeadersInit = {};
@@ -87,6 +88,13 @@ async function request<T>(
     signal,
     credentials: "include",
   });
+
+  if (response.status === 401 && !retried && !path.startsWith("/api/auth/")) {
+    const renewed = await refreshSession();
+    if (renewed) {
+      return request<T>(method, path, { params, body, signal, retried: true });
+    }
+  }
 
   return handleResponse<T>(response);
 }
