@@ -33,6 +33,7 @@ export default function FundersManagement({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(fundersQueryOptions());
+  const { data: flagships = [], isLoading: flagshipsLoading } = useQuery(flagshipsQueryOptions);
 
   const [toDelete, setToDelete] = useState<Funder | null>(null);
   const [editId, setEditId] = useState<number | null>(null);

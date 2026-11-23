@@ -109,7 +109,7 @@ export function StatCard({ color, icon, iconBackground, stat, unit, label, statD
           </div>
         </div>
         {label && labelOnOwnLine ? (
-          <span className="whitespace-nowrap pl-[3.75rem] text-[10px] leading-none text-(--foreground)">{label}</span>
+          <span className="min-w-0 pl-[3.75rem] text-[10px] leading-tight text-(--foreground)">{label}</span>
         ) : null}
         {progress ? (
           <ProgressLine text={progress.text} percent={progress.percent} value={progress.value} />

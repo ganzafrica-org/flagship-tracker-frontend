@@ -1,4 +1,4 @@
-import { useMemo, Suspense, lazy } from "react";
+import { useMemo, useState, Suspense, lazy } from "react";
 import { Link, useNavigate } from "react-router";
 import { Card, Skeleton } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
@@ -22,6 +22,8 @@ import {
 
 import { FlagshipStatusBadge } from "~/components/pages/flagships/flagships-list";
 import { PageTitleCard } from "~/components/page-title-card";
+import { TargetScopeFilter } from "~/components/target-scope-filter";
+import { readTargetScope, withTargetScope, writeTargetScope, type TargetScope } from "~/lib/target-scope";
 import { StatCard } from "~/components/stat-card";
 import { StatCardSkeleton, ChartSkeleton } from "~/components/app-skeleton";
 import {
@@ -55,7 +57,15 @@ function EmptyChart({ height = 280 }: { height?: number }) {
 // Flagships status (every flagship from mv_flagship_summary)
 // ---------------------------------------------------------------------------
 
-function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipSummaryRow[]; flagshipBase: string }) {
+function FlagshipStatusTable({
+  flagships,
+  flagshipBase,
+  targetScope,
+}: {
+  flagships: FlagshipSummaryRow[];
+  flagshipBase: string;
+  targetScope: TargetScope;
+}) {
   const navigate = useNavigate();
 
   return (
@@ -66,6 +76,7 @@ function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipS
           <col />
           <col className="w-28" />
           <col />
+          <col />
         </colgroup>
         <thead>
           <tr className="border-b border-(--separator) text-(--muted)">
@@ -73,11 +84,12 @@ function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipS
             <th className="py-2 pl-8 pr-3 font-medium">Flagship name</th>
             <th className="px-3 py-2 font-medium">Status</th>
             <th className="px-3 py-2 font-medium">Progress summary</th>
+            <th className="px-3 py-2 font-medium">Action</th>
           </tr>
         </thead>
         <tbody>
           {flagships.map((flagship, index) => {
-            const detailsPath = `${flagshipBase}/flagships/${flagship.flagshipId}`;
+            const detailsPath = withTargetScope(`${flagshipBase}/flagships/${flagship.flagshipId}`, targetScope);
             const name = flagship.flagshipCode
               ? `${flagship.flagshipName}(${flagship.flagshipCode})`
               : flagship.flagshipName;
@@ -102,6 +114,9 @@ function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipS
                 <td className="px-3 py-2.5">
                   <FlagshipStatusBadge status={flagship.status} />
                 </td>
+                <td className="px-3 py-2.5 whitespace-normal break-words text-(--foreground)">
+                  {flagship.progressSummary?.trim() || ""}
+                </td>
                 <td className="px-3 py-2.5" />
               </tr>
             );
@@ -117,6 +132,7 @@ function FlagshipStatusTable({ flagships, flagshipBase }: { flagships: FlagshipS
 // ---------------------------------------------------------------------------
 
 export default function SeniorDashboard({ flagshipBase = "/senior" }: { flagshipBase?: string }) {
+  const [targetScope, setTargetScope] = useState<TargetScope>(() => readTargetScope());
   // Two independent aggregate queries, fetched in parallel; each section renders as soon as its own
   // data arrives (nothing here downloads a full list).
   const vizQuery = useQuery(seniorDashboardQueryOptions());
@@ -151,7 +167,18 @@ export default function SeniorDashboard({ flagshipBase = "/senior" }: { flagship
   return (
     <div className="space-y-6 w-full min-w-0">
       {/* Page title — no action */}
-      <PageTitleCard title="Dashboard Overview" />
+      <PageTitleCard
+        title="Dashboard Overview"
+        actionSlot={
+          <TargetScopeFilter
+            value={targetScope}
+            onChange={(next) => {
+              writeTargetScope(next);
+              setTargetScope(next);
+            }}
+          />
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {vizLoading ? <StatCardSkeleton compact /> : (
@@ -274,7 +301,7 @@ export default function SeniorDashboard({ flagshipBase = "/senior" }: { flagship
           ) : statusQuery.data.length === 0 ? (
             <p className="py-8 text-center text-sm text-(--muted)">No flagships yet.</p>
           ) : (
-            <FlagshipStatusTable flagships={statusQuery.data} flagshipBase={flagshipBase} />
+            <FlagshipStatusTable flagships={statusQuery.data} flagshipBase={flagshipBase} targetScope={targetScope} />
           )}
         </Card.Content>
       </Card>

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router";
 
 import AppInput from "~/components/input";
 import { AuthShell } from "~/components/auth/auth-shell";
-import { login, storeUser, storeAccessToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
+import { login, storeUser, storeAccessToken, storeRefreshToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 import type { Route } from "./+types/index";
@@ -40,6 +40,7 @@ export default function Login() {
       const result = await login(email, password);
       storeUser(result.user);
       storeAccessToken(result.accessToken);
+      if (result.refreshToken) storeRefreshToken(result.refreshToken);
 
       if (result.user.mustChangePassword) {
         // Store email so change-password page knows who it's for
