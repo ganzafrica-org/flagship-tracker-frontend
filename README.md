@@ -1,102 +1,138 @@
 # Flagship Tracker — Frontend
 
-React frontend for the Flagship Tracker application. Built with React Router v7 (SSR), TanStack Query, HeroUI v3, Tailwind CSS v4, Recharts, and Framer Motion.
+[![CI](https://github.com/ganzafrica-org/flagship-tracker-frontend/actions/workflows/ci.yml/badge.svg)](https://github.com/ganzafrica-org/flagship-tracker-frontend/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ganzafrica-org/flagship-tracker-frontend/actions/workflows/codeql.yml/badge.svg)](https://github.com/ganzafrica-org/flagship-tracker-frontend/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/ganzafrica-org/flagship-tracker-frontend/badge)](https://securityscorecards.dev/viewer/?uri=github.com/ganzafrica-org/flagship-tracker-frontend)
+![Last commit](https://img.shields.io/github/last-commit/ganzafrica-org/flagship-tracker-frontend)
+![React Router 7](https://img.shields.io/badge/React%20Router-7-CA4245?logo=reactrouter&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS 4](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Vite 7](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-offline%20drafts-5A0FC8?logo=pwa&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-10-F69220?logo=pnpm&logoColor=white)
+
+Web app for the Flagship Tracker platform of the Ministry of Agriculture and Animal Resources, Rwanda. Monitoring officers, administrators and senior officials use it to follow flagship programmes, their value chains, funders, cooperatives and individual beneficiaries, view dashboards and download reports. It talks to the [Flagship Tracker backend](https://github.com/ganzafrica-org/flagship-tracker-backend) over REST.
+
+It is built as a **single-page app** (`ssr: false` in `react-router.config.ts`) and installs as a **PWA**. Add-forms can be filled in offline and saved as drafts, then sent when the connection is back.
 
 ---
 
-## Tech Stack
+## Features
+
+- Role-based areas for **Admin**, **M&E** (monitoring officers) and **Senior Officials**
+- Flagships with detail pages, individuals, cooperatives and funders (list, add, update)
+- Bulk **import** of flagships, individuals and cooperatives from spreadsheets
+- Dashboards (national and youth) with charts and Leaflet maps
+- Reports and **exports** to Excel and PDF
+- Offline drafts for add-forms (IndexedDB through Dexie) with replay when back online
+- Login with forgot-password, code verification and forced password change
+
+---
+
+## Tech stack
 
 | Tool | Purpose |
 |------|---------|
-| [React Router v7](https://reactrouter.com) | SSR framework, file-based routing, loaders |
+| [React Router v7](https://reactrouter.com) | Framework mode, file-based route config, loaders (SPA build) |
 | [TanStack Query v5](https://tanstack.com/query) | Server state, caching, background refetching |
 | [HeroUI v3](https://heroui.com) | Component library (Tailwind v4 + React Aria) |
-| [Tailwind CSS v4](https://tailwindcss.com) | Utility-first styling |
-| [Recharts](https://recharts.org) | Charts on dashboards |
-| [Framer Motion](https://www.framer.com/motion) | Page transition animations |
-| [@tabler/icons-react](https://tabler.io/icons) | Icon library used across all components |
-| [rwanda](https://www.npmjs.com/package/rwanda) | Rwanda administrative location data (province to village) |
+| [Tailwind CSS v4](https://tailwindcss.com) | Styling |
+| [Recharts](https://recharts.org) and [Chart.js](https://www.chartjs.org) | Charts |
+| [Leaflet](https://leafletjs.com) / react-leaflet | Maps |
+| [Dexie](https://dexie.org) | IndexedDB for offline drafts |
+| [vite-plugin-pwa](https://vite-pwa-org.netlify.app) / Workbox | Service worker and offline shell |
+| ExcelJS, SheetJS (`xlsx`), jsPDF, `@react-pdf/renderer` | Spreadsheet import, Excel and PDF export |
+| [Framer Motion](https://www.framer.com/motion) | Page transitions |
+| [@tabler/icons-react](https://tabler.io/icons) | Icons |
+| [rwanda](https://www.npmjs.com/package/rwanda) | Administrative locations (province to village) |
 
 ---
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 9+
-- Java Spring Boot backend running (see backend repo)
+- Node.js 20+ (the Docker image uses 22)
+- pnpm 10 (see `packageManager` in `package.json`; `corepack enable` is enough)
+- The [backend](https://github.com/ganzafrica-org/flagship-tracker-backend) running locally or reachable
 
 ---
 
-## Getting Started
+## Getting started
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Copy environment file and set your API URL
-cp .env.example .env
-
-# Start development server
-pnpm dev
+cp .env.example .env     # set VITE_API_BASE_URL
+pnpm dev                 # http://localhost:5173
 ```
 
-The app runs at `http://localhost:5173` by default.
-
----
-
-## Environment Variables
+### Environment variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `VITE_API_BASE_URL` | Base URL of the Spring Boot backend | `http://localhost:8080` |
+| `VITE_API_BASE_URL` | Base URL of the backend | `http://localhost:8080` |
+
+Vite inlines `VITE_*` values at **build time**, so rebuild after changing it.
+
+### Scripts
+
+```bash
+pnpm dev          # Dev server with HMR
+pnpm build        # Production build (static files in build/client)
+pnpm typecheck    # react-router typegen + tsc
+pnpm lint         # ESLint on app/
+```
+
+`pnpm start` is also defined, but because the app is built as an SPA the output is static: serve `build/client` with any static host (see below) instead.
 
 ---
 
-## Project Structure
+## Deployment
+
+- **Docker**: the `Dockerfile` builds the app (pass `--build-arg VITE_API_BASE_URL=https://your-api`) and serves `build/client` with nginx on port 3000, with SPA fallback to `index.html` and no-cache headers for `sw.js` and `index.html`. This is what Coolify uses.
+- **Netlify**: `netlify.toml` runs `pnpm install && pnpm run build`, publishes `build/client` and rewrites every path to `/index.html`.
+
+---
+
+## Project structure
 
 ```
 app/
 ├── components/
-│   ├── page-transition.tsx    # Framer Motion page fade/slide wrapper (used in layouts)
-│   └── top-progress-bar.tsx   # React Router navigation state
-├── data/                      # Dummy data for development and UI prototyping only
-│   ├── dummy-data.ts          # General shared dummy data
-│   └── dummy-flagships.ts     # Example: resource-specific dummy data files go here
+│   ├── auth/ dashboard/ navigation/ pages/ import/ pdf-format/ offline-drafts/
+│   ├── page-transition.tsx     # Framer Motion wrapper used in layouts
+│   └── top-progress-bar.tsx    # Router navigation state
+├── data/                       # Dummy data for prototyping only (dummy-<resource>.ts)
 ├── lib/
-│   ├── api.ts                 # Reusable fetch wrapper for all HTTP methods
-│   ├── query-client.ts        # TanStack Query client with retry/stale config
-│   └── queries/               # Query options factories (one file per resource)
-│       ├── flagships.ts
-│       ├── dashboard.ts
-│       ├── reports.ts
-│       └── users.ts
+│   ├── api.ts                  # Fetch wrapper (adds the token, reads VITE_API_BASE_URL)
+│   ├── auth.ts, session.server.ts
+│   ├── query-client.ts         # TanStack Query client
+│   ├── queries/                # Query options, one file per resource
+│   ├── offline-drafts/         # Dexie db, repository, replay when back online
+│   ├── flagship-import/, individual-import/, cooperative-import/, import/
+│   └── export/                 # Excel and PDF export helpers
 ├── routes/
-│   ├── index.tsx              # / → redirects to /login
-│   ├── login/index.tsx
-│   ├── admin/
-│   │   ├── layout.tsx         # Admin layout + nav tabs + prefetch
-│   │   ├── dashboard/index.tsx
-│   │   ├── flagships/
-│   │   │   ├── index.tsx
-│   │   │   └── $id/index.tsx
-│   │   ├── reports/index.tsx
-│   │   └── users/index.tsx
-│   ├── me/                    # M&E user group
-│   │   ├── layout.tsx
-│   │   └── flagships/
-│   │       ├── index.tsx
-│   │       └── $id/index.tsx
-│   └── senior/                # Senior Officials user group
-│       ├── layout.tsx
-│       ├── dashboard/index.tsx
-│       ├── flagships/
-│       │   ├── index.tsx
-│       │   └── $id/index.tsx
-│       └── reports/index.tsx
-├── routes.ts                  # Routes config
-├── root.tsx                   # App shell: QueryClientProvider, Toast.Provider, TopProgressBar
-└── app.css                    # Tailwind + HeroUI styles + custom theme variables
+│   ├── index.tsx               # Redirects by session and role
+│   ├── login/                  # login, forgot-password, verify-code, change-password
+│   ├── admin/                  # dashboard, flagships, individuals, cooperatives, funders, reports, users, youth
+│   ├── me/                     # M&E: flagships, individuals, cooperatives, funders, reports, youth
+│   └── senior/                 # Senior officials: dashboards, flagships, individuals, cooperatives, funders, reports
+├── routes.ts                   # Route config
+├── root.tsx                    # App shell and providers
+└── app.css                     # Tailwind, HeroUI and theme variables
+public/                         # Icons, service worker activation script, template PDF
 ```
+
+---
+
+## User groups
+
+| Group | Base path | Main pages |
+|-------|-----------|------------|
+| Admin | `/admin` | dashboard, youth dashboard, flagships, individuals, cooperatives, funders, reports, users |
+| M&E | `/me` | flagships, individuals, cooperatives, funders, reports, youth dashboard |
+| Senior Officials | `/senior` | dashboard, youth dashboard, flagships, individuals, cooperatives, funders, reports |
+
+After login, `getRoleHomePath` in `app/lib/auth.ts` sends each user to their group.
 
 ---
 
@@ -139,28 +175,6 @@ const { data } = useQuery(flagshipQueryOptions(id));
 2. Add `queryClient.prefetchQuery(myResourceQueryOptions)` to the relevant layout loader
 3. Call `useQuery(myResourceQueryOptions)` in the page component
 4. Replace the dummy `queryFn` with `api.get(...)` once the backend endpoint is ready
-
----
-
-## User Groups and Routes
-
-| Group | Routes | Prefetched on layout load |
-|-------|--------|--------------------------|
-| Admin | `/admin/dashboard`, `/admin/flagships`, `/admin/flagships/:id`, `/admin/reports`, `/admin/users` | dashboard, flagships, reports, users |
-| M&E | `/me/flagships`, `/me/flagships/:id` | flagships |
-| Senior Officials | `/senior/dashboard`, `/senior/flagships`, `/senior/flagships/:id`, `/senior/reports` | dashboard, flagships, reports |
-
----
-
-## Available Scripts
-
-```bash
-pnpm dev          # Development server with HMR
-pnpm build        # Production build
-pnpm start        # Serve production build
-pnpm typecheck    # Type generation + TypeScript check
-pnpm lint         # Run ESLint across the app
-```
 
 ---
 
