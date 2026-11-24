@@ -1,6 +1,7 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+import { getApiBaseUrl } from "./api-base";
 const USER_KEY = "flagship_user";
 const ACCESS_TOKEN_KEY = "flagship_access_token";
+const REFRESH_TOKEN_KEY = "flagship_refresh_token";
 
 export type UserRole = "ADMIN" | "SENIOR" | "MONITORING_OFFICER";
 
@@ -35,6 +36,21 @@ export function clearAccessToken() {
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+export function storeRefreshToken(refreshToken: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearRefreshToken() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
 export function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
   try {
@@ -55,6 +71,7 @@ export function clearUser() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(USER_KEY);
   clearAccessToken();
+  clearRefreshToken();
 }
 
 /** Both profile and JWT must be present (Swagger sends Bearer; API returns 403 without it). */
@@ -74,7 +91,7 @@ export function getRoleHomePath(role: UserRole): string {
   switch (role) {
     case "ADMIN": return "/admin/dashboard";
     case "SENIOR": return "/senior/dashboard";
-    case "MONITORING_OFFICER": return "/me/flagships";
+    case "MONITORING_OFFICER": return "/me/dashboard";
   }
 }
 
@@ -93,7 +110,7 @@ async function authFetch<T>(path: string, body: unknown, options?: { auth?: bool
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
     method: "POST",
     headers,
     credentials: "include",
@@ -121,6 +138,32 @@ export class AuthError extends Error {
 
 export function login(email: string, password: string) {
   return authFetch<LoginResponse>("/api/auth/login", { email, password }, { auth: false });
+}
+
+let refreshInFlight: Promise<LoginResponse | null> | null = null;
+
+/** Swap the short-lived access token for a new pair. One shared call if several requests expire together. */
+export function refreshSession(): Promise<LoginResponse | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    try {
+      const result = await authFetch<LoginResponse>(
+        "/api/auth/refresh",
+        refreshToken ? { refreshToken } : {},
+        { auth: false },
+      );
+      storeAccessToken(result.accessToken);
+      if (result.refreshToken) storeRefreshToken(result.refreshToken);
+      if (result.user) storeUser(result.user);
+      return result;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
 }
 
 export function logout() {

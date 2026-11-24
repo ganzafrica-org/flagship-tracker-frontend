@@ -19,12 +19,15 @@ import { isNetworkError } from "~/lib/offline-drafts/network";
 import { createCooperativeDraft, deleteDraft, getDraft, updateDraft } from "~/lib/offline-drafts/repository";
 import { showDraftSavedToast } from "~/lib/offline-drafts/toast";
 import { enumValuesQueryOptions } from "~/lib/queries/lookups";
-import { cooperativeQueryOptions, ENGAGEMENT_TYPE_OPTIONS, flagshipOptionsQueryOptions, buildCooperativeFlagshipsPayload, isoToDateValue, type CooperativeDetail, type CooperativeRequest, type CooperativeUpdateRequest } from "~/lib/queries/cooperatives";
+import { cooperativeQueryOptions, cooperativeTypeNames, ENGAGEMENT_TYPE_OPTIONS, flagshipOptionsQueryOptions, buildCooperativeFlagshipsPayload, isoToDateValue, type CooperativeDetail, type CooperativeRequest, type CooperativeUpdateRequest } from "~/lib/queries/cooperatives";
 
-const STEPS: StepConfig[] = [
-  { id: "cooperative-details", label: "Cooperative Details" },
-  { id: "flagship-link", label: "Cooperative-Flagship Link", optional: true },
-];
+function typeFromReturnTo(returnTo: string): string {
+  try {
+    return new URL(returnTo, "http://local").searchParams.get("type") ?? "";
+  } catch {
+    return "";
+  }
+}
 
 const DEFAULT_LOCATION: RwandaLocationValue = {
   province: "",
@@ -48,8 +51,10 @@ export function clientLoader({ request }: { request: Request }) {
   return redirect(target.pathname + target.search);
 }
 
-export function meta() {
-  return [{ title: "Add Cooperative | M&E" }];
+export function meta({ location }: { location: { search: string } }) {
+  const search = new URLSearchParams(location.search);
+  const singular = cooperativeTypeNames(search.get("type") || "cooperative").singular;
+  return [{ title: `${search.has("editId") ? "Edit" : "Add"} ${singular} | M&E` }];
 }
 
 export default function MeAddCooperativePage() {
@@ -59,6 +64,7 @@ export default function MeAddCooperativePage() {
   const editId = params.get("editId");
   const isEdit = Boolean(editId);
   const returnTo = params.get("returnTo") || "/me/cooperatives";
+  const pageType = params.get("type") || typeFromReturnTo(returnTo);
   const draftIdRaw = Number(params.get("draftId") || 0);
   const draftId = Number.isFinite(draftIdRaw) && draftIdRaw > 0 ? draftIdRaw : null;
 
@@ -73,6 +79,12 @@ export default function MeAddCooperativePage() {
   const [cooperativeCode, setCooperativeCode] = useState("");
   // A new cooperative opened from a type page starts with that type selected.
   const [groupType, setGroupType] = useState(() => (params.get("editId") ? "" : (params.get("type") ?? "")));
+  const names = cooperativeTypeNames(pageType || groupType || "cooperative");
+  const singular = names.singular;
+  const steps: StepConfig[] = [
+    { id: "details", label: `${singular} Details` },
+    { id: "flagship-link", label: `${singular}-Flagship Link`, optional: true },
+  ];
   const [registrationStatus, setRegistrationStatus] = useState("");
   const [primaryValueChain, setPrimaryValueChain] = useState("");
   const [cluster, setCluster] = useState("");
@@ -210,7 +222,7 @@ export default function MeAddCooperativePage() {
       return api.patch<CooperativeDetail>(`/api/cooperatives/${cooperativeId}`, body);
     },
     onSuccess: (res) => {
-      toast.success("Cooperative updated");
+      toast.success(`${singular} updated`);
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
       if (res.cooperativeId) {
@@ -231,7 +243,7 @@ export default function MeAddCooperativePage() {
     mutationFn: (body: CooperativeRequest) => api.post<CooperativeDetail>("/api/cooperatives", body),
     onSuccess: () => {
       setApiError(null);
-      toast.success("Cooperative created");
+      toast.success(`${singular} created`);
       queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
       queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
       if (draftId) void deleteDraft(draftId);
@@ -272,7 +284,7 @@ export default function MeAddCooperativePage() {
   function goNext() {
     setApiError(null);
     if (!cooperativeName.trim()) {
-      setApiError("Cooperative name is required");
+      setApiError(`${singular} name is required`);
       return;
     }
     if (!groupType) {
@@ -297,7 +309,7 @@ export default function MeAddCooperativePage() {
         endDate: engagementEndDate,
       });
       if (flagships.length === 0) {
-        toast.success("Cooperative updated");
+        toast.success(`${singular} updated`);
         queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
         queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
         navigate(returnTo);
@@ -393,7 +405,7 @@ export default function MeAddCooperativePage() {
       queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
       setApiError(outcome.errors.length ? outcome.errors.slice(0, 6).join(" ") : null);
     }
-    notifySpreadsheetImport(outcome, outcome.created === 1 ? "cooperative" : "cooperatives", () =>
+    notifySpreadsheetImport(outcome, outcome.created === 1 ? singular.toLowerCase() : names.plural.toLowerCase(), () =>
       navigate(returnTo),
     );
   }
@@ -404,7 +416,7 @@ export default function MeAddCooperativePage() {
       : !!(flagshipId || engagementType || engagementStartDate);
 
   const isPending = isEdit ? step0Mutation.isPending || step1Mutation.isPending : createMutation.isPending;
-  const pageTitle = isEdit ? "Edit Cooperative" : "Cooperatives Management";
+  const pageTitle = isEdit ? `Edit ${singular}` : `Add ${singular}`;
 
   if (draftId && draftLoading) {
     return (
@@ -424,7 +436,7 @@ export default function MeAddCooperativePage() {
       {apiError ? <AppAlert status="danger" message={apiError} /> : null}
 
       <Stepper
-        steps={STEPS}
+        steps={steps}
         currentStep={currentStep}
         onBack={() => {
           if (currentStep === 0) navigate(returnTo, { viewTransition: true });
@@ -445,8 +457,8 @@ export default function MeAddCooperativePage() {
                 <>
                   <AppTextField
                     name="cooperativeName"
-                    label="Cooperative Name"
-                    placeholder="Full cooperative or group name"
+                    label={`${singular} Name`}
+                    placeholder={`Full ${singular.toLowerCase()} name`}
                     className="sm:col-span-5 w-full"
                     value={cooperativeName}
                     onChange={setCooperativeName}
@@ -454,21 +466,11 @@ export default function MeAddCooperativePage() {
                   />
                   <AppTextField
                     name="cooperativeCode"
-                    label="Cooperative Code"
+                    label={`${singular} Code`}
                     placeholder="Registration or reference code"
                     className="sm:col-span-5 w-full"
                     value={cooperativeCode}
                     onChange={setCooperativeCode}
-                  />
-                  <AppSelect
-                    name="groupType"
-                    label="Group Type"
-                    placeholder="Select group type"
-                    className="sm:col-span-5 w-full"
-                    selectedKey={groupType}
-                    onSelectionChange={setGroupType}
-                    options={groupTypes.map((g) => ({ label: g.label, value: g.value }))}
-                    isRequired
                   />
                   <AppSelect
                     name="registrationStatus"

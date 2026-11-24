@@ -13,6 +13,8 @@ import RecordDetailsDialog from "~/components/record-details-dialog";
 import { toast } from "~/components/app-alert";
 import { ApiError, api } from "~/lib/api";
 import { fundersQueryOptions, type Funder } from "~/lib/queries/lookups";
+import { flagshipsQueryOptions } from "~/lib/queries/flagships";
+import { funderFundingSummary } from "~/lib/funder-funding";
 import { useFunderRecord } from "~/lib/record-details";
 import { useRecordDialog } from "~/lib/use-record-dialog";
 
@@ -31,6 +33,7 @@ export default function FundersManagement({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data = [], isLoading, isError, error } = useQuery(fundersQueryOptions());
+  const { data: flagships = [], isLoading: flagshipsLoading } = useQuery(flagshipsQueryOptions);
 
   const [toDelete, setToDelete] = useState<Funder | null>(null);
   const [editId, setEditId] = useState<number | null>(null);
@@ -57,13 +60,18 @@ export default function FundersManagement({
 
   const rows = useMemo(
     () =>
-      data.map((f) => ({
-        id: f.id,
-        funderName: f.funderName,
-        funderType: f.funderType,
-        status: f.active ? "Active" : "Inactive",
-      })),
-    [data],
+      data.map((f) => {
+        const summary = funderFundingSummary(flagships, f.funderName);
+        return {
+          id: f.id,
+          funderName: f.funderName,
+          funderType: f.funderType,
+          flagships: summary.flagships,
+          fundingBudget: summary.fundingCommitted,
+          providedBudget: summary.fundingProjected,
+        };
+      }),
+    [data, flagships],
   );
 
   return (
@@ -101,21 +109,26 @@ export default function FundersManagement({
       <TableComponent
         tableSectionTitle="Funders"
         exportConfig={{ title: "Funders", fileBase: "funders" }}
-        loading={isLoading}
+        loading={isLoading || flagshipsLoading}
         emptyMessage="No funders yet"
         rows={rows}
-        searchKeys={["funderName", "funderType"]}
-        statusColumnKey="status"
-        statusColorMap={{ Active: "success", Inactive: "default" }}
+        searchKeys={["funderName", "funderType", "flagships"]}
         columns={[
-          { key: "id", label: "#", width: "60px" },
-          { key: "funderName", label: "Funder Name" },
-          { key: "funderType", label: "Type" },
-          { key: "status", label: "Status", width: "110px" },
+          { key: "id", label: "#", width: "56px" },
+          { key: "funderName", label: "Funder Name", width: "200px", headerClassName: "whitespace-nowrap" },
+          { key: "funderType", label: "Type", width: "140px", headerClassName: "whitespace-nowrap" },
+          { key: "flagships", label: "Flagships", width: "34%" },
+          { key: "fundingBudget", label: "Funding committed", width: "190px", headerClassName: "whitespace-nowrap" },
+          { key: "providedBudget", label: "Funding projected", width: "190px", headerClassName: "whitespace-nowrap" },
           { key: "action", label: "Action", width: "80px" },
         ]}
-        minTableWidthClassName="min-w-[700px]"
-        filterByTab={() => true}
+        cellRenderers={{
+          funderName: (row) => <span className="whitespace-nowrap">{String(row.funderName ?? "")}</span>,
+          funderType: (row) => <span className="whitespace-nowrap">{String(row.funderType ?? "")}</span>,
+          fundingBudget: (row) => <span className="whitespace-nowrap">{String(row.fundingBudget ?? "")}</span>,
+          providedBudget: (row) => <span className="whitespace-nowrap">{String(row.providedBudget ?? "")}</span>,
+        }}
+        minTableWidthClassName="min-w-[1080px] table-fixed"
         actions={(row) =>
           readOnly
             ? [{ label: "View Details", onClick: () => view.open(Number(row.id)) }]

@@ -6,6 +6,7 @@ import { ApiError, api } from "../api";
 import { getAccessToken } from "../auth";
 import { queryClient } from "../query-client";
 import type { FlagshipSummaryRow } from "./visualizations";
+import { pickTarget, type TargetScope } from "../target-scope";
 
 export type FlagshipStatus = "planning" | "active" | "suspended" | "closed";
 
@@ -14,10 +15,8 @@ export type FlagshipStatusTab = "all" | FlagshipStatus;
 
 export const FLAGSHIP_STATUS_TAB_ITEMS: { id: FlagshipStatusTab; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "planning", label: "Planning" },
   { id: "active", label: "Active" },
-  { id: "suspended", label: "Suspended" },
-  { id: "closed", label: "Closed" },
+  { id: "planning", label: "Pending" },
 ];
 
 export function filterFlagshipsByStatusTab<T extends { status: FlagshipStatus }>(
@@ -106,6 +105,8 @@ export interface FlagshipDetailResponse {
   jobsCreatedMale?: number | null;
   jobsCreatedFemale?: number | null;
   primaryDistrict?: string | null;
+  progressSummary?: string | null;
+  progressSummaryPeriod?: string | null;
 }
 
 export interface FlagshipsPageResponse {
@@ -143,6 +144,8 @@ export interface Flagship {
   jobsCreatedMale: number | null;
   jobsCreatedFemale: number | null;
   primaryDistrict: string | null;
+  progressSummary: string | null;
+  progressSummaryPeriod: string | null;
 }
 
 /** Card grid / table row shape used by `FlagshipsList`. */
@@ -254,8 +257,12 @@ export function mapFlagshipToListItem(
  * Card data from a mv_flagship_summary row. Funders are not in the view (only a count),
  * so they come from the flagship detail the card was already built from.
  */
-export function applySummaryRow(item: FlagshipListItem, row: FlagshipSummaryRow): FlagshipListItem {
-  const target = row.targetYouthCount;
+export function applySummaryRow(
+  item: FlagshipListItem,
+  row: FlagshipSummaryRow,
+  scope: TargetScope = "2026",
+): FlagshipListItem {
+  const target = pickTarget(scope, row.jobsTarget2026, row.jobsTargetProgramme);
   const jobsCreated = row.jobsCreatedActual == null ? item.jobsCreated : Math.round(row.jobsCreatedActual);
   const pct = target == null || target <= 0 ? null : Math.round((jobsCreated / target) * 100);
 
@@ -306,6 +313,8 @@ export function mapDetailToFlagship(detail: FlagshipDetailResponse): Flagship {
     jobsCreatedMale: detail.jobsCreatedMale ?? null,
     jobsCreatedFemale: detail.jobsCreatedFemale ?? null,
     primaryDistrict: detail.primaryDistrict ?? null,
+    progressSummary: detail.progressSummary ?? null,
+    progressSummaryPeriod: detail.progressSummaryPeriod ?? null,
   };
 }
 
@@ -406,17 +415,19 @@ export function mapFlagshipCard(
   detail: FlagshipDetailResponse,
   index: number,
   row: FlagshipSummaryRow | undefined,
+  scope: TargetScope = "2026",
 ): FlagshipListItem {
   const base = mapFlagshipToListItem(detail, index);
-  return row ? applySummaryRow(base, row) : base;
+  return row ? applySummaryRow(base, row, scope) : base;
 }
 
 export function buildFlagshipTableRows(
   flagships: FlagshipDetailResponse[],
   summaryById: Map<number, FlagshipSummaryRow> = new Map(),
+  scope: TargetScope = "2026",
 ): FlagshipTableRow[] {
   return flagships.map((item, index) => {
-    const card = mapFlagshipCard(item, index, summaryById.get(item.flagshipId));
+    const card = mapFlagshipCard(item, index, summaryById.get(item.flagshipId), scope);
     return {
       id: index + 1,
       flagshipId: card.id,

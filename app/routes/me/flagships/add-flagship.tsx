@@ -206,10 +206,10 @@ export default function MeAddFlagshipPage() {
   } = useKpiFormLookups(flagshipCode);
 
   useEffect(() => {
-    if (!primaryValueChain) return;
+    if (lookupsLoading || !primaryValueChain || valueChainOptions.length === 0) return;
     const stillValid = valueChainOptions.some((opt) => opt.value === primaryValueChain);
     if (!stillValid) setPrimaryValueChain("");
-  }, [flagshipCluster, valueChainOptions, primaryValueChain]);
+  }, [flagshipCluster, lookupsLoading, valueChainOptions, primaryValueChain]);
 
   useEffect(() => {
     setKpiIndicatorName("");
@@ -240,6 +240,47 @@ export default function MeAddFlagshipPage() {
       source.budgetTotalRwf != null ? String(source.budgetTotalRwf) : "",
     );
     setFunder(source.funders ?? "");
+
+    if (isUpdateMode && flagshipDetail) {
+      setLocations(
+        (flagshipDetail.locations ?? []).map((loc) => ({
+          province: loc.province,
+          district: loc.district,
+          sector: loc.sector,
+          displayLabel: [loc.district, loc.sector, loc.province].filter(Boolean).join(", "),
+        })),
+      );
+      setInvestments(
+        (flagshipDetail.investments ?? []).map((row) => ({
+          amount: row.amount,
+          currency: row.currency,
+          sourceType: row.sourceType,
+          funderId: 0,
+          investmentDate: row.investmentDate,
+          year: row.year,
+          disbursementType: row.disbursementType,
+          notes: row.notes,
+          displayLabel: [row.investorName, row.amount != null ? `${row.amount} ${row.currency}` : "", row.sourceType]
+            .filter(Boolean)
+            .join(" · "),
+        })),
+      );
+      setPendingKpis(
+        (flagshipDetail.kpis ?? []).map((kpi) => ({
+          indicatorTier: kpi.indicatorTier,
+          indicatorName: kpi.indicatorName,
+          indicatorValueType: kpi.indicatorValueType ?? "",
+          baselineValue: kpi.baselineValue,
+          targetValue: kpi.targetValue,
+          actualValue: kpi.actualValue,
+          measurementPoint: kpi.measurementPoint,
+          year: kpi.year,
+          reportingPeriod: kpi.reportingPeriod,
+          verified: kpi.verified ?? false,
+          displayLabel: kpi.indicatorName,
+        })),
+      );
+    }
 
     if (source.startDate) {
       try {

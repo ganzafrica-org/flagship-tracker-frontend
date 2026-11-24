@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Dropdown, Label } from "@heroui/react";
 import { IconChevronDown, IconPlus } from "@tabler/icons-react";
 
@@ -8,13 +8,14 @@ import { PageTitleCard } from "~/components/page-title-card";
 import { ContentTab } from "~/components/content-tab";
 import AppSelect from "~/components/app-select";
 import TableComponent from "~/components/table-component";
+import AppAlertDialog from "~/components/app-alert-dialog";
 import CooperativeOverview from "~/components/pages/cooperatives/cooperative-overview";
 import RecordDetailsDialog from "~/components/record-details-dialog";
 import { useUrlState } from "~/lib/use-url-state";
 import { useRecordDialog } from "~/lib/use-record-dialog";
 import { useCooperativeRecord } from "~/lib/record-details";
-import { ApiError } from "~/lib/api";
-import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_COLUMNS, COOPERATIVE_LIST_SEARCH_KEYS, COOPERATIVE_SEARCH_PLACEHOLDER, DEFAULT_COOPERATIVE_TYPE, cooperativeTypeNames, cooperativeMatchesFilters, EMPTY_COOPERATIVE_FILTERS, type CooperativeListFilters } from "~/lib/queries/cooperatives";
+import { ApiError, api } from "~/lib/api";
+import { cooperativesListQueryOptions, cooperativeToTableRow, COOPERATIVE_LIST_COLUMNS, COOPERATIVE_LIST_SEARCH_KEYS, COOPERATIVE_SEARCH_PLACEHOLDER, DEFAULT_COOPERATIVE_TYPE, cooperativeTypeNames, cooperativeMatchesFilters, EMPTY_COOPERATIVE_FILTERS, groupTypesMatch, type CooperativeListFilters, type CooperativeSummary } from "~/lib/queries/cooperatives";
 import { districtMatches, inferProvinceForDistrict, listAllRwandaDistricts, listRwandaDistricts, listRwandaProvinces } from "~/lib/rwanda-locations";
 import DraftsTabContent from "~/components/offline-drafts/drafts-tab-content";
 import { useDrafts } from "~/lib/offline-drafts/use-drafts";
@@ -35,6 +36,7 @@ function cooperativeEditPath(cooperativeId: number, type: string) {
   const params = new URLSearchParams({
     editId: String(cooperativeId),
     returnTo: `/me/cooperatives?type=${type}`,
+    type,
   });
   return `/me/cooperatives/add-cooperative?${params.toString()}`;
 }
@@ -51,11 +53,16 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
 
   // Group type comes from the sidebar dropdown (?type=association) and feeds the existing `group` filter.
   const [typeParam, setTypeParam] = useUrlState("type");
-  const [activeTab, setActiveTab] = useState<TabId>(typeParam ? "list" : "overview");
-  useEffect(() => {
-    if (typeParam) setActiveTab("list");
-  }, [typeParam]);
   const [searchParams] = useSearchParams();
+  // Sidebar links only set ?type=. Land on Overview, and return there when the group changes.
+  // A shared details link (?view=) still opens the list, where that dialog lives.
+  const [activeTab, setActiveTab] = useState<TabId>(searchParams.has("view") ? "list" : "overview");
+  const typeOnArrival = useRef(typeParam);
+  useEffect(() => {
+    if (typeParam === typeOnArrival.current) return;
+    typeOnArrival.current = typeParam;
+    setActiveTab("overview");
+  }, [typeParam]);
   const view = useRecordDialog();
   const record = useCooperativeRecord(view.id);
 
@@ -65,6 +72,18 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
   });
 
   const [filters, setFilters] = useState<CooperativeListFilters>(EMPTY_COOPERATIVE_FILTERS);
+  const [toDelete, setToDelete] = useState<CooperativeSummary | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete<void>(`/api/cooperatives/${id}`),
+    onSuccess: () => {
+      toast.success("Deleted");
+      queryClient.invalidateQueries({ queryKey: ["cooperatives"] });
+      queryClient.invalidateQueries({ queryKey: ["viz", "cooperatives"] });
+      setToDelete(null);
+      if (view.id === toDelete?.cooperativeId) view.close();
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not delete this record"),
+  });
   const setFilter = (key: keyof CooperativeListFilters) => (value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
   const setProvince = (value: string) => {
@@ -92,7 +111,7 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
   const hasActiveFilters = Object.values(effectiveFilters).some(Boolean);
   // Only value chains that actually occur in this group type.
   const valueChainOptions = useMemo(
-    () => uniqueOptions(all.filter((c) => c.groupType === typeParam).map((c) => c.primaryValueChain)),
+    () => uniqueOptions(all.filter((c) => groupTypesMatch(c.groupType, typeParam)).map((c) => c.primaryValueChain)),
     [all, typeParam],
   );
 
@@ -140,7 +159,7 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
   const cooperativeDrafts = useDrafts("cooperative") ?? [];
   const typeDraftCount =
     role === "me"
-      ? cooperativeDrafts.filter((d) => d.entityType === "cooperative" && d.payload.groupType === typeParam).length
+      ? cooperativeDrafts.filter((d) => d.entityType === "cooperative" && groupTypesMatch(d.payload.groupType, typeParam)).length
       : 0;
   const tabs: { id: string; label: string }[] = [
     { id: "overview", label: "Overview" },
@@ -288,6 +307,13 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
                   label: "Update",
                   onClick: () => navigate(cooperativeEditPath(Number(row.id), typeParam)),
                 },
+                ...(role === "me"
+                  ? [{
+                      label: "Delete",
+                      onClick: () => setToDelete(all.find((item) => item.cooperativeId === row.id) ?? null),
+                      color: "danger" as const,
+                    }]
+                  : []),
               ];
             }}
           />
@@ -306,6 +332,16 @@ export default function CooperativesPage({ role }: CooperativesPageProps) {
       {canImport ? (
         <CooperativeImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)} type={typeParam} importer={importer} />
       ) : null}
+
+      <AppAlertDialog
+        isOpen={toDelete !== null}
+        onOpenChange={(open) => !open && setToDelete(null)}
+        title={`Delete ${names.singular.toLowerCase()}?`}
+        description={toDelete ? `This will permanently delete "${toDelete.cooperativeName}". This action cannot be undone.` : ""}
+        confirmLabel="Delete"
+        isPending={deleteMutation.isPending}
+        onConfirm={() => toDelete && deleteMutation.mutate(toDelete.cooperativeId)}
+      />
     </div>
   );
 }

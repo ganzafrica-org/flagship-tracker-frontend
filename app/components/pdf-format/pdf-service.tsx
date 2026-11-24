@@ -360,9 +360,9 @@ export const ReportPDF = ({ report }: { report?: ReportDownloadRow | null }) => 
               ))
             )}
 
-            <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 4 }]}>Progress notes</Text>
+            <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 4 }]}>Progress summary</Text>
             {highlightNotes.length === 0 ? (
-              <Text style={styles.listItem}>No progress note is recorded for this flagship.</Text>
+              <Text style={styles.listItem}>No progress summary is recorded for this flagship.</Text>
             ) : (
               highlightNotes.map((note, idx) => (
                 <View

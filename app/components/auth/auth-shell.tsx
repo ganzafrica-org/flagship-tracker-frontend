@@ -41,14 +41,16 @@ interface AuthShellProps {
   title: string;
   description: string;
   children: React.ReactNode;
+  /** Taller card for forms that would otherwise scroll, such as first-login password change. */
+  tall?: boolean;
 }
 
-export function AuthShell({ title, description, children }: AuthShellProps) {
+export function AuthShell({ title, description, children, tall = false }: AuthShellProps) {
   const [language, setLanguage] = useState<"EN" | "Kiny">("EN");
 
   return (
     <main className="relative flex min-h-dvh w-full items-start justify-center overflow-x-hidden overflow-y-auto bg-[linear-gradient(180deg,#1f95c8_0%,#0f5872_100%)] p-3 text-(--foreground) sm:items-center sm:overflow-hidden sm:p-3 lg:p-8">
-      <section className="my-auto grid h-auto w-full max-w-[1160px] rounded-[14px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] sm:h-[min(560px,calc(100dvh-1.5rem))] sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:overflow-hidden">
+      <section className={`my-auto grid h-auto w-full max-w-[1160px] rounded-[14px] bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] sm:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] sm:overflow-hidden ${tall ? "sm:h-[min(700px,calc(100dvh-1.5rem))]" : "sm:h-[min(560px,calc(100dvh-1.5rem))]"}`}>
         <div className="relative flex flex-col overflow-hidden rounded-br-[48px] bg-[#edf4fb] px-4 py-4 sm:h-full sm:min-h-0 sm:rounded-br-[92px] sm:px-6 sm:py-5 lg:rounded-br-[124px] lg:px-10 lg:py-9">
           <Link to="/login" viewTransition className="relative z-10 flex w-fit items-center gap-1.5 text-[color:var(--accent)]">
             <div className="flex h-8 w-8 items-center justify-center sm:h-9 sm:w-9">

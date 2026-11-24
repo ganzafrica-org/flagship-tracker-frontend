@@ -36,6 +36,7 @@ export default [
 
   // M&E
   layout("routes/me/layout.tsx", [
+    route("me/dashboard",             "routes/me/dashboard/index.tsx"),
     route("me/flagship/individuals",  "routes/me/flagship/individuals.tsx"),
     route("me/youth/dashboard",       "routes/me/youth/dashboard.tsx"),
     route("me/flagships",             "routes/me/flagships/index.tsx"),

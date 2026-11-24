@@ -13,9 +13,10 @@ export default function AppSkeleton({ className = "" }: AppSkeletonProps) {
   return <Skeleton className={`rounded-lg ${className}`} />;
 }
 
-/** A KPI-card-shaped placeholder. */
-export function StatCardSkeleton() {
-  return <AppSkeleton className="h-24 rounded-xl" />;
+/** A KPI-card-shaped placeholder. `compact` matches the short dashboard cards; `progress` matches cards with a target line. */
+export function StatCardSkeleton({ compact = false, progress = false }: { compact?: boolean; progress?: boolean }) {
+  const height = compact ? "h-[3.25rem]" : progress ? "h-[7.25rem]" : "h-24";
+  return <AppSkeleton className={`${height} rounded-xl`} />;
 }
 
 /** A chart-card-shaped placeholder. */

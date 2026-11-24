@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button, Spinner } from "@heroui/react";
-import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router";
 
 import AppInput from "~/components/input";
 import { AuthShell } from "~/components/auth/auth-shell";
-import { login, storeUser, storeAccessToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
+import { login, storeUser, storeAccessToken, storeRefreshToken, getRoleHomePath, AuthError, hasValidSession, getStoredUser } from "~/lib/auth";
 import AuthLoading from "~/components/auth/auth-loading";
 
 import type { Route } from "./+types/index";
@@ -16,7 +15,6 @@ export function meta({}: Route.MetaArgs) {
 
 export default function Login() {
   const navigate = useNavigate();
-  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -42,6 +40,7 @@ export default function Login() {
       const result = await login(email, password);
       storeUser(result.user);
       storeAccessToken(result.accessToken);
+      if (result.refreshToken) storeRefreshToken(result.refreshToken);
 
       if (result.user.mustChangePassword) {
         // Store email so change-password page knows who it's for
@@ -75,27 +74,16 @@ export default function Login() {
           required
         />
 
-        <div className="relative">
-          <AppInput
-            label="Password"
-            type={showPassword ? "text" : "password"}
-            variant="form"
-            placeholder="Password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            inputClassName="pr-10"
-            required
-          />
-          <button
-            type="button"
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            onClick={() => setShowPassword((v) => !v)}
-            className="absolute bottom-0 right-0 flex h-[34px] w-10 items-center justify-center text-neutral-500 transition hover:text-[color:var(--accent)]"
-          >
-            {showPassword ? <IconEyeOff size={15} stroke={1.8} /> : <IconEye size={15} stroke={1.8} />}
-          </button>
-        </div>
+        <AppInput
+          label="Password"
+          type="password"
+          variant="form"
+          placeholder="Password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
         <Button
           type="submit"

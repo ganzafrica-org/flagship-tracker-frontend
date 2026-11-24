@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { api, API_BASE_URL, ApiError } from "~/lib/api";
+import { api, ApiError, getApiBaseUrl } from "~/lib/api";
 
 export type UserRole = "ADMIN" | "SENIOR" | "MONITORING_OFFICER";
 
@@ -38,10 +38,26 @@ export interface UpdateUserRequest {
   active: boolean;
 }
 
+export interface IssuedCredential {
+  username: string;
+  temporaryPassword: string;
+}
+
+export interface CreatedUserResponse {
+  id: number;
+  username: string;
+  email: string;
+  fullName: string;
+  role: string;
+  mustChangePassword: boolean;
+  temporaryPassword: string;
+}
+
 export interface ImportResult {
   created: number;
   skipped: number;
   errors: string[];
+  credentials: IssuedCredential[];
 }
 
 export async function fetchAllUsers(signal?: AbortSignal): Promise<User[]> {
@@ -65,6 +81,10 @@ export function deleteUser(id: number) {
   return api.delete<void>(`/api/users/${id}`);
 }
 
+export function resetUserPassword(id: number) {
+  return api.post<CreatedUserResponse>(`/api/users/${id}/reset-password`, {});
+}
+
 export const usersListQueryOptions = queryOptions({
   queryKey: ["users", "all"],
   queryFn: ({ signal }) => fetchAllUsers(signal),
@@ -78,7 +98,7 @@ export async function importUsersCsv(file: File): Promise<ImportResult> {
   const form = new FormData();
   form.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/users/import`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/users/import`, {
     method: "POST",
     body: form,
     credentials: "include",

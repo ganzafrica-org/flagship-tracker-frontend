@@ -1,4 +1,3 @@
-import { useUrlState } from "~/lib/use-url-state";
 import { Card } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,11 +23,9 @@ import {
 
 import { StatCard } from "~/components/stat-card";
 import { ChartSkeleton, StatCardSkeleton } from "~/components/app-skeleton";
-import AppSelect from "~/components/app-select";
-import VizRefreshButton from "~/components/viz-refresh-button";
 import { CHART } from "~/data/dummy-flagship-detail";
 import { COOP_BAR_COLORS } from "~/data/dummy-cooperatives";
-import { cooperativeTypeNames, flagshipOptionsQueryOptions } from "~/lib/queries/cooperatives";
+import { cooperativeTypeNames } from "~/lib/queries/cooperatives";
 import { cooperativesDashboardQueryOptions } from "~/lib/queries/visualizations";
 
 const PROPORTION_FILLS = [CHART.accent, CHART.warning];
@@ -50,16 +47,15 @@ function hasChartData<T>(rows: T[]) {
 // ---------------------------------------------------------------------------
 
 export default function CooperativeOverview({ type }: { type?: string }) {
-  // "" = all flagships (server-side filter via ?flagship=<code>).
-  const [flagshipFilter, setFlagshipFilter] = useUrlState("flagship");
-
-  const { data: flagshipOptions = [] } = useQuery(flagshipOptionsQueryOptions());
   const { data, isLoading } = useQuery(
-    cooperativesDashboardQueryOptions(flagshipFilter || undefined, type || undefined),
+    cooperativesDashboardQueryOptions(undefined, type || undefined),
   );
 
   const stats = data?.cards;
-  const typeLabel = type ? cooperativeTypeNames(type).plural : "Cooperatives";
+  const names = cooperativeTypeNames(type || "cooperative");
+  const typeLabel = names.plural;
+  const singularLower = names.singular.toLowerCase();
+  const pluralLower = names.plural.toLowerCase();
 
   // Map the API payload onto the data-keys the charts already use.
   const proportionData = (data?.flagshipProportion ?? []).map((p, i) => ({
@@ -70,12 +66,6 @@ export default function CooperativeOverview({ type }: { type?: string }) {
   const filteredMembers = (data?.membersByFlagship ?? []).map((r) => ({
     flagship: r.flagshipCode,
     members: r.members ?? 0,
-  }));
-  const filteredEngagement = (data?.engagementByFlagship ?? []).map((r) => ({
-    flagship: r.flagshipCode,
-    implementing_partner: r.implementingPartner,
-    beneficiary_group: r.beneficiaryGroup,
-    service_provider: r.serviceProvider,
   }));
   const filteredInclusion = (data?.inclusionShare ?? []).map((r) => ({
     flagship: r.flagshipCode,
@@ -89,37 +79,13 @@ export default function CooperativeOverview({ type }: { type?: string }) {
 
   const hasLinkedCooperatives = (stats?.linkedToFlagships ?? 0) > 0;
   const flagshipChartEmptyMessage = hasLinkedCooperatives
-    ? "No data for the selected flagship filter."
-    : "No cooperatives are linked to flagships yet. Link a cooperative on step 2 when adding or editing.";
-
-  // Options use the flagship CODE as the value (the API filters by code).
-  const flagshipFilterOptions = [
-    { label: "All Flagships", value: "" },
-    ...flagshipOptions.map((f) => ({
-      label: f.label,
-      value: f.label.split(" — ")[0],
-    })),
-  ];
+    ? "No flagship data yet."
+    : `No ${pluralLower} are linked to flagships yet. Link a ${singularLower} on step 2 when adding or editing.`;
 
   return (
     <div className="space-y-6 w-full min-w-0">
-      {/* Flagship filter + refresh */}
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <AppSelect
-            name="flagshipFilter"
-            label="Filter by Flagship"
-            placeholder="All Flagships"
-            selectedKey={flagshipFilter}
-            onSelectionChange={setFlagshipFilter}
-            options={flagshipFilterOptions}
-          />
-        </div>
-        <VizRefreshButton />
-      </div>
-
       {/* KPI cards — C.1 to C.5 */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => <StatCardSkeleton key={i} />)
         ) : (
@@ -134,25 +100,25 @@ export default function CooperativeOverview({ type }: { type?: string }) {
           color="var(--success)"
           icon={<IconLink size={20} />}
           stat={stats?.linkedToFlagships ?? "—"}
-          label="Linked to Flagships"
+          label="Linked to Flagship"
         />
         <StatCard
           color="var(--warning)"
           icon={<IconLinkOff size={20} />}
           stat={stats?.notLinkedToFlagships ?? "—"}
-          label="Not Linked"
+          label="Not Linked to Flagship"
         />
         <StatCard
           color="var(--forest)"
           icon={<IconUsers size={20} />}
           stat={stats?.totalMembers != null ? stats.totalMembers.toLocaleString() : "—"}
-          label="Total Members"
+          label="Total Members Registered"
         />
         <StatCard
           color="var(--danger)"
           icon={<IconWoman size={20} />}
           stat={stats?.totalFemaleMembers != null ? stats.totalFemaleMembers.toLocaleString() : "—"}
-          label="Female Members"
+          label="Total Female Registered"
         />
         </>
         )}
@@ -169,30 +135,45 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             {isLoading ? (
               <ChartSkeleton height="h-64" />
             ) : (stats?.totalCooperatives ?? 0) === 0 ? (
-              <ChartEmptyState message="No cooperatives in the system yet." />
+              <ChartEmptyState message={`No ${pluralLower} yet.`} />
             ) : (
-            <ResponsiveContainer width="100%" height={280} minWidth={0}>
-              <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                <Pie
-                  data={proportionData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={3}
-                  stroke="none"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={{ stroke: "var(--muted)", strokeWidth: 1 }}
-                >
-                  {proportionData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="flex h-[280px] flex-col items-center justify-center gap-6 sm:flex-row sm:gap-10">
+              <div className="h-44 w-44 shrink-0">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                  <PieChart>
+                    <Pie
+                      data={proportionData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={52}
+                      outerRadius={78}
+                      paddingAngle={3}
+                      stroke="none"
+                    >
+                      {proportionData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="flex flex-col gap-3 text-sm">
+                {proportionData.map((entry) => {
+                  const total = proportionData.reduce((sum, item) => sum + item.value, 0);
+                  const share = total > 0 ? Math.round((entry.value / total) * 100) : 0;
+                  return (
+                    <li key={entry.name} className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: entry.fill }} />
+                      <span className="text-(--foreground)">{entry.name}</span>
+                      <span className="font-medium text-(--foreground)">{entry.value.toLocaleString()} ({share}%)</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
             )}
           </Card.Content>
         </Card>
@@ -200,7 +181,7 @@ export default function CooperativeOverview({ type }: { type?: string }) {
         {/* C.7 — Bar: Cooperative Members by Flagship */}
         <Card>
           <Card.Header>
-            <Card.Title>Cooperative Members by Flagship</Card.Title>
+            <Card.Title>{names.singular} Members by Flagship</Card.Title>
           </Card.Header>
           <Card.Content className="p-4 pt-0">
             {isLoading ? (
@@ -225,34 +206,7 @@ export default function CooperativeOverview({ type }: { type?: string }) {
           </Card.Content>
         </Card>
 
-        {/* C.8 — Stacked bar: Engagement type per flagship */}
-        <Card>
-          <Card.Header>
-            <Card.Title>Engagement Type per Flagship</Card.Title>
-          </Card.Header>
-          <Card.Content className="p-4 pt-0">
-            {isLoading ? (
-              <ChartSkeleton height="h-64" />
-            ) : !hasChartData(filteredEngagement) ? (
-              <ChartEmptyState message={flagshipChartEmptyMessage} />
-            ) : (
-            <ResponsiveContainer width="100%" height={260} minWidth={0}>
-              <BarChart data={filteredEngagement} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-                <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="implementing_partner" name="Implementing Partner" stackId="a" fill={CHART.accent} />
-                <Bar dataKey="beneficiary_group" name="Beneficiary Group" stackId="a" fill={CHART.warning} />
-                <Bar dataKey="service_provider" name="Service Provider" stackId="a" fill={CHART.success} radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            )}
-          </Card.Content>
-        </Card>
-
-        {/* C.9 — Grouped bar: Female & Youth members share */}
+        {/* Female & Youth members share */}
         <Card>
           <Card.Header>
             <Card.Title>Female &amp; Youth Members Share (%)</Card.Title>
@@ -277,35 +231,34 @@ export default function CooperativeOverview({ type }: { type?: string }) {
             )}
           </Card.Content>
         </Card>
-      </div>
 
-      {/* C.10 — Bar: Cooperatives enrolled per flagship (full-width) */}
-      <Card>
-        <Card.Header>
-          <Card.Title>{typeLabel} Enrolled per Flagship</Card.Title>
-        </Card.Header>
-        <Card.Content className="p-4 pt-0">
-          {isLoading ? (
-            <ChartSkeleton height="h-64" />
-          ) : !hasChartData(filteredPerFlagship) ? (
-            <ChartEmptyState message={flagshipChartEmptyMessage} />
-          ) : (
-          <ResponsiveContainer width="100%" height={240} minWidth={0}>
-            <BarChart data={filteredPerFlagship} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-              <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
-              <Bar dataKey="cooperatives" name="Cooperatives" radius={[4, 4, 0, 0]}>
-                {filteredPerFlagship.map((entry, index) => (
-                  <Cell key={entry.flagship} fill={COOP_BAR_COLORS[index % COOP_BAR_COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          )}
-        </Card.Content>
-      </Card>
+        <Card>
+          <Card.Header>
+            <Card.Title>{typeLabel} Enrolled per Flagship</Card.Title>
+          </Card.Header>
+          <Card.Content className="p-4 pt-0">
+            {isLoading ? (
+              <ChartSkeleton height="h-64" />
+            ) : !hasChartData(filteredPerFlagship) ? (
+              <ChartEmptyState message={flagshipChartEmptyMessage} />
+            ) : (
+            <ResponsiveContainer width="100%" height={260} minWidth={0}>
+              <BarChart data={filteredPerFlagship} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
+                <XAxis dataKey="flagship" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(value) => Number(value ?? 0).toLocaleString()} />
+                <Bar dataKey="cooperatives" name={typeLabel} radius={[4, 4, 0, 0]}>
+                  {filteredPerFlagship.map((entry, index) => (
+                    <Cell key={entry.flagship} fill={COOP_BAR_COLORS[index % COOP_BAR_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            )}
+          </Card.Content>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
-import { getAccessToken } from "./auth";
+import { getAccessToken, refreshSession } from "./auth";
+import { getApiBaseUrl } from "./api-base";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+export { getApiBaseUrl };
 
 export class ApiError extends Error {
   constructor(
@@ -48,7 +48,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 function buildUrl(path: string, params?: Record<string, string | number | boolean | undefined>): string {
-  const url = new URL(path, API_BASE_URL);
+  const url = new URL(path, getApiBaseUrl());
   if (params) {
     for (const [key, value] of Object.entries(params)) {
       if (value !== undefined) {
@@ -66,9 +66,10 @@ async function request<T>(
     params?: Record<string, string | number | boolean | undefined>;
     body?: unknown;
     signal?: AbortSignal;
+    retried?: boolean;
   } = {},
 ): Promise<T> {
-  const { params, body, signal } = options;
+  const { params, body, signal, retried } = options;
   const url = buildUrl(path, params);
 
   const headers: HeadersInit = {};
@@ -87,6 +88,13 @@ async function request<T>(
     signal,
     credentials: "include",
   });
+
+  if (response.status === 401 && !retried && !path.startsWith("/api/auth/")) {
+    const renewed = await refreshSession();
+    if (renewed) {
+      return request<T>(method, path, { params, body, signal, retried: true });
+    }
+  }
 
   return handleResponse<T>(response);
 }

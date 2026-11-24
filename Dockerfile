@@ -5,15 +5,14 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-# Vite reads VITE_* from the environment at build time and inlines them into the
-# bundle. Coolify passes this as a build arg so the API URL is set per environment
-# instead of falling back to the localhost default in app/lib/api.ts.
+# Optional. Leave unset when the site and API share one public host.
+# A localhost value is ignored in the browser unless the page itself is on localhost.
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN pnpm run build
 
 # Serve the static client build with nginx (SPA fallback to index.html)
-FROM nginx:alpine
+FROM nginx:1.30.7-alpine
 COPY --from=build-env /app/build/client /usr/share/nginx/html
 RUN printf 'server {\n\
   listen 3000;\n\

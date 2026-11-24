@@ -44,7 +44,6 @@ import { useRecordDialog } from "~/lib/use-record-dialog";
 import type { ExportFormat } from "~/lib/export/table-export";
 import { useUrlState } from "~/lib/use-url-state";
 import { PageTitleCard } from "~/components/page-title-card";
-import VizRefreshButton from "~/components/viz-refresh-button";
 import TableComponent from "~/components/table-component";
 import {
   canonicalProvince,
@@ -667,9 +666,6 @@ export default function IndividualsList({
           onSelectionChange={(value) => setSelectedFlagship(value || "all")}
         />
         )}
-        <div className="w-full shrink-0 lg:w-auto">
-          {overviewOnly ? <VizRefreshButton className="w-full justify-center lg:w-auto" /> : null}
-        </div>
       </div>
 
       {selectedValueChain ? (
